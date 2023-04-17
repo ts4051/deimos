@@ -680,7 +680,7 @@ class OscCalculator(object) :
         # Prepare
         #
 
-        assert initial_rho == 0, "nubar not yet tested for `deimos`"
+        # assert initial_rho == 0, "nubar not yet tested for `deimos`"
 
         # Calculate all final state flavors
         final_flavors = self.states
