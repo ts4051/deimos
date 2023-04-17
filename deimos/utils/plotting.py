@@ -40,7 +40,7 @@ def dump_figures_to_pdf(file_path, figures=None):
                 pdf.savefig(fig_num) #TODO option to set dpi
 
         # Report
-        print( "Dumped %i figures to PDF : %s" % (len(fig_nums), file_path) )
+        print( "Dumped %i figure(s) to PDF : %s" % (len(fig_nums), file_path) )
 
     else:
         # Complain

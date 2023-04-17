@@ -836,7 +836,18 @@ class OscCalculator(object) :
             return self.solver.PMNS
 
 
-    def plot_osc_prob_vs_distance(self, initial_flavor, energy_GeV, distance_km=None, coszen=None, rho=0, **plot_kw) :
+    def plot_osc_prob_vs_distance(self, 
+        # Steer physics
+        initial_flavor, 
+        energy_GeV, 
+        distance_km=None, coszen=None, 
+        rho=0, 
+        # Plotting
+        fig=None, ax=None, 
+        label=None, 
+        title=None,
+        **plot_kw
+    ) :
         '''
         Compute and plot the oscillation probability, vs propagation distance
         '''
@@ -856,14 +867,24 @@ class OscCalculator(object) :
             dist_kw = {"distance_km" : distance_km}
             x = distance_km
             xlabel = DISTANCE_LABEL
-        assert isinstance(x, np.ndarray)
 
-        # Checks
+        # Check inputs
         assert isinstance(initial_flavor, int)
+        assert isinstance(x, np.ndarray)
         assert np.isscalar(energy_GeV)
+        assert np.isscalar(rho)
+        assert rho in [0, 1]
 
-        # Get/check figure
-        fig, ax = plt.subplots( nrows=self.num_neutrinos+1, sharex=True, figsize=( 6, 7 if self.num_neutrinos == 3 else 5) )
+        # User may provide a figure, otherwise make one
+        ny = self.num_neutrinos + 1
+        if fig is None : 
+            fig, ax = plt.subplots( nrows=ny, sharex=True, figsize=( 6, 7 if self.num_neutrinos == 3 else 5) )
+            if title is not None :
+                fig.suptitle(title) 
+        else :
+            assert ax is not None
+            assert len(ax) == ny
+            assert title is None
 
         # Calc osc probs
         osc_probs = self.calc_osc_prob(
@@ -880,24 +901,25 @@ class OscCalculator(object) :
 
         # Plot oscillations to all possible final states
         for final_flavor, tex in zip(self.states, self.flavors_tex) :
-            ax[final_flavor].plot( x, osc_probs[:,final_flavor], **plot_kw )
+            ax[final_flavor].plot( x, osc_probs[:,final_flavor], label=label, **plot_kw )
             ax[final_flavor].set_ylabel( r"$%s$" % self.get_transition_prob_tex(initial_flavor, final_flavor) )
 
         # Plot total oscillations to any final state
         osc_probs_flavor_sum = np.sum(osc_probs,axis=1)
-        ax[-1].plot( x, osc_probs_flavor_sum, **plot_kw ) # Dimension 2 is flavor
+        ax[-1].plot( x, osc_probs_flavor_sum, label=label, **plot_kw ) # Dimension 2 is flavor
         ax[-1].set_ylabel( r"$%s$" % self.get_transition_prob_tex(initial_flavor, None) )
 
         # Formatting
-        ax[-1].set_xlabel(DISTANCE_LABEL)
-        # ax[0].legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize=12)
+        ax[-1].set_xlabel(xlabel)
+        if label is not None :
+            ax[0].legend(fontsize=12) # loc='center left', bbox_to_anchor=(1, 0.5), 
         for this_ax in ax :
             this_ax.set_xlim(x[0], x[-1])
             this_ax.set_ylim(-0.05, 1.05)
             this_ax.grid(True)
         fig.tight_layout()
 
-        return fig, osc_probs
+        return fig, ax, osc_probs
 
 
     def plot_cp_asymmetry() :
