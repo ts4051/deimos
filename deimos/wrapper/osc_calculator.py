@@ -922,6 +922,10 @@ class OscCalculator(object) :
         return fig, ax, osc_probs
 
 
+    def plot_osc_prob_vs_cozen(self, coszen, *args, **kwargs) : # Alias
+        return self.plot_osc_prob_vs_distance(coszen=coszen, *args, **kwargs)
+
+
     def plot_cp_asymmetry() :
         '''
         Plot the CP(T) asymmetry
@@ -934,12 +938,11 @@ class OscCalculator(object) :
 
     def plot_oscillogram(
         self,
-        ax,
         initial_flavor,
         final_flavor,
         energy_GeV,
         coszen,
-        diff_ax=None,
+        rho=0,
         title=None,
     ) :
         '''
@@ -947,6 +950,7 @@ class OscCalculator(object) :
         '''
 
         import matplotlib.pyplot as plt
+        from deimos.utils.plotting import plot_colormap, value_spacing_is_linear
 
         assert self.atmospheric, "`plot_oscillogram` can only be called in atmopsheric mode"
 
@@ -955,56 +959,55 @@ class OscCalculator(object) :
         #
 
         # Plot steering
-        transition_prob_tex = self.get_transition_prob_tex(initial_flavor,final_flavor) #TODO rho
+        transition_prob_tex = self.get_transition_prob_tex(initial_flavor, final_flavor) #TODO rho
         continuous_map = "jet" # plasma jet
-        diverging_cmap = "seismic" # PuOr_r RdYlGn Spectral
+        # diverging_cmap = "seismic" # PuOr_r RdYlGn Spectral
 
 
         #
         # Compute osc probs
         #
 
-        initial_rho = 0 #TODO steer
+        rho = 0 #TODO steer
 
         # Define osc prob calc settings
         calc_osc_prob_kw = dict(
             initial_flavor=initial_flavor,
-            initial_rho=initial_rho,
+            initial_rho=rho,
             energy_GeV=energy_GeV,
             coszen=coszen, 
         )
 
         # Calc osc probs 
-        osc_probs = self.calc_osc_prob( **calc_osc_prob_kw )[:,:,final_flavor,initial_rho]
+        osc_probs = self.calc_osc_prob( **calc_osc_prob_kw )
 
-        # Also get std osc probs if doing a diff
-        #TODO cache these for speed
-        if diff_ax is not None :
-            # calculator_std = copy.deepcopy(self) # Avoid changing state, TODO do this better
-            self.set_std_osc()
-            std_osc_probs = self.calc_osc_prob( **calc_osc_prob_kw )[:,:,final_flavor,initial_rho]
-            delta_osc_probs = osc_probs - std_osc_probs
-            #TODO reset decoh params
-
+        # Get chose flavor/rho
+        osc_probs = osc_probs[:, :, final_flavor, rho]
 
         #
         # Plot
         #
 
-        # Plot oscillogram 
-        cmesh = plot_cmesh( ax=ax, x=energy_GeV, y=coszen, z=osc_probs, text=False, edges=False, vmin=0., vmax=1., cmap=continuous_map, quad_centers=True )
-        add_colorbar_to_mesh( ax=ax, cmesh=cmesh, label=r"$%s$"%transition_prob_tex )
+        # Create fig
+        fig, ax = plt.subplots( figsize=(7, 6) )
+        if title is not None :
+            fig.suptitle(title) 
 
-        # Plot diff 
-        if diff_ax is not None :
-            cmesh = plot_cmesh( ax=diff_ax, x=energy_GeV, y=coszen, z=delta_osc_probs, text=False, edges=False, vmin=-1., vmax=1., cmap=diverging_cmap, quad_centers=True )
-            add_colorbar_to_mesh( ax=diff_ax, cmesh=cmesh, label=r"$\Delta %s$"%transition_prob_tex )
+        # Plot oscillogram
+        plot_colormap( ax=ax, x=energy_GeV, y=coszen, z=osc_probs, vmin=0., vmax=1., cmap=continuous_map, zlabel=r"$%s$"%transition_prob_tex )
 
-        # Formatting
-        ax_list = [ax] + ( [diff_ax] if diff_ax is not None else [] )
-        for this_ax in ax_list :
-            format_ax( ax=this_ax, grid=False, xlabel=ENERGY_LABEL, ylabel=COSZEN_LABEL, xlim=(energy_GeV[0], energy_GeV[-1]), ylim=(coszen[0], coszen[-1]))
+        # Format
+        xscale = "linear" if value_spacing_is_linear(energy_GeV) else "log"
+        yscale = "linear" if value_spacing_is_linear(coszen) else "log"
+        ax.set_xscale(xscale)
+        ax.set_yscale(yscale)
+        ax.set_xlim(energy_GeV[0], energy_GeV[-1])
+        ax.set_ylim(coszen[0], coszen[-1])
+        ax.set_xlabel(ENERGY_LABEL)
+        ax.set_ylabel(COSZEN_LABEL)
+        fig.tight_layout()
 
+        return fig, ax, osc_probs
 
 
     def compare_models(

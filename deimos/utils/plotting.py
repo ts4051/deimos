@@ -7,13 +7,15 @@ Tom Stuttard
 import matplotlib
 import matplotlib.pyplot as plt
 
+import numpy as np
+
 import os
 
 def dump_figures_to_pdf(file_path, figures=None):
-    """
+    '''
     Save figures into a single PDF file
     Can either provide a list of figures, or if not then all in the current session will be saved
-    """
+    '''
 
     # Use a list of figures if one is provided by user
     # Otherwise grab all figures from the global list stored by matpotlib
@@ -46,3 +48,62 @@ def dump_figures_to_pdf(file_path, figures=None):
         # Complain
         print("No figures found, could not dump to PDF")
 
+
+def get_intermediate_points(values, bounding_points=True) :
+    '''
+    Get the intermediate points between a list of values.
+    '''
+    
+    #TODO replace wit egneric numpy etc function
+    #TODO Add log option
+
+    # Checks
+    values = np.asarray(values)
+    assert len(values.shape) == 1, "`values` must be 1D"
+
+    # Get the delta from the points to the intermediate points
+    delta = np.diff(values) / 2.
+
+    # Get the intermediate points
+    new_values = values[:-1] + delta
+
+    # Add the bounding points
+    if bounding_points :
+        new_values = np.concatenate([ [values[0]-delta[0]], new_values, [values[-1]+delta[-1]] ])
+
+    return new_values
+
+
+
+def value_spacing_is_linear(values) :
+    '''
+    Check if an array of values are linearly spaced
+    '''
+    diff = np.diff(values)
+    return np.all(np.isclose(diff, diff[0]))
+
+
+def plot_colormap(ax, x, y, z, zlabel=None, **kw) :
+    '''
+    Plot a 2D colormap
+    '''
+
+    # Checks
+    #TODO
+
+    # Get corners of mesh
+    x = get_intermediate_points(x, bounding_points=True)
+    y = get_intermediate_points(y, bounding_points=True)
+    # assert x.shape[0] == x.size - 2
+
+    # Plot the colormesh
+    cmesh = ax.pcolormesh(x, y, z.T, **kw)
+
+    # The mesh is drawn as rectangles. If not drawing edges explicitly, make the edges the same color
+    # as the face to avoid an annoying white grid.
+    if not any([x in kw for x in ["edgecolor", "edgecolors"]]):
+        cmesh.set_edgecolor("face")
+
+    # Add colorbar
+    fig = ax.get_figure()
+    cbar = fig.colorbar(cmesh, ax=ax, label=zlabel)
