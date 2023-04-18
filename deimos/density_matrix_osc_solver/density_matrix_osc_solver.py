@@ -554,9 +554,14 @@ class DensityMatrixOscSolver(object) :
         #
 
         # Get the PMNS matrix
+        PMNS = self.PMNS
         if verbose :
-            print("\nPMNS matrix %s :" % (self.PMNS.shape,))
-            print(self.PMNS)
+            print("\nPMNS matrix %s :" % (PMNS.shape,))
+            print(PMNS)
+
+        # Conjugate the PMNS matrix for antineutrinos
+        if nubar :
+            PMNS = np.conj(PMNS)
 
         # Define the mass component of the vacuum Hamiltonian
         # Do not considder the energy depenednce yet
@@ -574,7 +579,7 @@ class DensityMatrixOscSolver(object) :
             if verbose :
                 print("\nMatter potential (flavor basis) :")
                 print(V)
-            V = rho_flav_to_mass_basis(V,self.PMNS) # Believe this is the correct way to rotate but need to double check (cross ref with nuSQuIDS)
+            V = rho_flav_to_mass_basis(V, PMNS) # Believe this is the correct way to rotate but need to double check (cross ref with nuSQuIDS)
             if verbose :
                 print("\nMatter potential (mass basis) :")
                 print(V)
@@ -605,7 +610,7 @@ class DensityMatrixOscSolver(object) :
                 print(initial_rho_flav)
 
             # Convert to mass basis
-            initial_rho_mass = rho_flav_to_mass_basis(initial_rho_flav,self.PMNS)
+            initial_rho_mass = rho_flav_to_mass_basis(initial_rho_flav, PMNS)
 
         else :
 
@@ -703,7 +708,7 @@ class DensityMatrixOscSolver(object) :
                 solved_rho_mass = solved_rho_mass[mask]
 
             # Convert solutions to flavor basis
-            solved_rho_flav = np.array([ rho_mass_to_flav_basis(rm,self.PMNS) for rm in solved_rho_mass ])
+            solved_rho_flav = np.array([ rho_mass_to_flav_basis(rm, PMNS) for rm in solved_rho_mass ])
 
             #TODO Remove, clean up, or add to `test`
             if False :

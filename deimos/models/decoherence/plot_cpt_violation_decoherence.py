@@ -460,7 +460,7 @@ def plot_atmospheric_1d(
         for final_flavor in final_flavors :
             fig.get_ax(x=final_flavor, y=2).set_ylabel( r"$\Delta P_{CPTV}$" )
         fig.get_ax(x=0, y=2).set_ylim(-0.1, +0.1)
-        fig.get_ax(x=1, y=2).set_ylim(-0.05, +0.05)
+        fig.get_ax(x=1, y=2).set_ylim(-0.006, +0.006)
         fig.quick_format( xlabel=r"$E$ [GeV]", xscale="log", legend_kw={"fontsize":8}, xlim=(E_GeV[0],E_GeV[-1]) )
 
 
@@ -474,7 +474,7 @@ if __name__ == "__main__" :
     from utils.filesys_tools import replace_file_ext
     with ScriptWrapper( replace_file_ext(__file__,".log") ) as script :
 
-        num_points = 10
+        num_points = 100
 
         # plot_arxiv_1807_07823(num_points=num_points)
 
