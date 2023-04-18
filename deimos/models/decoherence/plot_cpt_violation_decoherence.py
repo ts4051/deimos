@@ -114,7 +114,7 @@ def plot_arxiv_1807_07823(
             distance_km=L_km,
         )
         label = calculator.get_transition_prob_tex(initial_flavor=initial_flavor, final_flavor=final_flavor, nubar=nubar)
-        ax.plot( E_GeV, osc_probs[:,0,final_flavor,0], color=std_osc_color, linewidth=4, label=label, linestyle=linestyles[i_nubar] )
+        ax.plot( E_GeV, osc_probs[:,0,final_flavor], color=std_osc_color, linewidth=4, label=label, linestyle=linestyles[i_nubar] )
 
 
     # Decoherence
@@ -127,12 +127,13 @@ def plot_arxiv_1807_07823(
             distance_km=L_km,
         )
         label = calculator.get_transition_prob_tex(initial_flavor=initial_flavor, final_flavor=final_flavor, nubar=nubar)
-        ax.plot( E_GeV, osc_probs[:,0,final_flavor,0], color=decoh_color, linewidth=4, label=label, linestyle=linestyles[i_nubar] )
+        ax.plot( E_GeV, osc_probs[:,0,final_flavor], color=decoh_color, linewidth=4, label=label, linestyle=linestyles[i_nubar] )
 
     # Format
     ax.set_xlabel(r"$E$ [GeV]")
     ax.set_xlim(E_GeV[0],E_GeV[-1])
     ax.set_ylim(0.,1.)
+    ax.grid(True)
     fig.tight_layout()
 
 
@@ -324,10 +325,10 @@ def plot_atmospheric_1d(
     # E_GeV = np.linspace(6., 120., num=num_points)
     E_GeV = np.logspace(0., 5., num=num_points)
 
-    # Create calc
     init_kw = {}
     if tool == "nusquids" :
         init_kw["energy_nodes_GeV"] = E_GeV # Put nodes on the E scan points (faster)
+
     calculator = OscCalculator(
         tool=tool,
         atmospheric=False,
@@ -335,9 +336,11 @@ def plot_atmospheric_1d(
         **init_kw
     )
 
-    calculator.set_calc_basis("nxn")
-    calculator.set_matter("vacuum") #TODO Use an Earth model (take a slice of a oscillogram)
+    # Define system
+    calculator.set_matter("vacuum") #TODO Earth model not yet implemented
 
+    # Decoherence config
+    calculator.set_calc_basis("nxn")
 
     #
     # Decoherence matrix cases
@@ -349,8 +352,8 @@ def plot_atmospheric_1d(
 
     E0_eV = 1e9
 
-    # gamma_eV = 1e-23 * 1e9
-    gamma_eV = REF_GAMMA_eV
+    gamma_eV = 1e-23 * 1e9
+    # gamma_eV = REF_GAMMA_eV
 
     beta28_eV = gamma_eV / np.sqrt(3.)
     beta12_eV = gamma_eV / 3.
@@ -359,69 +362,66 @@ def plot_atmospheric_1d(
 
     diag_matrix = np.diag([0] + [gamma_eV]*8) # State selection case
 
-    D_matrices_eV = collections.OrderedDict()
+    cases = collections.OrderedDict()
+
+    # D = diag_matrix.copy()
+    # D_matrices_eV["Diagonal"] = D
 
     D = diag_matrix.copy()
     D[1,2] = beta12_eV
     D[2,1] = beta12_eV
-    D_matrices_eV[r"$\beta_{12}$"] = D
+    cases[r"$\beta_{12}$"] = {
+        "D_matrix_eV" : D,
+        "color" : "black",
+        "linestyle" : "-",
+    }
 
     D = diag_matrix.copy()
     D[2,8] = beta28_eV
     D[8,2] = beta28_eV
-    D_matrices_eV[r"$\beta_{28}$"] = D
+    cases[r"$\beta_{28}$"] = {
+        "D_matrix_eV" : D,
+        "color" : "red",
+        "linestyle" : "-",
+    }
 
     D = diag_matrix.copy()
     D[4,7] = beta47_eV
     D[7,4] = beta47_eV
-    D_matrices_eV[r"$\beta_{47}$"] = D
+    cases[r"$\beta_{47}$"] = {
+        "D_matrix_eV" : D,
+        "color" : "purple",
+        "linestyle" : "--",
+    }
 
     D = diag_matrix.copy()
     D[5,6] = beta56_eV
     D[6,5] = beta56_eV
-    D_matrices_eV[r"$\beta_{56}$"] = D
-
-    D = diag_matrix.copy()
-    D[1,2] = beta12_eV
-    D[2,1] = beta12_eV
-    D[2,8] = beta28_eV
-    D[8,2] = beta28_eV
-    D[4,7] = beta47_eV
-    D[7,4] = beta47_eV
-    D[5,6] = beta56_eV
-    D[6,5] = beta56_eV
-    D_matrices_eV[r"$\beta_{12,28,47,56}$"] = D
-
-    # D_matrices_eV["Optimal"] = np.diag([gamma_eV]*9) # 1811.04982 Section C.5
-    # D_matrices_eV["Optimal"][2,8] = gamma_eV / np.sqrt(3)
-    # D_matrices_eV["Optimal"][8,2] = D_matrices_eV["Optimal"][2,8]
-    # D_matrices_eV["Optimal"][1,2] = np.sqrt(2./3.) * gamma_eV
-    # D_matrices_eV["Optimal"][2,1] = D_matrices_eV["Optimal"][1,3]
-    # D_matrices_eV["Optimal"][5,6] = gamma_eV / 3.
-    # D_matrices_eV["Optimal"][6,5] = D_matrices_eV["Optimal"][5,6]
-    # D_matrices_eV["Optimal"][4,7] = -gamma_eV / 3.
-    # D_matrices_eV["Optimal"][7,4] = D_matrices_eV["Optimal"][4,7]
+    cases[r"$\beta_{56}$"] = {
+        "D_matrix_eV" : D,
+        "color" : "blue",
+        "linestyle" : "--",
+    }
 
 
     #
-    # Plot
+    # Plot osc prob
     #
 
-    # Choose baseline, energy, etc
+    # Choose channels
     initial_flavor = 1
-    final_flavors = [ 0, 1 ] 
-    nubar_values = [ 0, 1 ]
+    nubar_values = [False, True] # nu, nubar
+    final_flavor_values = [ 0, 1, 2 ] # e, mu, tau
 
     # Create the fig
-    fig = Figure( ny=3, nx=2, figsize=(10, 12) )
-
-    # Plot steering
-    linestyles = ["-", "--", "-.", ":", ":"]
+    fig, ax = plt.subplots( nrows=3, ncols=len(final_flavor_values), figsize=(14, 12) )
+    fig.suptitle(r"$L$ = %s km"%L_km)
 
     # Loop over channels
-    for final_flavor in final_flavors :
+    for i_flav, final_flavor in enumerate(final_flavor_values) :
 
         # Std oscillations
+        # Note that this is not in the figure in the paper
         calculator.set_std_osc()
         delta_osc_probs_cpt = None
         for i_nubar, nubar in enumerate(nubar_values) :
@@ -431,37 +431,45 @@ def plot_atmospheric_1d(
                 energy_GeV=E_GeV,
                 distance_km=L_km,
             )[:,0,final_flavor]
-            fig.get_ax(x=final_flavor, y=i_nubar).plot( E_GeV, osc_probs, color="grey", linewidth=2, label="Std osc", linestyle="-" )
+            ax[i_nubar, i_flav].plot( E_GeV, osc_probs, color="grey", linewidth=2, label="Std osc", linestyle=":" )
             delta_osc_probs_cpt = osc_probs if delta_osc_probs_cpt is None else (delta_osc_probs_cpt - osc_probs)
-        fig.get_ax(x=final_flavor, y=2).plot( E_GeV, delta_osc_probs_cpt, color="grey", linewidth=2, label="Std osc", linestyle="-" )
+        ax[2, i_flav].plot( E_GeV, delta_osc_probs_cpt, color="grey", linewidth=2, label="Std osc", linestyle=":" )
+
+        print(f"Finished std osc case")
 
         # Decoherence
-        for i, (label, D_matrix_eV) in enumerate(D_matrices_eV.items()) :
-            print(D_matrix_eV)
-            calculator.set_decoherence_D_matrix(D_matrix_eV=D_matrix_eV, n=n, E0_eV=E0_eV)
+        for i, (label, case_dict) in enumerate(cases.items()) :
+            calculator.set_decoherence_D_matrix(D_matrix_eV=case_dict["D_matrix_eV"], n=n, E0_eV=E0_eV)
             delta_osc_probs_cpt = None
             for i_nubar, nubar in enumerate(nubar_values) :
-                osc_probs = calculator.calc_osc_prob(
+                osc_probs = calculator.calc_osc_prob( #TODO A-CPT function
                     initial_flavor=initial_flavor,
                     nubar=nubar,
                     energy_GeV=E_GeV,
                     distance_km=L_km,
                 )[:,0,final_flavor]
-                fig.get_ax(x=final_flavor, y=i_nubar).plot( E_GeV, osc_probs, color=colors[i], linewidth=2, label=label, linestyle=linestyles[i] )
+                ax[i_nubar, i_flav].plot( E_GeV, osc_probs, color=case_dict["color"], linewidth=2, label=label, linestyle=case_dict["linestyle"] )
                 delta_osc_probs_cpt = osc_probs if delta_osc_probs_cpt is None else (delta_osc_probs_cpt - osc_probs)
-            fig.get_ax(x=final_flavor, y=2).plot( E_GeV, delta_osc_probs_cpt, color=colors[i], linewidth=2, label=label, linestyle=linestyles[i] )
+            ax[2, i_flav].plot( E_GeV, delta_osc_probs_cpt, color=case_dict["color"], linewidth=2, label=label, linestyle=case_dict["linestyle"] )
+
+            print(f"Finished decoherence case {i} ({label})")
 
         # Format
         for i_nubar, nubar in enumerate(nubar_values) :
-            for final_flavor in final_flavors :
-                fig.get_ax(x=final_flavor, y=i_nubar).set_ylabel( r"$%s$"%calculator.get_transition_prob_tex(initial_flavor,final_flavor,nubar) )
-            fig.get_ax(x=0, y=i_nubar).set_ylim(0., 0.3)
-            fig.get_ax(x=1, y=i_nubar).set_ylim(0., 1.)
-        for final_flavor in final_flavors :
-            fig.get_ax(x=final_flavor, y=2).set_ylabel( r"$\Delta P_{CPTV}$" )
-        fig.get_ax(x=0, y=2).set_ylim(-0.1, +0.1)
-        fig.get_ax(x=1, y=2).set_ylim(-0.006, +0.006)
-        fig.quick_format( xlabel=r"$E$ [GeV]", xscale="log", legend_kw={"fontsize":8}, xlim=(E_GeV[0],E_GeV[-1]) )
+            for final_flavor in final_flavor_values :
+                ax[i_nubar, final_flavor].set_ylabel( r"$%s$"%calculator.get_transition_prob_tex(initial_flavor,final_flavor,nubar) )
+            ax[i_nubar, 0].set_ylim(0., 0.3)
+            ax[i_nubar, 1].set_ylim(0., 1.)
+        for final_flavor in final_flavor_values :
+            ax[2, final_flavor].set_ylabel( r"$\Delta P_{CPTV}$" )
+            ax[2, final_flavor].set_ylim(-0.1, +0.1)
+        for this_ax in ax.flatten() :
+            this_ax.grid(True)
+            this_ax.set_xlabel(r"$E$ [GeV]")
+            this_ax.set_xscale("log")
+            this_ax.set_xlim(E_GeV[0],E_GeV[-1])
+            this_ax.legend(fontsize=8)
+        fig.tight_layout()
 
 
 #
@@ -483,8 +491,8 @@ if __name__ == "__main__" :
 
     # Run each plotting function
     # plot_arxiv_1807_07823(tool=args.tool, num_points=args.num_points)
-    plot_arxiv_1811_04982(tool=args.tool, num_points=args.num_points)
-    # plot_atmospheric_1d(tool=args.tool, num_points=args.num_points)
+    # plot_arxiv_1811_04982(tool=args.tool, num_points=args.num_points)
+    plot_atmospheric_1d(tool=args.tool, num_points=args.num_points)
 
     # Dump figures
     print("")
