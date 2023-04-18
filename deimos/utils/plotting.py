@@ -50,6 +50,21 @@ def dump_figures_to_pdf(file_path, figures=None):
         print("No figures found, could not dump to PDF")
 
 
+def add_heading_page(text, figsize=None, **kw):
+    '''
+    Add a headings page to a PDF
+    '''
+
+    # Defaults
+    if figsize is None :
+        figsize = (4,2)
+
+    # Make fig
+    plt.figure(figsize=figsize)
+    plt.axis("off")
+    plt.text(0.5, 0.5, text, ha="center", va="center", **kw)
+
+
 def get_intermediate_points(values, bounding_points=True) :
     '''
     Get the intermediate points between a list of values.

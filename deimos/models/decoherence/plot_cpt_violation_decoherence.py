@@ -1,6 +1,5 @@
 '''
-Making atmopsheric neutrino decoherence plots for
-a decoherence theory paper.
+Plotting osc probls resulting from CPT-violating decoherence terms
 
 These are "everything in" plots showing all modelled 
 physics.
