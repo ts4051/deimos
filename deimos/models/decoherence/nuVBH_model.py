@@ -11,7 +11,7 @@ Tom Stuttard
 # from analysis.common.utils.natural_units import si_to_natural_units, natural_to_si_units
 from deimos.utils.constants import PLANCK_LENGTH_m, PLANCK_MASS_eV
 
-from pisa import ureg
+# from pisa import ureg
 
 
 #
