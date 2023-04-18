@@ -23,7 +23,7 @@ from deimos.models.decoherence.nuVBH_model import *
 #
 
 # Choose a reference gamma value to use
-REF_GAMMA_eV = convert_gamma_inv_m_to_gamma_eV(REF_COHERENCE_LENGTH_m)
+# REF_GAMMA_eV = convert_gamma_inv_m_to_gamma_eV(REF_COHERENCE_LENGTH_m)
 
 #
 # Plotting functions
@@ -477,7 +477,7 @@ if __name__ == "__main__" :
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("-t", "--tool", type=str, default="deimos", help="Name of tool/solver/backend")
-    parser.add_argument("-n", "--num-points", type=int, default=1000, help="Number of points in the solver")
+    parser.add_argument("-n", "--num-points", type=int, default=100, help="Number of points in the solver")
     args = parser.parse_args()
 
     # Run each plotting function
