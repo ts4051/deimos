@@ -52,7 +52,7 @@ if __name__ == "__main__" :
     #
 
     # Define neutrino
-    initial_flavor = 1 # muon neutrino
+    initial_flavor, nubar = 1, False # muon neutrino
     E_GeV = 1e4
     coszen = np.linspace(-1., +1., num=100)
 
@@ -80,11 +80,11 @@ if __name__ == "__main__" :
 
     # Calc osc probs and plot, without decoherence
     calculator.set_std_osc()
-    calculator.plot_oscillogram(initial_flavor=initial_flavor, final_flavor=final_flavor, energy_GeV=E_GeV, coszen=coszen, title="Standard osc")
+    calculator.plot_oscillogram(initial_flavor=initial_flavor, final_flavor=final_flavor, nubar=nubar, energy_GeV=E_GeV, coszen=coszen, title="Standard osc")
 
     # Calc osc probs and plot, with decoherence
     calculator.set_decoherence_D_matrix(D_matrix_eV=D_matrix_eV, n=gamma_n, E0_eV=gamma_E0_eV)
-    calculator.plot_oscillogram(initial_flavor=initial_flavor, final_flavor=final_flavor, energy_GeV=E_GeV, coszen=coszen, title="Decoherence")
+    calculator.plot_oscillogram(initial_flavor=initial_flavor, final_flavor=final_flavor, nubar=nubar, energy_GeV=E_GeV, coszen=coszen, title="Decoherence")
 
 
     #

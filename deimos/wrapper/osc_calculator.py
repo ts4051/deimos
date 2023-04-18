@@ -491,11 +491,11 @@ class OscCalculator(object) :
         initial_state=None,
         distance_km=None,
         coszen=None,
-        # nubar=False,
-        initial_rho=0,
+        nubar=False,
     ) :
 
         #TODO caching
+        #TODO Option for different final rho to allow nu->nubar transitions
 
         #
         # Check inputs
@@ -515,18 +515,18 @@ class OscCalculator(object) :
         #
 
         if self.tool == "nusquids" :
-            return self._calc_osc_prob_nusquids( initial_flavor=initial_flavor, initial_state=initial_state, energy_GeV=energy_GeV, distance_km=distance_km, coszen=coszen, initial_rho=initial_rho) #, nubar=nubar )
+            return self._calc_osc_prob_nusquids( initial_flavor=initial_flavor, initial_state=initial_state, energy_GeV=energy_GeV, distance_km=distance_km, coszen=coszen, nubar=nubar )
 
         if self.tool == "deimos" :
             assert initial_flavor is not None, "must provide `initial_flavor` (`initial_state` not currently supported for %s" % self.tool
-            return self._calc_osc_prob_deimos( initial_flavor=initial_flavor, initial_rho=initial_rho, energy_GeV=energy_GeV, distance_km=distance_km, coszen=coszen)
+            return self._calc_osc_prob_deimos( initial_flavor=initial_flavor, nubar=nubar, energy_GeV=energy_GeV, distance_km=distance_km, coszen=coszen)
 
 
     def _calc_osc_prob_nusquids(self,
         energy_GeV,
         initial_flavor=None,
         initial_state=None,
-        initial_rho=0,
+        nubar=False,
         distance_km=None,
         coszen=None,
     ) :
@@ -536,7 +536,6 @@ class OscCalculator(object) :
         Returned result has following structure: [ energy, coszen, final flavor ]
         '''
 
-        #TODO Option for different final rho to allow nu->nubar transitions
 
         #
         # Prepare
@@ -561,6 +560,9 @@ class OscCalculator(object) :
             assert distance_km.ndim == 1
         if coszen is not None :
             assert coszen.ndim == 1
+
+        # Handle nubar
+        rho = 1 if nubar else 0
 
         # # Handle nubar
         # if initial_flavor is not None :
@@ -592,7 +594,7 @@ class OscCalculator(object) :
             # Define initial state if not provided, otherwise verify the one provided
             if initial_state is None :
                 initial_state = np.full( state_shape, 0. )
-                initial_state[ :, :, initial_rho, initial_flavor ] = 1. # dims = [ cz node, E node, nu(bar), flavor ]
+                initial_state[ :, :, rho, initial_flavor ] = 1. # dims = [ cz node, E node, nu(bar), flavor ]
             else :
                 assert initial_state.shape == state_shape, "Incompatible shape for initial state : Expected %s, found %s" % (state_shape, initial_state.shape)
 
@@ -606,9 +608,8 @@ class OscCalculator(object) :
             for i_E,E in enumerate(energy_GeV) :
                 for i_cz,cz in enumerate(coszen) :
                     for i_f,final_flavor in enumerate(final_flavors) :
-                        for rho in [0, 1] :
                         # results[i_E,i_cz,i_f] = self.nusquids.EvalFlavor( final_flavor, cz, E*self.units.GeV )#, rho ) #TODO Add randomize prod height arg
-                            results[i_E,i_cz,i_f,rho] = self.nusquids.EvalFlavor( int(final_flavor), cz, E*self.units.GeV, rho, randomize_atmo_prod_height) #TODO add nubar
+                        results[i_E,i_cz,i_f] = self.nusquids.EvalFlavor( int(final_flavor), cz, E*self.units.GeV, rho, randomize_atmo_prod_height) #TODO add nubar
 
             return results
 
@@ -632,7 +633,7 @@ class OscCalculator(object) :
             # Define initial state if not provided, otherwise verify the one provided
             if initial_state is None :
                 initial_state = np.full( state_shape, 0. )
-                initial_state[ :, initial_rho, initial_flavor ] = 1. # dims = [ E node, nu(bar), flavor ]
+                initial_state[ :, rho, initial_flavor ] = 1. # dims = [ E node, nu(bar), flavor ]
             else :
                 assert initial_state.shape == state_shape, "Incompatible shape for initial state : Expected %s, found %s" % (state_shape, initial_state.shape)
 
@@ -660,9 +661,9 @@ class OscCalculator(object) :
                     for i_f, final_flavor in enumerate(final_flavors) :
                         # for rho in [0, 1] :
                         #     results[i_e,i_L,i_f,rho] = self.nusquids.EvalFlavor( int(final_flavor), float(E*self.units.GeV), int(rho) )
-                        results[i_e,i_L,i_f] = self.nusquids.EvalFlavor( int(final_flavor), float(E*self.units.GeV), int(initial_rho) )
+                        results[i_e,i_L,i_f] = self.nusquids.EvalFlavor( int(final_flavor), float(E*self.units.GeV), int(rho) )
 
-                #TODO squeeze unused dimensions?
+            #TODO squeeze unused dimensions?
 
             return results
 
@@ -670,17 +671,15 @@ class OscCalculator(object) :
 
     def _calc_osc_prob_deimos(self,
         initial_flavor,
-        initial_rho,
         energy_GeV,
         distance_km=None,
         coszen=None,
+        nubar=False,
     ) :
 
         #
         # Prepare
         #
-
-        # assert initial_rho == 0, "nubar not yet tested for `deimos`"
 
         # Calculate all final state flavors
         final_flavors = self.states
@@ -706,8 +705,8 @@ class OscCalculator(object) :
 
         # coszen -> L conversion (for atmospheric case)
         if self.atmospheric :
-            production_height_km = 22. # common with nuSQuIDS (Although gives differing results???). TODO steerable
-            detector_depth_km = 0. # common with nuSQuIDS (Although gives differing results???). TODO steerable
+            production_height_km = 22. # common with nuSQuIDS (Although gives differing results???). TODO steerable, and defined in constants.py
+            detector_depth_km = 0. # common with nuSQuIDS (Although gives differing results???). TODO steerable, and defined in constants.py
             distance_km = calc_path_length_from_coszen(cz=coszen, h=production_height_km, d=detector_depth_km)
 
         # DensityMatrixOscSolver doesn't like decending distance values in the input arrays,
@@ -724,7 +723,7 @@ class OscCalculator(object) :
             L_km=distance_km,
             initial_state=initial_flavor,
             initial_basis="flavor",
-            nubar=(initial_rho == 1),
+            nubar=nubar,
             calc_basis=self._calc_basis,
             # D_matrix_basis=self._decoherence_D_matrix_basis,
             decoh_opts=self._decoh_model_kw,
@@ -735,10 +734,6 @@ class OscCalculator(object) :
         # Handle flip in results (L dimension)
         if flip :
             results = np.flip(results, axis=1)
-
-        # Add a nu/nbar (e.g. rho) dimension
-        # This is a placeholder until we actually have nubar tested in the calculation 
-        results = results[..., np.newaxis]
 
         return results
 
@@ -811,8 +806,8 @@ class OscCalculator(object) :
         return self.nu_colors[flavor]
 
 
-    def get_transition_prob_tex(self,initial_flavor, final_flavor, initial_flavor_nubar=False, final_flavor_nubar=False) :
-        return r"P(%s \rightarrow %s)" % ( self.get_flavor_tex(initial_flavor, initial_flavor_nubar), self.get_flavor_tex(final_flavor, initial_flavor_nubar) )
+    def get_transition_prob_tex(self,initial_flavor, final_flavor, nubar=False) :
+        return r"P(%s \rightarrow %s)" % ( self.get_flavor_tex(initial_flavor, nubar), self.get_flavor_tex(final_flavor, nubar) )
 
 
     @property
@@ -841,7 +836,7 @@ class OscCalculator(object) :
         initial_flavor, 
         energy_GeV, 
         distance_km=None, coszen=None, 
-        rho=0, 
+        nubar=False, 
         # Plotting
         fig=None, ax=None, 
         label=None, 
@@ -872,8 +867,7 @@ class OscCalculator(object) :
         assert isinstance(initial_flavor, int)
         assert isinstance(x, np.ndarray)
         assert np.isscalar(energy_GeV)
-        assert np.isscalar(rho)
-        assert rho in [0, 1]
+        assert isinstance(nubar, bool)
 
         # User may provide a figure, otherwise make one
         ny = self.num_neutrinos + 1
@@ -896,18 +890,15 @@ class OscCalculator(object) :
         # Remove energy dimension, since this is single energy
         osc_probs = osc_probs[0,...]
 
-        # Choose nu/nubar
-        osc_probs = osc_probs[...,rho]
-
         # Plot oscillations to all possible final states
         for final_flavor, tex in zip(self.states, self.flavors_tex) :
             ax[final_flavor].plot( x, osc_probs[:,final_flavor], label=label, **plot_kw )
-            ax[final_flavor].set_ylabel( r"$%s$" % self.get_transition_prob_tex(initial_flavor, final_flavor) )
+            ax[final_flavor].set_ylabel( r"$%s$" % self.get_transition_prob_tex(initial_flavor, final_flavor, nubar) )
 
         # Plot total oscillations to any final state
         osc_probs_flavor_sum = np.sum(osc_probs,axis=1)
         ax[-1].plot( x, osc_probs_flavor_sum, label=label, **plot_kw ) # Dimension 2 is flavor
-        ax[-1].set_ylabel( r"$%s$" % self.get_transition_prob_tex(initial_flavor, None) )
+        ax[-1].set_ylabel( r"$%s$" % self.get_transition_prob_tex(initial_flavor, None, nubar) )
 
         # Formatting
         ax[-1].set_xlabel(xlabel)
@@ -942,7 +933,7 @@ class OscCalculator(object) :
         final_flavor,
         energy_GeV,
         coszen,
-        rho=0,
+        nubar=False,
         title=None,
     ) :
         '''
@@ -959,7 +950,7 @@ class OscCalculator(object) :
         #
 
         # Plot steering
-        transition_prob_tex = self.get_transition_prob_tex(initial_flavor, final_flavor) #TODO rho
+        transition_prob_tex = self.get_transition_prob_tex(initial_flavor, final_flavor, nubar)
         continuous_map = "jet" # plasma jet
         # diverging_cmap = "seismic" # PuOr_r RdYlGn Spectral
 
@@ -968,12 +959,10 @@ class OscCalculator(object) :
         # Compute osc probs
         #
 
-        rho = 0 #TODO steer
-
         # Define osc prob calc settings
         calc_osc_prob_kw = dict(
             initial_flavor=initial_flavor,
-            initial_rho=rho,
+            nubar=nubar,
             energy_GeV=energy_GeV,
             coszen=coszen, 
         )
@@ -982,7 +971,7 @@ class OscCalculator(object) :
         osc_probs = self.calc_osc_prob( **calc_osc_prob_kw )
 
         # Get chose flavor/rho
-        osc_probs = osc_probs[:, :, final_flavor, rho]
+        osc_probs = osc_probs[:, :, final_flavor]
 
         #
         # Plot

@@ -93,7 +93,7 @@ def plot_arxiv_1807_07823(
     E_GeV = np.linspace(6., 120., num=num_points)
     initial_flavor = 0
     final_flavor = 1
-    rho_values = [0, 1]
+    nubar_values = [False, True]
 
     # Plot steering
     std_osc_color = "blue"
@@ -101,35 +101,35 @@ def plot_arxiv_1807_07823(
     linestyles = ["-", "--"]
     initial_flavor_tex = r"$\nu_\mu$"
     final_flavor_tex = r"$\nu_\tau$"
-    rho_tex = [ r"\nu", r"\bar{\nu}" ]
+    nubar_tex = [ r"\nu", r"\bar{\nu}" ]
 
     # Create the fig
     fig, ax = plt.subplots( figsize=(6, 4) )
 
     # Std oscillations
     calculator.set_std_osc()
-    for rho in rho_values :
+    for i_nubar, nubar in enumerate(nubar_values) :
         osc_probs = calculator.calc_osc_prob(
             initial_flavor=initial_flavor,
-            initial_rho=rho,
+            nubar=nubar,
             energy_GeV=E_GeV,
             distance_km=L_km,
         )
-        label = calculator.get_transition_prob_tex(initial_flavor=initial_flavor, final_flavor=final_flavor, initial_flavor_nubar=(rho==1), final_flavor_nubar=(rho==1))
-        ax.plot( E_GeV, osc_probs[:,0,final_flavor,0], color=std_osc_color, linewidth=4, label=label, linestyle=linestyles[rho] )
+        label = calculator.get_transition_prob_tex(initial_flavor=initial_flavor, final_flavor=final_flavor, nubar=nubar)
+        ax.plot( E_GeV, osc_probs[:,0,final_flavor,0], color=std_osc_color, linewidth=4, label=label, linestyle=linestyles[i_nubar] )
 
 
     # Decoherence
     calculator.set_decoherence_D_matrix(D_matrix_eV=D_matrix_eV, n=n, E0_eV=E0_eV)
-    for i, initial_rho in enumerate(rho_values) :
+    for i_nubar, nubar in enumerate(nubar_values) :
         osc_probs = calculator.calc_osc_prob(
             initial_flavor=initial_flavor,
-            initial_rho=initial_rho,
+            nubar=nubar,
             energy_GeV=E_GeV,
             distance_km=L_km,
         )
-        label = calculator.get_transition_prob_tex(initial_flavor=initial_flavor, final_flavor=final_flavor, initial_flavor_nubar=(rho==1), final_flavor_nubar=(rho==1))
-        ax.plot( E_GeV, osc_probs[:,0,final_flavor,0], color=decoh_color, linewidth=4, label=label, linestyle=linestyles[i] )
+        label = calculator.get_transition_prob_tex(initial_flavor=initial_flavor, final_flavor=final_flavor, nubar=nubar)
+        ax.plot( E_GeV, osc_probs[:,0,final_flavor,0], color=decoh_color, linewidth=4, label=label, linestyle=linestyles[i_nubar] )
 
     # Format
     ax.set_xlabel(r"$E$ [GeV]")
@@ -244,13 +244,11 @@ def plot_arxiv_1811_04982(num_points=1000) :
 
     # Choose channels
     initial_flavor = 1
-    initial_rho_values = [0, 1] # nu, nubar
+    nubar_values = [False, True] # nu, nubar
     final_flavor_values = [ 0, 1 ] # e, mu
 
     # Create the fig
     fig, ax = plt.subplots( nrows=3, ncols=len(final_flavor_values), figsize=(10, 12) )
-
-    print("+++", np.shape(ax))
 
     # Loop over channels
     for i_flav, final_flavor in enumerate(final_flavor_values) :
@@ -259,45 +257,47 @@ def plot_arxiv_1811_04982(num_points=1000) :
         # Note that this is not in the figure in the paper
         calculator.set_std_osc()
         delta_osc_probs_cpt = None
-        for rho in initial_rho_values :
+        for i_nubar, nubar in enumerate(nubar_values) :
             osc_probs = calculator.calc_osc_prob(
                 initial_flavor=initial_flavor,
-                initial_rho=rho,
+                nubar=nubar,
                 energy_GeV=E_GeV,
                 distance_km=L_km,
             )[:,0,final_flavor]
-            ax[rho, i_flav].plot( E_GeV, osc_probs, color="grey", linewidth=3, label="Std osc", linestyle=":" )
+            ax[i_nubar, i_flav].plot( E_GeV, osc_probs, color="grey", linewidth=3, label="Std osc", linestyle=":" )
             delta_osc_probs_cpt = osc_probs if delta_osc_probs_cpt is None else (delta_osc_probs_cpt - osc_probs)
         ax[2, i_flav].plot( E_GeV, delta_osc_probs_cpt, color="grey", linewidth=3, label="Std osc", linestyle=":" )
+
+        print(f"Finished std osc case")
 
         # Decoherence
         for i, (label, case_dict) in enumerate(cases.items()) :
             calculator.set_decoherence_D_matrix(D_matrix_eV=case_dict["D_matrix_eV"], n=n, E0_eV=E0_eV)
             delta_osc_probs_cpt = None
-            for rho in initial_rho_values :
+            for i_nubar, nubar in enumerate(nubar_values) :
                 osc_probs = calculator.calc_osc_prob( #TODO A-CPT function
                     initial_flavor=initial_flavor,
-                    initial_rho=rho,
+                    nubar=nubar,
                     energy_GeV=E_GeV,
                     distance_km=L_km,
                 )[:,0,final_flavor]
-                ax[rho, i_flav].plot( E_GeV, osc_probs, color=case_dict["color"], linewidth=3, label=label, linestyle=case_dict["linestyle"] )
+                ax[i_nubar, i_flav].plot( E_GeV, osc_probs, color=case_dict["color"], linewidth=3, label=label, linestyle=case_dict["linestyle"] )
                 delta_osc_probs_cpt = osc_probs if delta_osc_probs_cpt is None else (delta_osc_probs_cpt - osc_probs)
             ax[2, i_flav].plot( E_GeV, delta_osc_probs_cpt, color=case_dict["color"], linewidth=3, label=label, linestyle=case_dict["linestyle"] )
 
-            print(f"+++ decoh case {i} done ({label})")
+            print(f"Finished decoherence case {i} ({label})")
 
         # Format
-        for rho in initial_rho_values :
+        for i_nubar, nubar in enumerate(nubar_values) :
             for final_flavor in final_flavor_values :
-                ax[rho, final_flavor].set_ylabel( r"$%s$"%calculator.get_transition_prob_tex(initial_flavor,final_flavor,rho,rho) )
-            ax[rho, 0].set_ylim(0., 0.3)
-            ax[rho, 1].set_ylim(0., 1.)
+                ax[i_nubar, final_flavor].set_ylabel( r"$%s$"%calculator.get_transition_prob_tex(initial_flavor,final_flavor,nubar) )
+            ax[i_nubar, 0].set_ylim(0., 0.3)
+            ax[i_nubar, 1].set_ylim(0., 1.)
         for final_flavor in final_flavor_values :
-            ax[final_flavor, 2].set_ylabel( r"$\Delta P_{CPTV}$" )
-        ax[0, 2].set_ylim(-0.1, +0.1)
-        ax[1, 2].set_ylim(-0.1, +0.1)
-        for this_ax in ax :
+            ax[2, final_flavor].set_ylabel( r"$\Delta P_{CPTV}$" )
+        ax[2, 0].set_ylim(-0.1, +0.1)
+        ax[2, 1].set_ylim(-0.1, +0.1)
+        for this_ax in ax.flatten() :
             this_ax.set_xlabel(r"$E$ [GeV]")
             this_ax.set_xscale("log")
             this_ax.set_xlim(E_GeV[0],E_GeV[-1])
@@ -410,7 +410,7 @@ def plot_atmospheric_1d(
     # Choose baseline, energy, etc
     initial_flavor = 1
     final_flavors = [ 0, 1 ] 
-    initial_rho_values = [ 0, 1 ]
+    nubar_values = [ 0, 1 ]
 
     # Create the fig
     fig = Figure( ny=3, nx=2, figsize=(10, 12) )
@@ -424,14 +424,14 @@ def plot_atmospheric_1d(
         # Std oscillations
         calculator.set_std_osc()
         delta_osc_probs_cpt = None
-        for rho in initial_rho_values :
+        for i_nubar, nubar in enumerate(nubar_values) :
             osc_probs = calculator.calc_osc_prob(
                 initial_flavor=initial_flavor,
-                initial_rho=rho,
+                nubar=nubar,
                 energy_GeV=E_GeV,
                 distance_km=L_km,
             )[:,0,final_flavor]
-            fig.get_ax(x=final_flavor, y=rho).plot( E_GeV, osc_probs, color="grey", linewidth=3, label="Std osc", linestyle="-" )
+            fig.get_ax(x=final_flavor, y=i_nubar).plot( E_GeV, osc_probs, color="grey", linewidth=3, label="Std osc", linestyle="-" )
             delta_osc_probs_cpt = osc_probs if delta_osc_probs_cpt is None else (delta_osc_probs_cpt - osc_probs)
         fig.get_ax(x=final_flavor, y=2).plot( E_GeV, delta_osc_probs_cpt, color="grey", linewidth=3, label="Std osc", linestyle="-" )
 
@@ -440,23 +440,23 @@ def plot_atmospheric_1d(
             print(D_matrix_eV)
             calculator.set_decoherence_D_matrix(D_matrix_eV=D_matrix_eV, n=n, E0_eV=E0_eV)
             delta_osc_probs_cpt = None
-            for rho in initial_rho_values :
+            for i_nubar, nubar in enumerate(nubar_values) :
                 osc_probs = calculator.calc_osc_prob(
                     initial_flavor=initial_flavor,
-                    initial_rho=rho,
+                    nubar=nubar,
                     energy_GeV=E_GeV,
                     distance_km=L_km,
                 )[:,0,final_flavor]
-                fig.get_ax(x=final_flavor, y=rho).plot( E_GeV, osc_probs, color=colors[i], linewidth=3, label=label, linestyle=linestyles[i] )
+                fig.get_ax(x=final_flavor, y=i_nubar).plot( E_GeV, osc_probs, color=colors[i], linewidth=3, label=label, linestyle=linestyles[i] )
                 delta_osc_probs_cpt = osc_probs if delta_osc_probs_cpt is None else (delta_osc_probs_cpt - osc_probs)
             fig.get_ax(x=final_flavor, y=2).plot( E_GeV, delta_osc_probs_cpt, color=colors[i], linewidth=3, label=label, linestyle=linestyles[i] )
 
         # Format
-        for rho in initial_rho_values :
+        for i_nubar, nubar in enumerate(nubar_values) :
             for final_flavor in final_flavors :
-                fig.get_ax(x=final_flavor, y=rho).set_ylabel( r"$%s$"%calculator.get_transition_prob_tex(initial_flavor,final_flavor,rho,rho) )
-            fig.get_ax(x=0, y=rho).set_ylim(0., 0.3)
-            fig.get_ax(x=1, y=rho).set_ylim(0., 1.)
+                fig.get_ax(x=final_flavor, y=i_nubar).set_ylabel( r"$%s$"%calculator.get_transition_prob_tex(initial_flavor,final_flavor,nubar) )
+            fig.get_ax(x=0, y=i_nubar).set_ylim(0., 0.3)
+            fig.get_ax(x=1, y=i_nubar).set_ylim(0., 1.)
         for final_flavor in final_flavors :
             fig.get_ax(x=final_flavor, y=2).set_ylabel( r"$\Delta P_{CPTV}$" )
         fig.get_ax(x=0, y=2).set_ylim(-0.1, +0.1)
