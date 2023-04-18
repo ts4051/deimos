@@ -17,6 +17,7 @@ from deimos.wrapper.osc_calculator import OscCalculator
 from deimos.utils.constants import *
 # from deimos.model.decoherence_operators import oscillation_averaged_transition_probability, convert_gamma_eV_to_gamma_inv_m, convert_gamma_inv_m_to_gamma_eV, convert_gamma_eV_to_gamma_0_eV, convert_gamma0_to_zeta_planck
 from deimos.models.decoherence.nuVBH_model import *
+from deimos.utils.plotting import *
 
 #
 # Globals
