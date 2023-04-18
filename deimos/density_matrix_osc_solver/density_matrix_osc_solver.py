@@ -17,8 +17,6 @@ import numpy as np
 # from scipy.integrate import odeint
 from scipy.constants import hbar, c
 
-from utils.plotting.standard_modules import *
-
 from deimos.utils.constants import *
 from deimos.utils.matrix_algebra import *
 from deimos.models.decoherence.decoherence_operators import get_complete_sun_matrix, get_decoherence_operator_nxn_basis, get_model_D_matrix
@@ -837,119 +835,112 @@ if __name__ == "__main__" :
     Show some basic oscillation probabilities using these tools
     '''
 
-    from utils.plotting.standard_modules import *
+    # Control numpy printing
+    #np.set_printoptions(suppress=True,precision=2)
 
-    from utils.script_tools import ScriptWrapper
-    from utils.filesys_tools import replace_file_ext
-    with ScriptWrapper( replace_file_ext(__file__,".log") ) as script :
-
-
-        # Control numpy printing
-        #np.set_printoptions(suppress=True,precision=2)
-
-        # Create solver (using default settings)
-        solver = DensityMatrixOscSolver( num_states=3 )
+    # Create solver (using default settings)
+    solver = DensityMatrixOscSolver( num_states=3 )
 
 
-        #
-        # DUNE
-        #
-        
-        # Define physics
-        E_GeV = np.linspace(0.6,10.,num=1000)
-        L_km = np.array([1300.])
-        initial_state = 1
+    #
+    # DUNE
+    #
+    
+    # Define physics
+    E_GeV = np.linspace(0.6,10.,num=1000)
+    L_km = np.array([1300.])
+    initial_state = 1
 
-        # Calculate oscillation probability
-        osc_probs = solver.calc_osc_probs( 
-            E_GeV=E_GeV,
-            initial_state=initial_state,
-            L_km=L_km,
-        )
+    # Calculate oscillation probability
+    osc_probs = solver.calc_osc_probs( 
+        E_GeV=E_GeV,
+        initial_state=initial_state,
+        L_km=L_km,
+    )
 
-        # Squeeze out the single-valued distance dimension
-        osc_probs = np.squeeze(osc_probs)
+    # Squeeze out the single-valued distance dimension
+    osc_probs = np.squeeze(osc_probs)
 
-        # Plot
-        fig = Figure( ny=2, title="DUNE")
-        fig.get_ax(y=0).plot( E_GeV,osc_probs[:,0], color="red", linestyle="-", label=r"$%s \rightarrow %s$"%(NU_FLAVORS_TEX[initial_state],NU_FLAVORS_TEX[0]) )
-        fig.get_ax(y=1).plot( E_GeV,osc_probs[:,1], color="blue", linestyle="-", label=r"$%s \rightarrow %s$"%(NU_FLAVORS_TEX[initial_state],NU_FLAVORS_TEX[1]) )
-        fig.get_ax(y=-1).set_xlabel(r'$E$ [GeV]')
-        for ax in fig.get_all_ax() :
-            ax.set_ylabel('Probability')
-            ax.grid(True)
-            ax.legend()
-        fig.tight_layout()
-
-
-        #
-        # Daya Bay
-        #
-
-        # See http://www1.phys.vt.edu/~dayabay/about.html
-
-        L_km = np.logspace(-1,2,num=1000)
-        E_GeV = np.array([4.e-3])
-        initial_state = 0
-        
-        # Calculate oscillation probability
-        osc_probs = solver.calc_osc_probs(
-            E_GeV=E_GeV,
-            initial_state=initial_state,
-            L_km=L_km,
-        )
-
-        # Squeeze out the single-valued energy dimension
-        osc_probs = np.squeeze(osc_probs)
-
-        # Plot
-        fig = Figure( ny=1, title="Daya Bay")
-        fig.get_ax(y=0).plot( L_km,osc_probs[:,0], color="red", linestyle="-", label=r"$%s \rightarrow %s$"%(NU_FLAVORS_TEX[initial_state],NU_FLAVORS_TEX[0]) )
-        fig.get_ax(y=-1).set_xlabel(r'$L$ [km]')
-        for ax in fig.get_all_ax() :
-            ax.set_xscale('log')
-            ax.set_ylim(0.,1.1)
-            ax.set_ylabel('Probability')
-            ax.grid(True)
-            ax.legend()
-        fig.tight_layout()
+    # Plot
+    fig = Figure( ny=2, title="DUNE")
+    fig.get_ax(y=0).plot( E_GeV,osc_probs[:,0], color="red", linestyle="-", label=r"$%s \rightarrow %s$"%(NU_FLAVORS_TEX[initial_state],NU_FLAVORS_TEX[0]) )
+    fig.get_ax(y=1).plot( E_GeV,osc_probs[:,1], color="blue", linestyle="-", label=r"$%s \rightarrow %s$"%(NU_FLAVORS_TEX[initial_state],NU_FLAVORS_TEX[1]) )
+    fig.get_ax(y=-1).set_xlabel(r'$E$ [GeV]')
+    for ax in fig.get_all_ax() :
+        ax.set_ylabel('Probability')
+        ax.grid(True)
+        ax.legend()
+    fig.tight_layout()
 
 
-        #
-        # Atmospheric neutrinos
-        #
+    #
+    # Daya Bay
+    #
 
-        # Define neutrinos
-        L_km = np.linspace(0.,EARTH_DIAMETER_km,num=100)
+    # See http://www1.phys.vt.edu/~dayabay/about.html
+
+    L_km = np.logspace(-1,2,num=1000)
+    E_GeV = np.array([4.e-3])
+    initial_state = 0
+    
+    # Calculate oscillation probability
+    osc_probs = solver.calc_osc_probs(
+        E_GeV=E_GeV,
+        initial_state=initial_state,
+        L_km=L_km,
+    )
+
+    # Squeeze out the single-valued energy dimension
+    osc_probs = np.squeeze(osc_probs)
+
+    # Plot
+    fig = Figure( ny=1, title="Daya Bay")
+    fig.get_ax(y=0).plot( L_km,osc_probs[:,0], color="red", linestyle="-", label=r"$%s \rightarrow %s$"%(NU_FLAVORS_TEX[initial_state],NU_FLAVORS_TEX[0]) )
+    fig.get_ax(y=-1).set_xlabel(r'$L$ [km]')
+    for ax in fig.get_all_ax() :
+        ax.set_xscale('log')
+        ax.set_ylim(0.,1.1)
+        ax.set_ylabel('Probability')
+        ax.grid(True)
+        ax.legend()
+    fig.tight_layout()
+
+
+    #
+    # Atmospheric neutrinos
+    #
+
+    # Define neutrinos
+    L_km = np.linspace(0.,EARTH_DIAMETER_km,num=100)
 #        E_GeV = np.linspace(1.,50.,num=100)
-        E_GeV = np.array([10.,25.,100.])
-        initial_state = 1
-        
-        # Calculate oscillation probability
-        osc_probs = solver.calc_osc_probs(
-            E_GeV=E_GeV,
-            initial_state=initial_state,
-            L_km=L_km,
-        )
+    E_GeV = np.array([10.,25.,100.])
+    initial_state = 1
+    
+    # Calculate oscillation probability
+    osc_probs = solver.calc_osc_probs(
+        E_GeV=E_GeV,
+        initial_state=initial_state,
+        L_km=L_km,
+    )
 
-        # Plot
-        fig = Figure( ny=1, title="Atmospheric")
-        for i_E in range(0,E_GeV.size) :
-            fig.get_ax(y=0).plot( L_km,osc_probs[i_E,:,1], linestyle="-", label=r"$E = %0.3g$ GeV"%E_GeV[i_E] )
-        fig.get_ax(y=-1).set_xlabel(r'$L$ [km]')
-        for ax in fig.get_all_ax() :
-            ax.set_ylim(0.,1.1)
-            ax.set_ylabel (r"$P( %s \rightarrow %s)$"%(NU_FLAVORS_TEX[initial_state],NU_FLAVORS_TEX[1]) )
-            ax.grid(True)
-            ax.legend()
-        fig.tight_layout()
+    # Plot
+    fig = Figure( ny=1, title="Atmospheric")
+    for i_E in range(0,E_GeV.size) :
+        fig.get_ax(y=0).plot( L_km,osc_probs[i_E,:,1], linestyle="-", label=r"$E = %0.3g$ GeV"%E_GeV[i_E] )
+    fig.get_ax(y=-1).set_xlabel(r'$L$ [km]')
+    for ax in fig.get_all_ax() :
+        ax.set_ylim(0.,1.1)
+        ax.set_ylabel (r"$P( %s \rightarrow %s)$"%(NU_FLAVORS_TEX[initial_state],NU_FLAVORS_TEX[1]) )
+        ax.grid(True)
+        ax.legend()
+    fig.tight_layout()
 
 
-        #
-        # Done
-        #
+    #
+    # Done
+    #
 
-        #Dump figures to PDF
-        print("\nGenerating PDF...")
-        dump_figures_to_pdf( replace_file_ext(__file__,".pdf") )
+    #Dump figures to PDF
+    print("\nGenerating PDF...")
+    dump_figures_to_pdf( replace_file_ext(__file__,".pdf") )
 

@@ -6,11 +6,10 @@ See https://arxiv.org/abs/2007.00068 for details.
 
 Tom Stuttard
 '''
-
-from utils.plotting.standard_modules import *
-
-from analysis.common.utils.natural_units import si_to_natural_units, natural_to_si_units
-from analysis.oscNext_decoherence.theory.constants import PLANCK_LENGTH_m, PLANCK_MASS_eV
+ import numpy as np
+ 
+# from analysis.common.utils.natural_units import si_to_natural_units, natural_to_si_units
+from deimos.utils.constants import PLANCK_LENGTH_m, PLANCK_MASS_eV
 
 from pisa import ureg
 
@@ -349,88 +348,84 @@ def get_vVBH_gamma_eV_from_coherence_length_km(Lcoh_km) :
 
 if __name__ == "__main__" :
 
-    from analysis.oscNext_decoherence.theory.decoherence_calculator import DecoherenceCalculator
-    from analysis.oscNext_decoherence.theory.constants import *
-
-    from utils.script_tools import ScriptWrapper
-    from utils.filesys_tools import replace_file_ext
-    with ScriptWrapper( replace_file_ext(__file__,".log") ) as script :
+    from deimos.wrapper.osc_calculator import OscCalculator
+    from deimos.utils.constants import *
 
 
-        #
-        # Create calculator
-        #
+    #
+    # Create calculator
+    #
 
-        num_neutrinos = 2
-        gamma_strength_eV = 1.e-14
-        gamma_index = 0
+    num_neutrinos = 2
+    gamma_strength_eV = 1.e-14
+    gamma_index = 0
 
-        calculator = DecoherenceCalculator(
-            tool="dmos",
-            atmospheric=False,
-            num_neutrinos=num_neutrinos,
-            # interactions=False,
-        )
+    calculator = OscCalculator(
+        tool="dmos",
+        atmospheric=False,
+        num_neutrinos=num_neutrinos,
+        # interactions=False,
+    )
 
-        calculator.set_matter("vacuum")
-
-
-        #
-        # Define test cases
-        #
-
-        # Standard oscillations
-        std_osc_basis = "sun_basis"
-        std_osc_D_matrix = np.diag([ 0., 0., 0., 0., 0., 0., 0., 0. ]) if num_neutrinos == 3 else np.diag([ 0., 0., 0. ])
-
-        # Models to test
-        model_names = [ "randomize_phase", "neutrino_loss" ] #"randomize_state",  ]
-
-        model_names = ["randomize_state"] #TODO REMOVE
+    calculator.set_matter("vacuum")
 
 
-        #
-        # Plot
-        #
+    #
+    # Define test cases
+    #
 
-        # Steering
-        E = 25.
-        L = np.linspace(0., 20.*EARTH_DIAMETER_km, num=1000)
-        initial_flavors = [0, 1]
-        color_scale = ColorScale("hsv", len(model_names))
+    # Standard oscillations
+    std_osc_basis = "sun_basis"
+    std_osc_D_matrix = np.diag([ 0., 0., 0., 0., 0., 0., 0., 0. ]) if num_neutrinos == 3 else np.diag([ 0., 0., 0. ])
 
-        # Loop over initial flavors
-        for initial_flavor in initial_flavors :
+    # Models to test
+    model_names = [ "randomize_phase", "neutrino_loss" ] #"randomize_state",  ]
 
-            fig = Figure( ny=calculator.num_neutrinos+1, sharex=True, figsize=(FIG_WIDTH,7) )
-
-            # Plot std osc
-            calculator.set_decoherence_operator_type(std_osc_basis)
-            calculator.set_decoherence_D_matrix( D_matrix=std_osc_D_matrix, index=gamma_index )
-            calculator.plot_osc_prob_vs_distance(fig=fig, initial_flavor=initial_flavor, energy_GeV=E, distance_km=L, color="lightgrey", label="Std osc")
-
-            # Loop over models
-            for i_case, model_name in enumerate(model_names) :
-
-                # Set physics params
-                basis, D_matrix = get_model_D_matrix(model_name, num_states=num_neutrinos, gamma=gamma_strength_eV)
-                calculator.set_decoherence_operator_type(basis)
-                calculator.set_decoherence_D_matrix( D_matrix=D_matrix, index=gamma_index )
-
-                # Plot
-                calculator.plot_osc_prob_vs_distance(fig=fig, initial_flavor=initial_flavor, energy_GeV=E, distance_km=L, color=color_scale.get(i_case), label=model_name)
-
-            # Add long range behaviour lines
-            #TODO
-
-            # Format
-            # fig.get_ax(y=-1).set_xlabel(DISTANCE_LABEL)
-            # fig.quick_format( ylim=(-0.05,1.05) )
+    model_names = ["randomize_state"] #TODO REMOVE
 
 
-        #
-        # Done
-        #
+    #
+    # Plot
+    #
 
-        print("")
-        dump_figures_to_pdf( replace_file_ext(__file__,".pdf") )
+    # Steering
+    E = 25.
+    L = np.linspace(0., 20.*EARTH_DIAMETER_km, num=1000)
+    initial_flavors = [0, 1]
+    color_scale = ColorScale("hsv", len(model_names))
+
+    # Loop over initial flavors
+    for initial_flavor in initial_flavors :
+
+        fig = Figure( ny=calculator.num_neutrinos+1, sharex=True, figsize=(FIG_WIDTH,7) )
+
+        # Plot std osc
+        calculator.set_decoherence_operator_type(std_osc_basis)
+        calculator.set_decoherence_D_matrix( D_matrix=std_osc_D_matrix, index=gamma_index )
+        calculator.plot_osc_prob_vs_distance(fig=fig, initial_flavor=initial_flavor, energy_GeV=E, distance_km=L, color="lightgrey", label="Std osc")
+
+        # Loop over models
+        for i_case, model_name in enumerate(model_names) :
+
+            # Set physics params
+            basis, D_matrix = get_model_D_matrix(model_name, num_states=num_neutrinos, gamma=gamma_strength_eV)
+            calculator.set_decoherence_operator_type(basis)
+            calculator.set_decoherence_D_matrix( D_matrix=D_matrix, index=gamma_index )
+
+            # Plot
+            calculator.plot_osc_prob_vs_distance(fig=fig, initial_flavor=initial_flavor, energy_GeV=E, distance_km=L, color=color_scale.get(i_case), label=model_name)
+
+        # Add long range behaviour lines
+        #TODO
+
+        # Format
+        # fig.get_ax(y=-1).set_xlabel(DISTANCE_LABEL)
+        # fig.quick_format( ylim=(-0.05,1.05) )
+
+
+    #
+    # Done
+    #
+
+    print("")
+    dump_figures_to_pdf( replace_file_ext(__file__,".pdf") )

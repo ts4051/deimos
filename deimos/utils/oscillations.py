@@ -154,9 +154,8 @@ def test() :
     #
 
     # Dump figures to PDF
-    from utils.filesys_tools import replace_file_ext
     print("")
-    dump_figures_to_pdf( replace_file_ext(__file__,".pdf") )
+    dump_figures_to_pdf( __file__.replace(".py",".pdf")
 
 
 if __name__ == "__main__" :
