@@ -155,7 +155,7 @@ def test() :
 
     # Dump figures to PDF
     print("")
-    dump_figures_to_pdf( __file__.replace(".py",".pdf")
+    dump_figures_to_pdf( __file__.replace(".py",".pdf") )
 
 
 if __name__ == "__main__" :
