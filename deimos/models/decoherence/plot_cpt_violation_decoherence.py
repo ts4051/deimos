@@ -25,15 +25,12 @@ from deimos.models.decoherence.nuVBH_model import *
 # Choose a reference gamma value to use
 REF_GAMMA_eV = convert_gamma_inv_m_to_gamma_eV(REF_COHERENCE_LENGTH_m)
 
-# Define solver backend
-TOOL = "deimos"
-
-
 #
 # Plotting functions
 #
 
 def plot_arxiv_1807_07823(
+    tool,
     num_points=1000,
 ) :
     '''
@@ -49,7 +46,7 @@ def plot_arxiv_1807_07823(
     # assert tool != "nusquids", "2-flavor not supported by nuSQuIDS" - TODO I think I added this...
 
     calculator = OscCalculator(
-        tool=TOOL,
+        tool=tool,
         atmospheric=False,
         num_neutrinos=2,
     )
@@ -145,7 +142,7 @@ def plot_arxiv_1807_07823(
     #TODO
 
 
-def plot_arxiv_1811_04982(num_points=1000) :
+def plot_arxiv_1811_04982(tool, num_points=1000) :
     '''
     Reproduce plots from arXiv 1811.04982 (DUNE)
 
@@ -160,12 +157,15 @@ def plot_arxiv_1811_04982(num_points=1000) :
     # Create calculator
     #
 
+    # Energy range
+    E_GeV = np.geomspace( 0.1, 20., num=num_points)
+
     init_kw = {}
-    if TOOL == "nusquids" :
-        init_kw["energy_nodes_GeV"] = np.logspace(-2., 2., num=1000)
+    if tool == "nusquids" :
+        init_kw["energy_nodes_GeV"] = E_GeV # Put nodes on the E scan points (faster)
 
     calculator = OscCalculator(
-        tool=TOOL,
+        tool=tool,
         atmospheric=False,
         num_neutrinos=3,
         **init_kw
@@ -185,9 +185,6 @@ def plot_arxiv_1811_04982(num_points=1000) :
     #
     # Figure 1
     #
-
-    # Energy range
-    E_GeV = np.geomspace( 0.1, 20., num=num_points)
 
     # Define decoherence matrix
     n = 0
@@ -264,9 +261,9 @@ def plot_arxiv_1811_04982(num_points=1000) :
                 energy_GeV=E_GeV,
                 distance_km=L_km,
             )[:,0,final_flavor]
-            ax[i_nubar, i_flav].plot( E_GeV, osc_probs, color="grey", linewidth=3, label="Std osc", linestyle=":" )
+            ax[i_nubar, i_flav].plot( E_GeV, osc_probs, color="grey", linewidth=2, label="Std osc", linestyle=":" )
             delta_osc_probs_cpt = osc_probs if delta_osc_probs_cpt is None else (delta_osc_probs_cpt - osc_probs)
-        ax[2, i_flav].plot( E_GeV, delta_osc_probs_cpt, color="grey", linewidth=3, label="Std osc", linestyle=":" )
+        ax[2, i_flav].plot( E_GeV, delta_osc_probs_cpt, color="grey", linewidth=2, label="Std osc", linestyle=":" )
 
         print(f"Finished std osc case")
 
@@ -281,9 +278,9 @@ def plot_arxiv_1811_04982(num_points=1000) :
                     energy_GeV=E_GeV,
                     distance_km=L_km,
                 )[:,0,final_flavor]
-                ax[i_nubar, i_flav].plot( E_GeV, osc_probs, color=case_dict["color"], linewidth=3, label=label, linestyle=case_dict["linestyle"] )
+                ax[i_nubar, i_flav].plot( E_GeV, osc_probs, color=case_dict["color"], linewidth=2, label=label, linestyle=case_dict["linestyle"] )
                 delta_osc_probs_cpt = osc_probs if delta_osc_probs_cpt is None else (delta_osc_probs_cpt - osc_probs)
-            ax[2, i_flav].plot( E_GeV, delta_osc_probs_cpt, color=case_dict["color"], linewidth=3, label=label, linestyle=case_dict["linestyle"] )
+            ax[2, i_flav].plot( E_GeV, delta_osc_probs_cpt, color=case_dict["color"], linewidth=2, label=label, linestyle=case_dict["linestyle"] )
 
             print(f"Finished decoherence case {i} ({label})")
 
@@ -296,8 +293,9 @@ def plot_arxiv_1811_04982(num_points=1000) :
         for final_flavor in final_flavor_values :
             ax[2, final_flavor].set_ylabel( r"$\Delta P_{CPTV}$" )
         ax[2, 0].set_ylim(-0.1, +0.1)
-        ax[2, 1].set_ylim(-0.1, +0.1)
+        ax[2, 1].set_ylim(-0.006, +0.006)
         for this_ax in ax.flatten() :
+            this_ax.grid(True)
             this_ax.set_xlabel(r"$E$ [GeV]")
             this_ax.set_xscale("log")
             this_ax.set_xlim(E_GeV[0],E_GeV[-1])
@@ -307,6 +305,7 @@ def plot_arxiv_1811_04982(num_points=1000) :
 
 
 def plot_atmospheric_1d(
+    tool,
     num_points=1000,
 ) :
     '''
@@ -326,10 +325,10 @@ def plot_atmospheric_1d(
 
     # Create calc
     init_kw = {}
-    if TOOL == "nusquids" :
-        init_kw["energy_nodes_GeV"] = E_GeV
+    if tool == "nusquids" :
+        init_kw["energy_nodes_GeV"] = E_GeV # Put nodes on the E scan points (faster)
     calculator = OscCalculator(
-        tool=TOOL,
+        tool=tool,
         atmospheric=False,
         num_neutrinos=3,
         **init_kw
@@ -431,9 +430,9 @@ def plot_atmospheric_1d(
                 energy_GeV=E_GeV,
                 distance_km=L_km,
             )[:,0,final_flavor]
-            fig.get_ax(x=final_flavor, y=i_nubar).plot( E_GeV, osc_probs, color="grey", linewidth=3, label="Std osc", linestyle="-" )
+            fig.get_ax(x=final_flavor, y=i_nubar).plot( E_GeV, osc_probs, color="grey", linewidth=2, label="Std osc", linestyle="-" )
             delta_osc_probs_cpt = osc_probs if delta_osc_probs_cpt is None else (delta_osc_probs_cpt - osc_probs)
-        fig.get_ax(x=final_flavor, y=2).plot( E_GeV, delta_osc_probs_cpt, color="grey", linewidth=3, label="Std osc", linestyle="-" )
+        fig.get_ax(x=final_flavor, y=2).plot( E_GeV, delta_osc_probs_cpt, color="grey", linewidth=2, label="Std osc", linestyle="-" )
 
         # Decoherence
         for i, (label, D_matrix_eV) in enumerate(D_matrices_eV.items()) :
@@ -447,9 +446,9 @@ def plot_atmospheric_1d(
                     energy_GeV=E_GeV,
                     distance_km=L_km,
                 )[:,0,final_flavor]
-                fig.get_ax(x=final_flavor, y=i_nubar).plot( E_GeV, osc_probs, color=colors[i], linewidth=3, label=label, linestyle=linestyles[i] )
+                fig.get_ax(x=final_flavor, y=i_nubar).plot( E_GeV, osc_probs, color=colors[i], linewidth=2, label=label, linestyle=linestyles[i] )
                 delta_osc_probs_cpt = osc_probs if delta_osc_probs_cpt is None else (delta_osc_probs_cpt - osc_probs)
-            fig.get_ax(x=final_flavor, y=2).plot( E_GeV, delta_osc_probs_cpt, color=colors[i], linewidth=3, label=label, linestyle=linestyles[i] )
+            fig.get_ax(x=final_flavor, y=2).plot( E_GeV, delta_osc_probs_cpt, color=colors[i], linewidth=2, label=label, linestyle=linestyles[i] )
 
         # Format
         for i_nubar, nubar in enumerate(nubar_values) :
@@ -470,17 +469,23 @@ def plot_atmospheric_1d(
 
 if __name__ == "__main__" :
 
-    from utils.script_tools import ScriptWrapper
-    from utils.filesys_tools import replace_file_ext
-    with ScriptWrapper( replace_file_ext(__file__,".log") ) as script :
+    #
+    # Plotting
+    #
 
-        num_points = 100
+    # Steering
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-t", "--tool", type=str, default="deimos", help="Name of tool/solver/backend")
+    parser.add_argument("-n", "--num-points", type=int, default=1000, help="Number of points in the solver")
+    args = parser.parse_args()
 
-        # plot_arxiv_1807_07823(num_points=num_points)
+    # Run each plotting function
+    # plot_arxiv_1807_07823(tool=args.tool, num_points=args.num_points)
+    plot_arxiv_1811_04982(tool=args.tool, num_points=args.num_points)
+    # plot_atmospheric_1d(tool=args.tool, num_points=args.num_points)
 
-        plot_arxiv_1811_04982(num_points=num_points)
-
-        # plot_atmospheric_1d(num_points=num_points)
-
-        print("")
-        dump_figures_to_pdf( replace_file_ext(__file__,".pdf") )
+    # Dump figures
+    print("")
+    output_file = __file__.split(".py")[0] + "_" + args.tool + ".pdf"
+    dump_figures_to_pdf(output_file)
