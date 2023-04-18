@@ -9,7 +9,7 @@ import numbers
 from deimos.utils.constants import PLANCK_MASS_eV, EARTH_DIAMETER_km
 from deimos.utils.matrix_algebra import *
 # from deimos.utils.oscillations import OSC_FREQUENCY_UNIT_CONVERSION
-from analysis.common.utils.natural_units import si_to_natural_units, natural_to_si_units
+# from analysis.common.utils.natural_units import si_to_natural_units, natural_to_si_units
 
 from utils.container_tools import is_sequence
 

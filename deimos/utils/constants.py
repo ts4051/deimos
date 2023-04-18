@@ -5,7 +5,7 @@ Tom Stuttard
 '''
 
 import numpy as np
-from analysis.common.utils.natural_units import si_to_natural_units, natural_to_si_units
+# from analysis.common.utils.natural_units import si_to_natural_units, natural_to_si_units
 
 #
 # Fundamental physics
