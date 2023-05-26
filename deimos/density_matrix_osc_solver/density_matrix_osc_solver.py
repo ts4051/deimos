@@ -410,6 +410,9 @@ class DensityMatrixOscSolver(object) :
         decoh_opts=None,
         lightcone_opts=None,
 
+        # Options to be passed to the SME calculator
+        sme_opts=None,
+
         # Misc
         verbose=False,
         plot_density_matrix_evolution=False, # Flag for plotting the solved density matrix vs distance/energy
@@ -519,6 +522,29 @@ class DensityMatrixOscSolver(object) :
 
         # Check not doubling up on decoherence
         assert not (include_lightcone_fluctuations and include_decoherence), "Currently only supporting a single type of decoherence at once"
+
+
+        #
+        # SME (LIV) parameters
+        #
+
+        decoh_D_matrix = None
+        decoh_D_matrix_basis = None
+        include_sme = False
+
+        if sme_opts is not None :
+
+            include_sme = True
+
+            # User provides a a(3) and c(4) coefficients
+            assert "a_eV" in sme_opts
+            assert "c" in sme_opts
+
+            # Grab the vars, handling units
+            sme_opts = copy.deepcopy(sme_opts)
+            sme_a = sme_opts.pop("a_eV")
+            sme_c = sme_opts.pop("c") # dimensionless
+            assert len(sme_opts) == 0, "Unused SME arguments!?!"
 
 
         #
@@ -647,6 +673,20 @@ class DensityMatrixOscSolver(object) :
             # Add/subtract the matter hamiltonian for nu/nubar
             if V is not None :
                 H = H - V if nubar else H + V
+
+            # Add SME terms to Hamiltonian
+            if include_sme :
+                # CPT-even terms
+                H = H + sme_a
+                # CPT-odd terms
+                H = H + ( E_val * (-1. if nubar else 1.) *  sme_c )
+                #TODO add sidereal component
+                #TODO add sidereal component
+                #TODO add sidereal component
+                #TODO add sidereal component
+                #TODO add sidereal component
+                #TODO add sidereal component
+                #TODO add sidereal component
 
             # Handle decoherence gamma param (or D matrix) energy-depenedence
             # Using the `gamma` function, but actually applying to the whole matrix rather than the individual elements (which is equivalent)

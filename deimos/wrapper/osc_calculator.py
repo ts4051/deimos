@@ -5,7 +5,7 @@ both from this project and external.
 Tom Stuttard
 '''
 
-import sys, os, collections
+import sys, os, collections, numbers
 
 try:
     import nuSQUIDSpy as nsq
@@ -170,6 +170,7 @@ class OscCalculator(object) :
         # self._decoherence_D_matrix_basis = None
         self._decoh_model_kw = None
         self._lightcone_model_kw = None
+        self._sme_model_kw = None
 
         # Instantiate solver
         self.solver = DensityMatrixOscSolver(
@@ -323,7 +324,7 @@ class OscCalculator(object) :
         else :
             self._decoh_model_kw = None
             self._lightcone_model_kw = None
-
+            self._sme_model_kw = None
 
     def set_calc_basis(self, basis) :
 
@@ -473,11 +474,38 @@ class OscCalculator(object) :
                 "m" : m,
             }
 
+    #
+    # SME member functions
+    #
+
+    def set_sme(self,
+        a_eV,
+        c,
+    ) :
+        '''
+        TODO
+        '''
+
+        #
+        # Check inputs
+        #
+
+        assert isinstance(a_eV, numbers.Number)
+        assert isinstance(c, numbers.Number)
 
 
+        #
+        # Set values
+        #
 
+        if self.tool == "nusquids" :
+            raise NotImplemented()
 
-
+        elif self.tool == "deimos" :
+            self._sme_model_kw = {
+                "a_eV" : a_eV,
+                "c" : c,
+            }
 
 
 
@@ -728,6 +756,7 @@ class OscCalculator(object) :
             # D_matrix_basis=self._decoherence_D_matrix_basis,
             decoh_opts=self._decoh_model_kw,
             lightcone_opts=self._lightcone_model_kw,
+            sme_opts=self._sme_model_kw,
             verbose=False
         )
 
@@ -849,8 +878,6 @@ class OscCalculator(object) :
 
         import matplotlib.pyplot as plt
 
-        #TODO vs energy version too
-
         # Handle distance vs coszen
         if self.atmospheric :
             assert coszen is not None
@@ -915,6 +942,87 @@ class OscCalculator(object) :
 
     def plot_osc_prob_vs_cozen(self, coszen, *args, **kwargs) : # Alias
         return self.plot_osc_prob_vs_distance(coszen=coszen, *args, **kwargs)
+
+
+
+    def plot_osc_prob_vs_energy(self, 
+        # Steer physics
+        initial_flavor, 
+        energy_GeV, 
+        distance_km=None, coszen=None, 
+        nubar=False, 
+        # Plotting
+        fig=None, ax=None, 
+        label=None, 
+        title=None,
+        xscale="linear",
+        **plot_kw
+    ) :
+        '''
+        Compute and plot the oscillation probability, vs neutrino energy
+        '''
+
+        import matplotlib.pyplot as plt
+
+        # Handle distance vs coszen
+        if self.atmospheric :
+            assert coszen is not None
+            dist_kw = {"coszen" : coszen}
+            x = coszen
+        else :
+            assert distance_km is not None
+            dist_kw = {"distance_km" : distance_km}
+            x = distance_km
+
+        # Check inputs
+        assert isinstance(initial_flavor, int)
+        assert isinstance(energy_GeV, np.ndarray)
+        assert np.isscalar(x)
+        assert isinstance(nubar, bool)
+
+        # User may provide a figure, otherwise make one
+        ny = self.num_neutrinos + 1
+        if fig is None : 
+            fig, ax = plt.subplots( nrows=ny, sharex=True, figsize=( 6, 7 if self.num_neutrinos == 3 else 5) )
+            if title is not None :
+                fig.suptitle(title) 
+        else :
+            assert ax is not None
+            assert len(ax) == ny
+            assert title is None
+
+        # Calc osc probs
+        osc_probs = self.calc_osc_prob(
+            initial_flavor=initial_flavor,
+            energy_GeV=energy_GeV,
+            **dist_kw
+        )
+
+        # Remove distance dimension, since this is single distance
+        osc_probs = osc_probs[:,0,...]
+
+        # Plot oscillations to all possible final states
+        for final_flavor, tex in zip(self.states, self.flavors_tex) :
+            ax[final_flavor].plot( energy_GeV, osc_probs[:,final_flavor], label=label, **plot_kw )
+            ax[final_flavor].set_ylabel( r"$%s$" % self.get_transition_prob_tex(initial_flavor, final_flavor, nubar) )
+
+        # Plot total oscillations to any final state
+        osc_probs_flavor_sum = np.sum(osc_probs,axis=1)
+        ax[-1].plot( energy_GeV, osc_probs_flavor_sum, label=label, **plot_kw ) # Dimension 2 is flavor
+        ax[-1].set_ylabel( r"$%s$" % self.get_transition_prob_tex(initial_flavor, None, nubar) )
+
+        # Formatting
+        ax[-1].set_xlabel(ENERGY_LABEL)
+        if label is not None :
+            ax[0].legend(fontsize=12) # loc='center left', bbox_to_anchor=(1, 0.5), 
+        for this_ax in ax :
+            this_ax.set_xlim(energy_GeV[0], energy_GeV[-1])
+            this_ax.set_ylim(-0.05, 1.05)
+            this_ax.grid(True)
+            this_ax.set_xscale(xscale)
+        fig.tight_layout()
+
+        return fig, ax, osc_probs
 
 
     def plot_cp_asymmetry() :
