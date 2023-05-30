@@ -528,8 +528,8 @@ class DensityMatrixOscSolver(object) :
         # SME (LIV) parameters
         #
 
-        decoh_D_matrix = None
-        decoh_D_matrix_basis = None
+        sme_a = None
+        sme_c = None
         include_sme = False
 
         if sme_opts is not None :

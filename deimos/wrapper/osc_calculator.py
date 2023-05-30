@@ -951,11 +951,13 @@ class OscCalculator(object) :
         energy_GeV, 
         distance_km=None, coszen=None, 
         nubar=False, 
+        final_flavor=None,
         # Plotting
         fig=None, ax=None, 
         label=None, 
         title=None,
         xscale="linear",
+        ylim=None,
         **plot_kw
     ) :
         '''
@@ -979,11 +981,15 @@ class OscCalculator(object) :
         assert isinstance(energy_GeV, np.ndarray)
         assert np.isscalar(x)
         assert isinstance(nubar, bool)
+        if final_flavor is not None :
+            assert isinstance(final_flavor, int)
 
         # User may provide a figure, otherwise make one
-        ny = self.num_neutrinos + 1
+        ny = ( self.num_neutrinos + 1 ) if final_flavor is None else 1
         if fig is None : 
-            fig, ax = plt.subplots( nrows=ny, sharex=True, figsize=( 6, 7 if self.num_neutrinos == 3 else 5) )
+            fig, ax = plt.subplots( nrows=ny, sharex=True, figsize=( 6, 4*ny) )
+            if ny == 1 :
+                ax = [ax]
             if title is not None :
                 fig.suptitle(title) 
         else :
@@ -1002,22 +1008,26 @@ class OscCalculator(object) :
         osc_probs = osc_probs[:,0,...]
 
         # Plot oscillations to all possible final states
-        for final_flavor, tex in zip(self.states, self.flavors_tex) :
-            ax[final_flavor].plot( energy_GeV, osc_probs[:,final_flavor], label=label, **plot_kw )
-            ax[final_flavor].set_ylabel( r"$%s$" % self.get_transition_prob_tex(initial_flavor, final_flavor, nubar) )
+        final_flavor_values = self.states if final_flavor is None else [final_flavor]
+        for i, final_flavor in enumerate(final_flavor_values) :
+            ax[i].plot( energy_GeV, osc_probs[:,final_flavor], label=label, **plot_kw )
+            ax[i].set_ylabel( r"$%s$" % self.get_transition_prob_tex(initial_flavor, final_flavor, nubar) )
 
         # Plot total oscillations to any final state
-        osc_probs_flavor_sum = np.sum(osc_probs,axis=1)
-        ax[-1].plot( energy_GeV, osc_probs_flavor_sum, label=label, **plot_kw ) # Dimension 2 is flavor
-        ax[-1].set_ylabel( r"$%s$" % self.get_transition_prob_tex(initial_flavor, None, nubar) )
+        if len(final_flavor_values) > 1 :
+            osc_probs_flavor_sum = np.sum(osc_probs,axis=1)
+            ax[-1].plot( energy_GeV, osc_probs_flavor_sum, label=label, **plot_kw ) # Dimension 2 is flavor
+            ax[-1].set_ylabel( r"$%s$" % self.get_transition_prob_tex(initial_flavor, None, nubar) )
 
         # Formatting
+        if ylim is None :
+            ylim = (-0.05, 1.05)
         ax[-1].set_xlabel(ENERGY_LABEL)
         if label is not None :
-            ax[0].legend(fontsize=12) # loc='center left', bbox_to_anchor=(1, 0.5), 
+            ax[0].legend(fontsize=10) # loc='center left', bbox_to_anchor=(1, 0.5), 
         for this_ax in ax :
             this_ax.set_xlim(energy_GeV[0], energy_GeV[-1])
-            this_ax.set_ylim(-0.05, 1.05)
+            this_ax.set_ylim(ylim)
             this_ax.grid(True)
             this_ax.set_xscale(xscale)
         fig.tight_layout()
