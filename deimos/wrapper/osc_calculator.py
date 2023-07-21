@@ -6,6 +6,9 @@ Tom Stuttard
 '''
 
 import sys, os, collections, numbers
+import numpy as np
+import matplotlib.pyplot as plt
+import warnings
 
 try:
     import nuSQUIDSpy as nsq
@@ -18,6 +21,7 @@ from deimos.utils.constants import *
 from deimos.models.decoherence.decoherence_operators import get_model_D_matrix
 from deimos.density_matrix_osc_solver.density_matrix_osc_solver import DensityMatrixOscSolver, get_pmns_matrix, get_matter_potential_flav
 from deimos.utils.oscillations import calc_path_length_from_coszen
+from deimos.utils.coordinates import *
 
 
 #
@@ -325,6 +329,7 @@ class OscCalculator(object) :
             self._decoh_model_kw = None
             self._lightcone_model_kw = None
             self._sme_model_kw = None
+            self._neutrino_source_kw = None
 
     def set_calc_basis(self, basis) :
 
@@ -490,8 +495,8 @@ class OscCalculator(object) :
         # Check inputs
         #
 
-        assert isinstance(a_eV, numbers.Number)
-        assert isinstance(c, numbers.Number)
+        assert isinstance(a_eV, np.ndarray), "a_eV should be an array"
+        assert isinstance(c, np.ndarray), "c should be an array"
 
 
         #
@@ -499,19 +504,63 @@ class OscCalculator(object) :
         #
 
         if self.tool == "nusquids" :
-            raise NotImplemented()
+            raise NotImplementedError()
 
         elif self.tool == "deimos" :
             self._sme_model_kw = {
                 "a_eV" : a_eV,
-                "c" : c,
+                "c" : c
             }
 
+    def set_detector_location(self,
+                              # Detector location in deg
+                              lat, long, height_m,
+                              
+                              ) :
+        # Set detector location
+        self.detector_coordinates = CoordTransform(
+            detector_lat = lat, 
+            detector_long = long, 
+            detector_height_m = height_m
+            )
+    
+    def set_neutrino_source(self,
+                            # Location on the sky
+                            ra, 
+                            dec,
+                            # Date, Time and Timezone
+                            date_str,
+                            utc_offset_hr=0,
+                            ):
+        
+        #
+        # Set values
+        #
 
+        if self.tool == "nusquids" :
+            raise NotImplementedError()
 
-    #
-    # Plotting member functions
-    #
+        elif self.tool == "deimos" :
+            #Set date, time and location of neutrino source
+            coszen_neutrino_source, azimuth_neutrino_source = self.detector_coordinates.get_coszen_and_azimuth(
+                ra = ra, 
+                dec = dec,
+                date_str = date_str, 
+                utc_offset_hr = utc_offset_hr
+                )
+            # deimos.utils.coordinates checks whether the input is correct
+            self._neutrino_source_kw = {
+                "time_stamp" : self.detector_coordinates.parse_date_string(
+                    date_str = date_str, 
+                    utc_offset_hr = utc_offset_hr
+                    ),
+                # Horizontal Coordinate System
+                "coszen" : coszen_neutrino_source,
+                "azimuth" : azimuth_neutrino_source,
+                # Equatorial Coordinate System
+                "ra" : ra,
+                "dec" : dec,
+            }
 
     def calc_osc_prob(self,
         energy_GeV,
@@ -528,14 +577,33 @@ class OscCalculator(object) :
         #
         # Check inputs
         # 
-
-        if self.atmospheric :
-            assert ( (coszen is not None) and (distance_km is None) ), "Must provide `coszen` (and not `distance_km`) in atmospheric mode"
-        else :
-            assert ( (distance_km is not None) and (coszen is None) ), "Must provide `distance_km` (and not `coszen`) in non-atmospheric mode" 
-
-        if initial_flavor is not None :
-            initial_flavor = self._get_flavor_index(initial_flavor)
+        
+        # Check whether SME parameters were set
+        if self._sme_model_kw:
+            # If SME parameters are set, assert that neutrino source was defined
+            assert ( (self._neutrino_source_kw["ra"] is not None) 
+                    and (self._neutrino_source_kw["dec"] is not None) 
+                    and (self._neutrino_source_kw["time_stamp"] is not None)), ValueError("Right ascension, declination and time stamp of neutrino must be provided when SME parameters are set.")
+            
+            # Check whether both coszen and ra, dec were set
+            if self.atmospheric :
+                assert distance_km is None, "Must not provide `distance_km` in atmospheric mode"
+                if coszen is not None:
+                    # Issue a warning about ignoring the coszen argument
+                    warnings.warn("The coszen argument was ignored. Zenith angle was calculated from RA and declination.")
+                    coszen = self._neutrino_source_kw["coszen"]
+                    
+            if initial_flavor is not None :
+                initial_flavor = self._get_flavor_index(initial_flavor)
+        
+        else:
+            if self.atmospheric :
+                assert ( (coszen is not None) and (distance_km is None) ), "Must provide `coszen` (and not `distance_km`) in atmospheric mode"
+            else :
+                assert ( (distance_km is not None) and (coszen is None) ), "Must provide `distance_km` (and not `coszen`) in non-atmospheric mode" 
+    
+            if initial_flavor is not None :
+                initial_flavor = self._get_flavor_index(initial_flavor)
 
 
         #
@@ -757,6 +825,7 @@ class OscCalculator(object) :
             decoh_opts=self._decoh_model_kw,
             lightcone_opts=self._lightcone_model_kw,
             sme_opts=self._sme_model_kw,
+            neutrino_source_opts=self._neutrino_source_kw,
             verbose=False
         )
 
@@ -1115,6 +1184,152 @@ class OscCalculator(object) :
         fig.tight_layout()
 
         return fig, ax, osc_probs
+
+    def plot_right_ascension_vs_energy_2D(
+            self,
+            # Steer physics
+            initial_flavor, 
+            energy_GeV, 
+            raBins=np.linspace(0, 2 * np.pi, 50),
+            distance_km=None, coszen=None, 
+            nubar=False, 
+            final_flavor=None,
+            # Plotting
+            fig=None, ax=None, 
+            label=None, 
+            title=None,
+            xscale="linear",
+            ylim=None,
+            **plot_kw
+    ) :
+        
+        '''
+        Make a 2D plot of oscillation probabilities vs neutrino energy (x-axis) and right ascension (y-axis).
+
+        '''
+        
+        # Check inputs
+        assert isinstance(initial_flavor, int)
+        assert isinstance(energy_GeV, np.ndarray)
+        assert np.isscalar(coszen)
+        assert isinstance(nubar, bool)
+        if final_flavor is not None:
+            assert isinstance(final_flavor, int)
+            
+        # User may provide a figure, otherwise make one
+        ny = self.num_neutrinos + 1 if final_flavor is None else 1
+        if fig is None:
+            fig, ax = plt.subplots(nrows=ny, sharex=True, figsize=(6, 4 * ny))
+            if ny == 1:
+                ax = [ax]
+            if title is not None:
+                fig.suptitle(title)
+        else:
+            assert ax is not None
+            assert len(ax) == ny
+            assert title is None
+
+        # Calculate probabilities
+        probabilities2d = np.zeros((len(raBins), len(energy_GeV)))
+
+        for i, alpha in enumerate(raBins):
+            for j, energy in enumerate(energy_GeV):
+                probabilities2d[i, j] = self.calc_osc_probs(
+                    initial_flavor=initial_flavor,
+                    energy_GeV=energy,
+                    **dist_kw
+                )
+
+        # Plot the results
+        ax[0].imshow(
+            probabilities2d[::-1],
+            aspect="auto",
+            extent=[min(energy_GeV), max(energy_GeV), 0, 2 * np.pi],
+            cmap="RdPu",
+        )
+        ax[0].set_ylabel("Right Ascension")
+        ax[0].set_xlabel(r"$\log_{10}(E/[\rm GeV])$")
+        ax[0].set_title(
+            r"$\delta \sim -3/4\pi$, $a^X = {:.2e} \, \rm GeV$".format(a_eV[0])
+            + r", $a^Y = {:.2e} \, \rm GeV$".format(a_eV[1])
+            + r", $c^X = {:.2e}$".format(c[0])
+            + r", $c^Y = {:.2e}$".format(c[1]),
+            fontsize=14,
+        )
+
+        # Add colorbar
+        cbar = ax[0].figure.colorbar(
+            ax[0].get_images()[0], ax=ax[0], label=r"$P(\nu_{\mu}\rightarrow \nu_{\mu})$"
+        )
+
+        if final_flavor is not None:
+            # If final_flavor is specified, plot other subplots
+            # (Here you can customize further if you want to show more subplots)
+
+            # Add other plots in the case of multiple neutrinos
+            for i in range(1, ny):
+                ax[i].imshow(
+                    np.random.random((10, 10)),  # Just an example, replace with your own data
+                    aspect="auto",
+                    extent=[0, 10, 0, 10],  # Replace with appropriate values
+                    cmap="Blues",
+                )
+
+        plt.tight_layout()
+        plt.show()
+        
+        # # Check whether SME parameters were set
+        # a_eV = self._sme_model_kw.get("a_eV")
+        # c = self._sme_model_kw.get("c")
+        
+        # if a_eV is not None and c is not None:
+        #     raise ValueError("SME parameters 'a' and 'c' have not been set. Call 'set_sme' function first.")
+        
+        # # Access the 'a_eV' and 'c' values from the dictionary
+        # a_eV = self._sme_model_kw["a_eV"]
+        # c = self._sme_model_kw["c"]
+        
+        # # Handle distance vs coszen
+        # if self.atmospheric :
+        #     assert coszen is not None
+        #     dist_kw = {"coszen" : coszen}
+        
+        # else :
+        #     assert distance_km is not None
+        #     dist_kw = {"distance_km" : distance_km}
+            
+        # # Check inputs
+        # assert isinstance(initial_flavor, int)
+        # assert isinstance(energy_GeV, np.ndarray)
+        # assert isinstance(nubar, bool)
+        # if final_flavor is not None :
+        #     assert isinstance(final_flavor, int)
+            
+        # # TODO user may provide a figure, otherwise make one
+
+        
+        # #Create right ascension with as many bins as energy_GeV
+        # num_bins = len(energy_GeV)
+        # alphaBins = np.linspace(0, 2 * np.pi, num_bins)
+        # probabilities2d = np.zeros((num_bins, num_bins))
+        
+        # # Get the oscillation probabilities
+        # for i in range(num_bins):
+        #     probabilities2d[i,:] = self.calc_osc_prob(
+        #         initial_flavor = initial_flavor,
+        #         energy_GeV = energy_GeV,
+        #         **dist_kw
+        #             )
+        
+        # # Create the plot
+        # fig, ax = plt.subplots(figsize=(9, 6))
+        # ax.imshow(probabilities2d[::-1], aspect='auto', extent=[energy_GeV[0], energy_GeV[-1], 0, 2 * np.pi], cmap='RdPu')
+        # ax.set_xlabel(r'$\log_{10}(E/[\rm GeV])$')
+        # ax.set_ylabel("Right Ascension")
+        # ax.set_title(r'$\delta \sim -3/4\pi$, $a^X = {:.2e} \, \rm GeV$'.format(a_eV[0]) + r', $a^Y = {:.2e} \, \rm GeV$'.format(a_eV[1]) + r', $c^X = {:.2e}$'.format(c[0]) + r', $c^Y = {:.2e}$'.format(c[1]), fontsize=14)
+        # fig.colorbar(label=r'$P(\nu_{\mu}\rightarrow \nu_{\mu})$')
+
+        return fig, ax, probabilities2d
 
 
     def compare_models(
