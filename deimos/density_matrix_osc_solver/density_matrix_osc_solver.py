@@ -40,7 +40,7 @@ except :
 #
 
 # Unit conversions
-#TOD Use my natural_units.py modules
+#TODO Use my natural_units.py modules
 km_to_eV = 5.06773093741e9 # [km] -> [1/eV]
 GeV_to_eV = 1.e9 # [GeV] -> [eV]
 
@@ -412,7 +412,8 @@ class DensityMatrixOscSolver(object) :
 
         # Options to be passed to the SME calculator
         sme_opts=None,
-
+        neutrino_source_opts=None,
+        
         # Misc
         verbose=False,
         plot_density_matrix_evolution=False, # Flag for plotting the solved density matrix vs distance/energy
@@ -530,20 +531,69 @@ class DensityMatrixOscSolver(object) :
 
         sme_a = None
         sme_c = None
+        ra = None
+        dec = None
         include_sme = False
 
         if sme_opts is not None :
+            
 
             include_sme = True
 
-            # User provides a a(3) and c(4) coefficients
+            # User provides a(3) and c(4) coefficients
             assert "a_eV" in sme_opts
             assert "c" in sme_opts
+            
+            #User provides location of the neutrino source in the sky
+            assert "ra" in neutrino_source_opts
+            assert "dec" in neutrino_source_opts
 
             # Grab the vars, handling units
             sme_opts = copy.deepcopy(sme_opts)
             sme_a = sme_opts.pop("a_eV")
             sme_c = sme_opts.pop("c") # dimensionless
+            ra = neutrino_source_opts.pop("ra")
+            dec = neutrino_source_opts.pop("dec")
+            
+            # Convert from degree to radians 
+            ra = np.deg2rad(ra)
+            dec = np.deg2rad(dec)
+            
+           
+           # TODO implement the full effective hamiltonian
+           # # Check if the inputs are matrices
+           #  if isinstance(sme_a, np.ndarray) and isinstance(sme_c, np.ndarray):
+           #      assert sme_a.shape == (4, 3, 3), "a_L^mu should be a hermitian 3x3 complex matrix"
+           #      assert sme_c.shape == (4, 4, 3, 3), "c_L^mu^nu should be a hermitian 3x3 complex matrix"
+           #  else:
+           #  	raise TypeError("a_eV and c should be 4x4 matrices with numeric values.")
+            
+            	    
+            # Assert ra and dec are given in radians and within specified ranges
+            if isinstance(ra, (int, float)):
+                if ra < 0 or ra > 2*np.pi:
+                    raise ValueError("ra should be within the range [0, 2*pi].")
+            else:
+            	raise TypeError("ra should be a numeric value.")
+            
+            if isinstance(dec, (int, float)):	
+            	if dec < -np.pi/2 or dec > np.pi/2:
+                    raise ValueError("dec should be within the range [-pi/2, pi/2].") 
+            else:
+            	raise TypeError("ra should be a numeric value.")
+            
+            # TODO allow ra and dec to be arrays abd loop through elements
+            # if not np.all((ra >= 0) & (ra <= 2 * np.pi)):
+            #     raise ValueError("ra should be within the range [0, 2*pi].")
+            
+            # if not np.all((dec >= -np.pi / 2) & (dec <= np.pi / 2)):
+            #     raise ValueError("dec should be within the range [-pi/2, pi/2].")
+            
+            # #Assert ra and dec have the same length
+            # if isinstance(ra, np.ndarray) and isinstance(dec, np.ndarray):
+            #     assert len(ra) == len(dec), "ra and dec arrays must have the same length."
+            
+            #Check for additional SME arguments
             assert len(sme_opts) == 0, "Unused SME arguments!?!"
 
 
@@ -676,18 +726,44 @@ class DensityMatrixOscSolver(object) :
 
             # Add SME terms to Hamiltonian
             if include_sme :
-                # CPT-even terms
-                H = H + sme_a
-                # CPT-odd terms
-                H = H + ( E_val * (-1. if nubar else 1.) *  sme_c )
+                # # CPT-even terms
+                # H = H + sme_a[0]
+                # # CPT-odd terms
+                # H = H + ( E_val * (-1. if nubar else 1.) *  sme_c[0] )
+                
                 #TODO add sidereal component
-                #TODO add sidereal component
-                #TODO add sidereal component
-                #TODO add sidereal component
-                #TODO add sidereal component
-                #TODO add sidereal component
-                #TODO add sidereal component
+                #celestial colatitude and longitude
+                theta = np.pi/2 + dec 
+                phi = np.pi + ra 
+                
+                #unit propagation vectors
+                NX = np.sin(theta) * np.cos(phi)
+                NY = np.sin(theta) * np.sin(phi)
+                #NZ = np.cos(theta)
+        		
 
+                # Assume sme_a.shape and sme_c.shape >>> (2,)
+                # TODO Generalize for a_L^mu, c_L^mu^nu hermitian 3x3 complex matrix"
+                a_eV_x = sme_a[0]
+                a_eV_y = sme_a[1]
+                c_tx = sme_c[0]
+                c_ty = sme_c[1]
+                
+                #amplitudes
+                As0 = NY * a_eV_x - NX * a_eV_y
+                As1 = - 2 * NY * c_tx + 2 * NX * c_ty
+                As = As0 + E_val * As1
+                
+                Ac0 = - NX * a_eV_x - NY * a_eV_y
+                Ac1 = 2 * NX * c_tx + 2 * NY * c_ty
+                Ac = Ac0 + E_val * Ac1
+                
+                #effective hamiltonian
+                h_eff = As * np.sin(ra) + Ac * np.sin(ra)
+    		
+                H = H + h_eff
+        
+            
             # Handle decoherence gamma param (or D matrix) energy-depenedence
             # Using the `gamma` function, but actually applying to the whole matrix rather than the individual elements (which is equivalent)
             if include_decoherence :
