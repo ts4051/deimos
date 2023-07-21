@@ -567,31 +567,18 @@ class DensityMatrixOscSolver(object) :
            #      assert sme_c.shape == (4, 4, 3, 3), "c_L^mu^nu should be a hermitian 3x3 complex matrix"
            #  else:
            #  	raise TypeError("a_eV and c should be 4x4 matrices with numeric values.")
+          
             
-            	    
-            # Assert ra and dec are given in radians and within specified ranges
-            if isinstance(ra, (int, float)):
-                if ra < 0 or ra > 2*np.pi:
-                    raise ValueError("ra should be within the range [0, 2*pi].")
-            else:
-            	raise TypeError("ra should be a numeric value.")
+            # Allow ra and dec to be arrays abd loop through elements
+            if not np.all((ra >= 0) & (ra <= 2 * np.pi)):
+                raise ValueError("ra should be within the range [0, 2*pi].")
             
-            if isinstance(dec, (int, float)):	
-            	if dec < -np.pi/2 or dec > np.pi/2:
-                    raise ValueError("dec should be within the range [-pi/2, pi/2].") 
-            else:
-            	raise TypeError("ra should be a numeric value.")
+            if not np.all((dec >= -np.pi / 2) & (dec <= np.pi / 2)):
+                raise ValueError("dec should be within the range [-pi/2, pi/2].")
             
-            # TODO allow ra and dec to be arrays abd loop through elements
-            # if not np.all((ra >= 0) & (ra <= 2 * np.pi)):
-            #     raise ValueError("ra should be within the range [0, 2*pi].")
-            
-            # if not np.all((dec >= -np.pi / 2) & (dec <= np.pi / 2)):
-            #     raise ValueError("dec should be within the range [-pi/2, pi/2].")
-            
-            # #Assert ra and dec have the same length
-            # if isinstance(ra, np.ndarray) and isinstance(dec, np.ndarray):
-            #     assert len(ra) == len(dec), "ra and dec arrays must have the same length."
+            #Assert ra and dec have the same length
+            if isinstance(ra, np.ndarray) and isinstance(dec, np.ndarray):
+                assert len(ra) == len(dec), "ra and dec arrays must have the same length."
             
             #Check for additional SME arguments
             assert len(sme_opts) == 0, "Unused SME arguments!?!"
@@ -702,197 +689,232 @@ class DensityMatrixOscSolver(object) :
             print("\nInitial density matrix (mass basis):")
             print(initial_rho_mass)
 
+                
+        #Calculate osc probabilities by looping over each energy value
+        def calc_osc_probs_energy_evolution(
+                array,
+                ra = None,
+                dec = None
+                ) :
+            # Loop over energy values
+            for E_val in E :
+    
+    
+                #
+                # Set energy-dependent properties
+                #
+    
+                # Get the vacuum Hamiltonian at this energy
+                H = M / (2. * E_val)
+    
+                # Add/subtract the matter hamiltonian for nu/nubar
+                if V is not None :
+                    H = H - V if nubar else H + V
+    
+                # Add SME terms to Hamiltonian
+                if include_sme :
+                    # # CPT-even terms
+                    # H = H + sme_a[0]
+                    # # CPT-odd terms
+                    # H = H + ( E_val * (-1. if nubar else 1.) *  sme_c[0] )
+                    
+                    #TODO add sidereal component
+                    #celestial colatitude and longitude
+                    theta = np.pi/2 + dec 
+                    phi = np.pi + ra 
+                    
+                    #unit propagation vectors
+                    NX = np.sin(theta) * np.cos(phi)
+                    NY = np.sin(theta) * np.sin(phi)
+                    #NZ = np.cos(theta)
+            		
+    
+                    # Assume sme_a.shape and sme_c.shape >>> (2,)
+                    # TODO Generalize for a_L^mu, c_L^mu^nu hermitian 3x3 complex matrix"
+                    a_eV_x = sme_a[0]
+                    a_eV_y = sme_a[1]
+                    c_tx = sme_c[0]
+                    c_ty = sme_c[1]
+                    
+                    #amplitudes
+                    As0 = NY * a_eV_x - NX * a_eV_y
+                    As1 = - 2 * NY * c_tx + 2 * NX * c_ty
+                    As = As0 + E_val * As1
+                    
+                    Ac0 = - NX * a_eV_x - NY * a_eV_y
+                    Ac1 = 2 * NX * c_tx + 2 * NY * c_ty
+                    Ac = Ac0 + E_val * Ac1
+                    
+                    #effective hamiltonian
+                    h_eff = As * np.sin(ra) + Ac * np.sin(ra)
+        		
+                    H = H + h_eff
+            
+                
+                # Handle decoherence gamma param (or D matrix) energy-depenedence
+                # Using the `gamma` function, but actually applying to the whole matrix rather than the individual elements (which is equivalent)
+                if include_decoherence :
+                    from deimos.models.decoherence.nuVBH_model import get_gamma
+                    nonlocal decoh_D_matrix
+                    decoh_D_matrix = get_gamma(gamma0_eV=decoh_D_matrix0, E_eV=E_val, E0_eV=decoh_E0, n=decoh_n)
+    
+    
+                #
+                # Define function to solve
+                #
+    
+                # Define the time derivative of the density matrix: d(rho)/dt = -i[H,rho] (-D[rho])
+                # The additional -D[rho] term if for the case of decoherence: D[rho]_ij = rho_ij * Gamma_ij
+                # We will use this to numerically solve for rho and integrate
+                # Anything depending on `rho` or `L` must be done in here
+    
+                def derive(rho, L, decoh_D_matrix_basis=None, decoh_D_matrix=None):
+    
+                    # Handle lightcone fluctuations here (since depends on L)
+                    if include_lightcone_fluctuations :
+                        from deimos.utils.model.lightcone_fluctuations.lightcone_fluctuation_model import get_lightcone_decoherence_D_matrix
+                        decoh_D_matrix_basis, decoh_D_matrix = get_lightcone_decoherence_D_matrix(num_states=self.num_states, H=H, E=E_val, L=L, m=lightcone_m, n=lightcone_n, dL0=lightcone_dL0, L0=lightcone_L0, E0=lightcone_E0) 
+    
+                    # Compute the time derivative of the system
+                    return get_rho_dot(H=H, rho=rho, calc_basis=calc_basis, D_matrix=decoh_D_matrix, D_matrix_basis=decoh_D_matrix_basis)
+    
+    
+                #
+                # Calculate oscillation probabilities
+                #
+    
+                #TOD Can I solve directly for E if have range of E values but only a single L value, rathe than the hacks in place now?
+    
+                # Solve matrix ODE to get rho (mass basis) for each L
+                #print("\nSolving...")
+                solved_rho_mass, infodict = odeintw(
+                    derive, # d(rho)/dL
+                    initial_rho_mass, # rho(0)
+                    L_nodes, # L
+                    args=(decoh_D_matrix_basis, decoh_D_matrix),
+                    # args=(),
+                    full_output=True,
+                    rtol=self.rtol,
+                    atol=self.atol,
+                    mxstep=self.mxstep,
+                )
+                assert infodict["message"] == "Integration successful.", "Solver failed : %s" % infodict["message"]
+                #print("Solver completed successfully")
+    
+                # Track the entropy of the system
+                #TODO
+    
+                # Remove the extra nodes added for solver stability
+                if pad_L :
+                    mask = np.array( [False] + ([True]*L.size) + [False], dtype=bool )
+                    solved_rho_mass = solved_rho_mass[mask]
+    
+                # Convert solutions to flavor basis
+                solved_rho_flav = np.array([ rho_mass_to_flav_basis(rm, PMNS) for rm in solved_rho_mass ])
+    
+                #TODO Remove, clean up, or add to `test`
+                if False :
+                    if verbose :
+                        print("\nSolved rho (flavor basis):")
+                        for r in solved_rho_flav : 
+                            print(r)
+    
+                # Get oscillation probabilties for each final state flavor
+                osc_probs = np.full( (len(L),len(states),), np.NaN ) # Indexing [L value, final state flavor]
+                for i_L in range(0,len(L)) :
+                    for i_f,final_flav in enumerate(states) :
+                        osc_probs[i_L,i_f] = rho_flavor_prob(solved_rho_flav[i_L,...],final_flav)
+    
+                # Store the results for each energy
+                array.append(osc_probs)
+    
+    
+                #
+                # Plot density matrix evolution
+                #
+    
+                if plot_density_matrix_evolution :
+    
+                    assert np.isscalar(E) or (len(E) == 1)
+                    assert len(L_km) > 1
+    
+                    rho_mass_fig = Figure(nx=self.num_states, ny=self.num_states, title=r"$\rho_{\rm{mass}}$", sharex=True, sharey=True, figsize=(9,7), row_headings=True, col_headings=True) 
+                    rho_flav_fig = Figure(nx=self.num_states, ny=self.num_states, title=r"$\rho_{\rm{flavor}}$", sharex=True, sharey=True, figsize=(9,7), row_headings=True, col_headings=True) 
+                    figs = [rho_mass_fig, rho_flav_fig]
+                    for i in range(self.num_states) :
+    
+                        for fig in figs :
+                            fig.set_row_heading(i, str(i) )
+    
+                        for j in range(self.num_states) :
+    
+                            if i == 0 :
+                                for fig in figs :
+                                    fig.set_col_heading(j, str(j) )
+    
+                            num_L = solved_rho_mass.shape[0]
+    
+                            rho_mass_ij = np.array([ solved_rho_mass[k,i,j] for k in range(num_L) ], dtype=np.complex128)
+                            rho_flav_ij = np.array([ solved_rho_flav[k,i,j] for k in range(num_L) ], dtype=np.complex128)
+    
+                            rho_mass_ax = rho_mass_fig.get_ax(x=i, y=j)
+                            rho_flav_ax = rho_flav_fig.get_ax(x=i, y=j)
+    
+                            rho_mass_ax.plot(L_km, rho_mass_ij.real, color="red", linestyle="-", zorder=5)
+                            rho_mass_ax.plot(L_km, rho_mass_ij.imag, color="orange", linestyle="--", zorder=6)
+    
+                            rho_flav_ax.plot(L_km, rho_flav_ij.real, color="blue", linestyle="-", zorder=5)
+                            rho_flav_ax.plot(L_km, rho_flav_ij.imag, color="lightblue", linestyle="--", zorder=6)
+    
+                            for ax in [rho_mass_ax, rho_flav_ax] :
+                                ax.axhline(0., color="black", linestyle="--", linewidth=1, zorder=4)
+                                ax.axhline(1./float(self.num_states), color="black", linestyle="-.", linewidth=1, zorder=4)
+    
+                    for fig in figs :
+                        fig.quick_format( ylim=(-1., +1.), xlim=(L_km[0],L_km[-1]) )
+                    rho_mass_fig.save("rho_mass.png")
+                    rho_flav_fig.save("rho_flav.png")
 
+
+            #
+            # Done
+            #
+          
+        
         #
         # Loop over energies
         #
 
         osc_prob_results = []
-
-        # Loop over each energy value
-        for E_val in E :
-
-
-            #
-            # Set energy-dependent properties
-            #
-
-            # Get the vacuum Hamiltonian at this energy
-            H = M / (2. * E_val)
-
-            # Add/subtract the matter hamiltonian for nu/nubar
-            if V is not None :
-                H = H - V if nubar else H + V
-
-            # Add SME terms to Hamiltonian
-            if include_sme :
-                # # CPT-even terms
-                # H = H + sme_a[0]
-                # # CPT-odd terms
-                # H = H + ( E_val * (-1. if nubar else 1.) *  sme_c[0] )
-                
-                #TODO add sidereal component
-                #celestial colatitude and longitude
-                theta = np.pi/2 + dec 
-                phi = np.pi + ra 
-                
-                #unit propagation vectors
-                NX = np.sin(theta) * np.cos(phi)
-                NY = np.sin(theta) * np.sin(phi)
-                #NZ = np.cos(theta)
-        		
-
-                # Assume sme_a.shape and sme_c.shape >>> (2,)
-                # TODO Generalize for a_L^mu, c_L^mu^nu hermitian 3x3 complex matrix"
-                a_eV_x = sme_a[0]
-                a_eV_y = sme_a[1]
-                c_tx = sme_c[0]
-                c_ty = sme_c[1]
-                
-                #amplitudes
-                As0 = NY * a_eV_x - NX * a_eV_y
-                As1 = - 2 * NY * c_tx + 2 * NX * c_ty
-                As = As0 + E_val * As1
-                
-                Ac0 = - NX * a_eV_x - NY * a_eV_y
-                Ac1 = 2 * NX * c_tx + 2 * NY * c_ty
-                Ac = Ac0 + E_val * Ac1
-                
-                #effective hamiltonian
-                h_eff = As * np.sin(ra) + Ac * np.sin(ra)
-    		
-                H = H + h_eff
         
-            
-            # Handle decoherence gamma param (or D matrix) energy-depenedence
-            # Using the `gamma` function, but actually applying to the whole matrix rather than the individual elements (which is equivalent)
-            if include_decoherence :
-                from deimos.models.decoherence.nuVBH_model import get_gamma
-                decoh_D_matrix = get_gamma(gamma0_eV=decoh_D_matrix0, E_eV=E_val, E0_eV=decoh_E0, n=decoh_n)
-
-
-            #
-            # Define function to solve
-            #
-
-            # Define the time derivative of the density matrix: d(rho)/dt = -i[H,rho] (-D[rho])
-            # The additional -D[rho] term if for the case of decoherence: D[rho]_ij = rho_ij * Gamma_ij
-            # We will use this to numerically solve for rho and integrate
-            # Anything depending on `rho` or `L` must be done in here
-
-            def derive(rho, L, decoh_D_matrix_basis=None, decoh_D_matrix=None):
-
-                # Handle lightcone fluctuations here (since depends on L)
-                if include_lightcone_fluctuations :
-                    from deimos.utils.model.lightcone_fluctuations.lightcone_fluctuation_model import get_lightcone_decoherence_D_matrix
-                    decoh_D_matrix_basis, decoh_D_matrix = get_lightcone_decoherence_D_matrix(num_states=self.num_states, H=H, E=E_val, L=L, m=lightcone_m, n=lightcone_n, dL0=lightcone_dL0, L0=lightcone_L0, E0=lightcone_E0) 
-
-                # Compute the time derivative of the system
-                return get_rho_dot(H=H, rho=rho, calc_basis=calc_basis, D_matrix=decoh_D_matrix, D_matrix_basis=decoh_D_matrix_basis)
-
-
-            #
-            # Calculate oscillation probabilities
-            #
-
-            #TOD Can I solve directly for E if have range of E values but only a single L value, rathe than the hacks in place now?
-
-            # Solve matrix ODE to get rho (mass basis) for each L
-            #print("\nSolving...")
-            solved_rho_mass, infodict = odeintw(
-                derive, # d(rho)/dL
-                initial_rho_mass, # rho(0)
-                L_nodes, # L
-                args=(decoh_D_matrix_basis, decoh_D_matrix),
-                # args=(),
-                full_output=True,
-                rtol=self.rtol,
-                atol=self.atol,
-                mxstep=self.mxstep,
-            )
-            assert infodict["message"] == "Integration successful.", "Solver failed : %s" % infodict["message"]
-            #print("Solver completed successfully")
-
-            # Track the entropy of the system
-            #TODO
-
-            # Remove the extra nodes added for solver stability
-            if pad_L :
-                mask = np.array( [False] + ([True]*L.size) + [False], dtype=bool )
-                solved_rho_mass = solved_rho_mass[mask]
-
-            # Convert solutions to flavor basis
-            solved_rho_flav = np.array([ rho_mass_to_flav_basis(rm, PMNS) for rm in solved_rho_mass ])
-
-            #TODO Remove, clean up, or add to `test`
-            if False :
-                if verbose :
-                    print("\nSolved rho (flavor basis):")
-                    for r in solved_rho_flav : 
-                        print(r)
-
-            # Get oscillation probabilties for each final state flavor
-            osc_probs = np.full( (len(L),len(states),), np.NaN ) # Indexing [L value, final state flavor]
-            for i_L in range(0,len(L)) :
-                for i_f,final_flav in enumerate(states) :
-                    osc_probs[i_L,i_f] = rho_flavor_prob(solved_rho_flav[i_L,...],final_flav)
-
-            # Store the results for each energy
-            osc_prob_results.append(osc_probs)
-
-
-            #
-            # Plot density matrix evolution
-            #
-
-            if plot_density_matrix_evolution :
-
-                assert np.isscalar(E) or (len(E) == 1)
-                assert len(L_km) > 1
-
-                rho_mass_fig = Figure(nx=self.num_states, ny=self.num_states, title=r"$\rho_{\rm{mass}}$", sharex=True, sharey=True, figsize=(9,7), row_headings=True, col_headings=True) 
-                rho_flav_fig = Figure(nx=self.num_states, ny=self.num_states, title=r"$\rho_{\rm{flavor}}$", sharex=True, sharey=True, figsize=(9,7), row_headings=True, col_headings=True) 
-                figs = [rho_mass_fig, rho_flav_fig]
-                for i in range(self.num_states) :
-
-                    for fig in figs :
-                        fig.set_row_heading(i, str(i) )
-
-                    for j in range(self.num_states) :
-
-                        if i == 0 :
-                            for fig in figs :
-                                fig.set_col_heading(j, str(j) )
-
-                        num_L = solved_rho_mass.shape[0]
-
-                        rho_mass_ij = np.array([ solved_rho_mass[k,i,j] for k in range(num_L) ], dtype=np.complex128)
-                        rho_flav_ij = np.array([ solved_rho_flav[k,i,j] for k in range(num_L) ], dtype=np.complex128)
-
-                        rho_mass_ax = rho_mass_fig.get_ax(x=i, y=j)
-                        rho_flav_ax = rho_flav_fig.get_ax(x=i, y=j)
-
-                        rho_mass_ax.plot(L_km, rho_mass_ij.real, color="red", linestyle="-", zorder=5)
-                        rho_mass_ax.plot(L_km, rho_mass_ij.imag, color="orange", linestyle="--", zorder=6)
-
-                        rho_flav_ax.plot(L_km, rho_flav_ij.real, color="blue", linestyle="-", zorder=5)
-                        rho_flav_ax.plot(L_km, rho_flav_ij.imag, color="lightblue", linestyle="--", zorder=6)
-
-                        for ax in [rho_mass_ax, rho_flav_ax] :
-                            ax.axhline(0., color="black", linestyle="--", linewidth=1, zorder=4)
-                            ax.axhline(1./float(self.num_states), color="black", linestyle="-.", linewidth=1, zorder=4)
-
-                for fig in figs :
-                    fig.quick_format( ylim=(-1., +1.), xlim=(L_km[0],L_km[-1]) )
-                rho_mass_fig.save("rho_mass.png")
-                rho_flav_fig.save("rho_flav.png")
-
-
-        #
-        # Done
-        #
-          
-
+        # Loop through all pairs of ra and dec values (if provided) because h_eff depends on ra and dec 
+        #and gets the same shape as them (n,). Therefore it cannot be broadcast together with H which has shape (3,3)
+        if include_sme and isinstance(ra, np.ndarray):
+            pad_L = True
+            for i, (ra_val, dec_val) in enumerate(zip(ra, dec)):
+                L_val = L
+                L = L[i]
+                L = np.asarray([L])
+                L_nodes = np.array( [0.1*L[0]] + L.tolist() + [2.*L[-1]] )
+                energies = []
+                calc_osc_probs_energy_evolution(
+                    array = energies,
+                    ra = ra_val,
+                    dec = dec_val,
+                    )
+                osc_prob_results.append(energies)
+                L = L_val
+        else:
+            if include_sme:
+                calc_osc_probs_energy_evolution(
+                    array = osc_prob_results,
+                    ra = ra,
+                    dec = dec,
+                    )
+            else:
+                calc_osc_probs_energy_evolution(
+                array = osc_prob_results)
+        
         # Numpy-ify
         osc_prob_results = np.asarray(osc_prob_results) # Indexing [E value, L value, final state flavor]
 
@@ -901,7 +923,7 @@ class DensityMatrixOscSolver(object) :
             print("\nOscillation probabilities calculated")
 
         return osc_prob_results
-
+        
 
 
 #
