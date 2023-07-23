@@ -452,8 +452,11 @@ class DensityMatrixOscSolver(object) :
         L_km = np.asarray(L_km)
         assert L_km.ndim == 1
 
-        # Check L array is ascending (get problems if it isn't, not sure why, perhaps odeintw is requires sorted arrays?)
-        assert np.all(np.diff(L_km) >= 0), "`L_km` must be ascending"
+        # If L array is not ascending run odeintw on each node separately 
+        #(get problems if it isn't, not sure why, perhaps odeintw is requires sorted arrays?)
+        calc_L_nodes_separately = False
+        if np.all(np.diff(L_km) >= 0) == False:
+            calc_L_nodes_separately = True
 
         # Will need to pass some kwargs to `derive` later, populate as I go
         rhodot_kw = {}
@@ -537,7 +540,7 @@ class DensityMatrixOscSolver(object) :
 
         if sme_opts is not None :
             
-
+            # To include SME parameters in calculation of the hamiltonian
             include_sme = True
 
             # User provides a(3) and c(4) coefficients
@@ -890,8 +893,11 @@ class DensityMatrixOscSolver(object) :
         # Loop through all pairs of ra and dec values (if provided) because h_eff depends on ra and dec 
         #and gets the same shape as them (n,). Therefore it cannot be broadcast together with H which has shape (3,3)
         if include_sme and isinstance(ra, np.ndarray):
+            
             pad_L = True
             for i, (ra_val, dec_val) in enumerate(zip(ra, dec)):
+                # Avoid the for loop for i_L in range(0,len(L)), because this would return a wrong result as h_eff 
+                #depends on the direction in which the neutrinos propagate
                 L_val = L
                 L = L[i]
                 L = np.asarray([L])
@@ -904,6 +910,31 @@ class DensityMatrixOscSolver(object) :
                     )
                 osc_prob_results.append(energies)
                 L = L_val
+            
+            # Bring array into the same shape and form as without SME options
+            osc_prob_results = np.asarray(osc_prob_results)
+            osc_prob_results = np.squeeze(osc_prob_results, axis =2)
+            osc_prob_results = np. transpose(osc_prob_results, (1,0,2) )
+        
+        # If L_km is not ascending solve for each L_node separately
+        elif calc_L_nodes_separately == True:
+            for i, L_val in enumerate(L):
+                L_restore = L
+                L = L_val
+                L = np.asarray([L])
+                L_nodes = np.array( [0.1*L_val] + [L_val] + [2.*L_val] )
+                energies = []
+                calc_osc_probs_energy_evolution(
+                    array = energies,
+                    )
+                osc_prob_results.append(energies)
+                L = L_restore
+            
+            # Bring array into the same shape and form as without SME options
+            osc_prob_results = np.asarray(osc_prob_results)
+            osc_prob_results = np.squeeze(osc_prob_results, axis =2)
+            osc_prob_results = np. transpose(osc_prob_results, (1,0,2) )
+        
         else:
             if include_sme:
                 calc_osc_probs_energy_evolution(
@@ -921,7 +952,7 @@ class DensityMatrixOscSolver(object) :
   
         if verbose :
             print("\nOscillation probabilities calculated")
-
+            
         return osc_prob_results
         
 
