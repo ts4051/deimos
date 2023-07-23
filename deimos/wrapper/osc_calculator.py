@@ -1185,153 +1185,519 @@ class OscCalculator(object) :
 
         return fig, ax, osc_probs
 
+
     def plot_right_ascension_vs_energy_2D(
             self,
             # Steer physics
-            initial_flavor, 
-            energy_GeV, 
-            raBins=np.linspace(0, 2 * np.pi, 50),
-            distance_km=None, coszen=None, 
-            nubar=False, 
+            initial_flavor,
+            energy_GeV,
+            distance_km=None, coszen=None,
+            nubar=False,
             final_flavor=None,
             # Plotting
-            fig=None, ax=None, 
-            label=None, 
+            fig=None, ax=None,
+            label=None,
             title=None,
             xscale="linear",
             ylim=None,
             **plot_kw
-    ) :
-        
+    ):
         '''
         Make a 2D plot of oscillation probabilities vs neutrino energy (x-axis) and right ascension (y-axis).
-
         '''
-        
+    
         # Check inputs
         assert isinstance(initial_flavor, int)
         assert isinstance(energy_GeV, np.ndarray)
-        assert np.isscalar(coszen)
         assert isinstance(nubar, bool)
         if final_flavor is not None:
             assert isinstance(final_flavor, int)
-            
+    
         # User may provide a figure, otherwise make one
         ny = self.num_neutrinos + 1 if final_flavor is None else 1
         if fig is None:
-            fig, ax = plt.subplots(nrows=ny, sharex=True, figsize=(6, 4 * ny))
+            fig, ax = plt.subplots(nrows=ny, sharex=True, sharey=False, figsize=(6, 4 * ny))
             if ny == 1:
                 ax = [ax]
             if title is not None:
-                fig.suptitle(title)
+                for this_ax in ax:
+                    this_ax.set_title(title)  # Set the same title for all subplots
         else:
             assert ax is not None
             assert len(ax) == ny
             assert title is None
-
+            
+        # Get a_eV, c and ra for naming the plot
+        if self._sme_model_kw:    
+            a_eV = self._sme_model_kw.get("a_eV")
+            c = self._sme_model_kw.get("c")
+            dec_0 = np.deg2rad(self._neutrino_source_kw["dec"][0])
+    
+        # Set title of figure     
+        if self._sme_model_kw:
+            fig.suptitle(
+                r"$\delta \sim {:.2f}$".format(dec_0)
+                + r", $a^X = {:.2e} \, \rm GeV$".format(a_eV[0])
+                + r", $a^Y = {:.2e} \, \rm GeV$".format(a_eV[1])
+                + r", $c^X = {:.2e}$".format(c[0])
+                + r", $c^Y = {:.2e}$".format(c[1]),
+                fontsize=14,
+            )
+        else:
+            fig.suptitle("Standard osc",
+                fontsize=14,
+            )
+        
+        # Handle distance vs coszen
+        if self.atmospheric:
+            assert coszen is not None
+            dist_kw = {"coszen": coszen}
+        else:
+            assert distance_km is not None
+            dist_kw = {"distance_km": distance_km}
+    
         # Calculate probabilities
-        probabilities2d = np.zeros((len(raBins), len(energy_GeV)))
-
-        for i, alpha in enumerate(raBins):
-            for j, energy in enumerate(energy_GeV):
-                probabilities2d[i, j] = self.calc_osc_probs(
-                    initial_flavor=initial_flavor,
-                    energy_GeV=energy,
-                    **dist_kw
-                )
-
-        # Plot the results
-        ax[0].imshow(
-            probabilities2d[::-1],
-            aspect="auto",
-            extent=[min(energy_GeV), max(energy_GeV), 0, 2 * np.pi],
-            cmap="RdPu",
+        probabilities2d = self.calc_osc_prob(
+            initial_flavor = initial_flavor,
+            energy_GeV = energy_GeV,
+            **dist_kw
         )
-        ax[0].set_ylabel("Right Ascension")
-        ax[0].set_xlabel(r"$\log_{10}(E/[\rm GeV])$")
-        ax[0].set_title(
-            r"$\delta \sim -3/4\pi$, $a^X = {:.2e} \, \rm GeV$".format(a_eV[0])
-            + r", $a^Y = {:.2e} \, \rm GeV$".format(a_eV[1])
-            + r", $c^X = {:.2e}$".format(c[0])
-            + r", $c^Y = {:.2e}$".format(c[1]),
-            fontsize=14,
-        )
-
-        # Add colorbar
-        cbar = ax[0].figure.colorbar(
-            ax[0].get_images()[0], ax=ax[0], label=r"$P(\nu_{\mu}\rightarrow \nu_{\mu})$"
-        )
-
+        
+        # Transpose array to plot right ascension vs. energy
+        probabilities2d = np. transpose(probabilities2d, (1,0,2) )
+    
+        # Define the possible final states
+        final_states = ["e", "\u03BC", "\u03C4"]  # Use unicode characters for mu and tau
+        
+        # Loop over each final state and create the corresponding plot
+        for i, final_flavor in enumerate(final_states):
+    
+            # Plot the results
+            im = ax[i].imshow(
+                probabilities2d[:, :, i][::-1],
+                aspect="auto",
+                extent=[min(energy_GeV), max(energy_GeV), 0, 2 * np.pi],
+                cmap="RdPu",
+            )
+            ax[i].set_ylabel("Right Ascension (rad)")
+            ax[i].set_xscale(xscale)
+    
+            # Add colorbar
+            cbar = fig.colorbar(im, ax=ax[i], label=r"$P(\nu_{\mu}\rightarrow \nu_{" + final_flavor + r"})$")
+    
+        # Plot total oscillations to any final state
         if final_flavor is not None:
-            # If final_flavor is specified, plot other subplots
-            # (Here you can customize further if you want to show more subplots)
-
-            # Add other plots in the case of multiple neutrinos
-            for i in range(1, ny):
-                ax[i].imshow(
-                    np.random.random((10, 10)),  # Just an example, replace with your own data
-                    aspect="auto",
-                    extent=[0, 10, 0, 10],  # Replace with appropriate values
-                    cmap="Blues",
-                )
-
+            osc_probs_flavor_sum = probabilities2d.sum(axis=-1)
+            ax[-1].imshow(
+                osc_probs_flavor_sum[::-1],
+                aspect="auto",
+                extent=[min(energy_GeV), max(energy_GeV), 0, 2 * np.pi],
+                cmap="RdPu",
+            )
+            ax[-1].set_ylabel("Right Ascension (rad)")
+            ax[-1].set_xlabel(ENERGY_LABEL)
+            ax[-1].set_xscale(xscale)
+            
+            # Add colorbar
+            cbar = fig.colorbar(ax[-1].get_images()[0], ax=ax[-1], label=r"$P(\nu_{\mu}\rightarrow \nu_{all})$")
+    
         plt.tight_layout()
         plt.show()
-        
-        # # Check whether SME parameters were set
-        # a_eV = self._sme_model_kw.get("a_eV")
-        # c = self._sme_model_kw.get("c")
-        
-        # if a_eV is not None and c is not None:
-        #     raise ValueError("SME parameters 'a' and 'c' have not been set. Call 'set_sme' function first.")
-        
-        # # Access the 'a_eV' and 'c' values from the dictionary
-        # a_eV = self._sme_model_kw["a_eV"]
-        # c = self._sme_model_kw["c"]
-        
-        # # Handle distance vs coszen
-        # if self.atmospheric :
-        #     assert coszen is not None
-        #     dist_kw = {"coszen" : coszen}
-        
-        # else :
-        #     assert distance_km is not None
-        #     dist_kw = {"distance_km" : distance_km}
-            
-        # # Check inputs
-        # assert isinstance(initial_flavor, int)
-        # assert isinstance(energy_GeV, np.ndarray)
-        # assert isinstance(nubar, bool)
-        # if final_flavor is not None :
-        #     assert isinstance(final_flavor, int)
-            
-        # # TODO user may provide a figure, otherwise make one
-
-        
-        # #Create right ascension with as many bins as energy_GeV
-        # num_bins = len(energy_GeV)
-        # alphaBins = np.linspace(0, 2 * np.pi, num_bins)
-        # probabilities2d = np.zeros((num_bins, num_bins))
-        
-        # # Get the oscillation probabilities
-        # for i in range(num_bins):
-        #     probabilities2d[i,:] = self.calc_osc_prob(
-        #         initial_flavor = initial_flavor,
-        #         energy_GeV = energy_GeV,
-        #         **dist_kw
-        #             )
-        
-        # # Create the plot
-        # fig, ax = plt.subplots(figsize=(9, 6))
-        # ax.imshow(probabilities2d[::-1], aspect='auto', extent=[energy_GeV[0], energy_GeV[-1], 0, 2 * np.pi], cmap='RdPu')
-        # ax.set_xlabel(r'$\log_{10}(E/[\rm GeV])$')
-        # ax.set_ylabel("Right Ascension")
-        # ax.set_title(r'$\delta \sim -3/4\pi$, $a^X = {:.2e} \, \rm GeV$'.format(a_eV[0]) + r', $a^Y = {:.2e} \, \rm GeV$'.format(a_eV[1]) + r', $c^X = {:.2e}$'.format(c[0]) + r', $c^Y = {:.2e}$'.format(c[1]), fontsize=14)
-        # fig.colorbar(label=r'$P(\nu_{\mu}\rightarrow \nu_{\mu})$')
 
         return fig, ax, probabilities2d
+    
+    
+    def plot_declination_vs_energy_2D(
+        self,
+        # Steer physics
+        initial_flavor,
+        energy_GeV,
+        distance_km=None, coszen=None,
+        nubar=False,
+        final_flavor=None,
+        # Plotting
+        fig=None, ax=None,
+        label=None,
+        title=None,
+        xscale="linear",
+        ylim=None,
+        **plot_kw
+    ):
+        '''
+        Make a 2D plot of oscillation probabilities vs neutrino energy (x-axis) and declination (y-axis).
+        '''
+    
+        # Check inputs
+        assert isinstance(initial_flavor, int)
+        assert isinstance(energy_GeV, np.ndarray)
+        assert isinstance(nubar, bool)
+        if final_flavor is not None:
+            assert isinstance(final_flavor, int)
+    
+        # User may provide a figure, otherwise make one
+        ny = self.num_neutrinos + 1 if final_flavor is None else 1
+        if fig is None:
+            fig, ax = plt.subplots(nrows=ny, sharex=True, sharey=False, figsize=(6, 4 * ny))
+            if ny == 1:
+                ax = [ax]
+            if title is not None:
+                for this_ax in ax:
+                    this_ax.set_title(title)  # Set the same title for all subplots
+        else:
+            assert ax is not None
+            assert len(ax) == ny
+            assert title is None
+    
+        # Get a_eV, c and ra for naming the plot
+        if self._sme_model_kw:    
+            a_eV = self._sme_model_kw.get("a_eV")
+            c = self._sme_model_kw.get("c")
+            ra_0 = np.deg2rad(self._neutrino_source_kw["ra"][0])
+    
+        # Set title of figure     
+        if self._sme_model_kw:
+            fig.suptitle(
+                r"$\delta \sim {:.2f}$".format(ra_0)
+                + r", $a^X = {:.2e} \, \rm GeV$".format(a_eV[0])
+                + r", $a^Y = {:.2e} \, \rm GeV$".format(a_eV[1])
+                + r", $c^X = {:.2e}$".format(c[0])
+                + r", $c^Y = {:.2e}$".format(c[1]),
+                fontsize=14,
+            )
+        else:
+            fig.suptitle("Standard osc",
+                fontsize=14,
+            )
+        
+        # Handle distance vs coszen
+        if self.atmospheric:
+            assert coszen is not None
+            dist_kw = {"coszen": coszen}
+        else:
+            assert distance_km is not None
+            dist_kw = {"distance_km": distance_km}
+    
+        # Calculate probabilities
+        probabilities2d = self.calc_osc_prob(
+            initial_flavor=initial_flavor,
+            energy_GeV=energy_GeV,
+            **dist_kw
+        )
+    
+        # Transpose array to plot declination vs. energy
+        probabilities2d = np.transpose(probabilities2d, (1, 0, 2))
+    
+        # Define the possible final states
+        final_states = ["e", "\u03BC", "\u03C4"]  # Use unicode characters for mu and tau
+            
+        # Loop over each final state and create the corresponding plot
+        for i, final_flavor in enumerate(final_states):
+    
+            # Plot the results
+            im = ax[i].imshow(
+                probabilities2d[:, :, i][::-1],
+                aspect="auto",
+                extent=[min(energy_GeV), max(energy_GeV), -np.pi / 2, np.pi / 2],  # Assuming declination range is [-1, 1]
+                cmap="RdPu",
+            )
+            ax[i].set_ylabel("Declination (rad)")
+            ax[i].set_xscale(xscale)
+    
+            # Add colorbar
+            cbar = fig.colorbar(im, ax=ax[i], label=r"$P(\nu_{\mu}\rightarrow \nu_{" + final_flavor + r"})$")
+    
+        # Plot total oscillations to any final state
+        if final_flavor is not None:
+            osc_probs_flavor_sum = probabilities2d.sum(axis=-1)
+            ax[-1].imshow(
+                osc_probs_flavor_sum[::-1],
+                aspect="auto",
+                extent=[min(energy_GeV), max(energy_GeV), -np.pi/2, np.pi/2],  # Assuming declination range is [-1, 1]
+                cmap="RdPu",
+            )
+            ax[-1].set_ylabel("Declination (rad)")
+            ax[-1].set_xlabel(ENERGY_LABEL)
+            ax[-1].set_xscale(xscale)
+        
+            #Add colorbar
+            cbar = fig.colorbar(ax[-1].get_images()[0], ax=ax[-1], label=r"$P(\nu_{\mu}\rightarrow \nu_{all})$")
+    
+        plt.tight_layout()
+        plt.show()
+    
+        return fig, ax, probabilities2d
+    
+    
+    def plot_declination_vs_energy_2D_diff(
+    self,
+    # Steer physics
+    initial_flavor,
+    energy_GeV,
+    distance_km=None, coszen=None,
+    nubar=False,
+    final_flavor=None,
+    # Plotting
+    fig=None, ax=None,
+    label=None,
+    title=None,
+    xscale="linear",
+    ylim=None,
+    **plot_kw
+    ):
+        '''
+        Make a 2D plot of the difference of oscillation probabilities between standard osc and with SME
+        vs neutrino energy (x-axis) and declination (y-axis).
+        '''
+    
+        # Check inputs
+        assert isinstance(initial_flavor, int)
+        assert isinstance(energy_GeV, np.ndarray)
+        assert isinstance(nubar, bool)
+        if final_flavor is not None:
+            assert isinstance(final_flavor, int)
+    
+        # User may provide a figure, otherwise make one
+        ny = self.num_neutrinos + 1 if final_flavor is None else 1
+        if fig is None:
+            fig, ax = plt.subplots(nrows=ny, sharex=True, sharey=False, figsize=(6, 4 * ny))
+            if ny == 1:
+                ax = [ax]
+            if title is not None:
+                for this_ax in ax:
+                    this_ax.set_title(title)  # Set the same title for all subplots
+        else:
+            assert ax is not None
+            assert len(ax) == ny
+            assert title is None
+    
+        # Get a_eV, c and ra for naming the plot
+        if self._sme_model_kw:    
+            a_eV = self._sme_model_kw.get("a_eV")
+            c = self._sme_model_kw.get("c")
+            ra_0 = np.deg2rad(self._neutrino_source_kw["ra"][0])
+    
+        # Set title of figure     
+        if self._sme_model_kw:
+            fig.suptitle(
+                r"$\delta \sim {:.2f}$".format(ra_0)
+                + r", $a^X = {:.2e} \, \rm GeV$".format(a_eV[0])
+                + r", $a^Y = {:.2e} \, \rm GeV$".format(a_eV[1])
+                + r", $c^X = {:.2e}$".format(c[0])
+                + r", $c^Y = {:.2e}$".format(c[1]),
+                fontsize=14,
+            )
+        else:
+            fig.suptitle("Standard osc",
+                fontsize=14,
+            )
+        
+        # Handle distance vs coszen
+        if self.atmospheric:
+            assert coszen is not None
+            dist_kw = {"coszen": coszen}
+        else:
+            assert distance_km is not None
+            dist_kw = {"distance_km": distance_km}
+            
+        # Calculate probabilities for the non-standard case
+        sme_probabilities2d = self.calc_osc_prob(
+            initial_flavor=initial_flavor,
+            energy_GeV=energy_GeV,
+            **dist_kw
+        )
+        
+        # Call method to set parameters for the standard oscillation case
+        self.set_std_osc()
+        
+        # Calculate probabilities for the standard case
+        standard_probabilities2d = self.calc_osc_prob(
+            initial_flavor=initial_flavor,
+            energy_GeV=energy_GeV,
+            **dist_kw
+        )
 
+        # Calculate the difference of probabilities between non-standard and standard cases
+        diff_probabilities2d = sme_probabilities2d - standard_probabilities2d
 
+        # Select a colormap
+        cmap_diff = 'bwr'
+
+        # Define the possible final states
+        final_states = ["e", "\u03BC", "\u03C4"]  # Use unicode characters for mu and tau
+        
+        # Loop over each final state and create the corresponding plot
+        for i, final_flavor in enumerate(final_states):
+            
+            # Use the custom colormap to plot the difference of probabilities
+            im = ax[i].imshow(
+                diff_probabilities2d[:, :, i][::-1],
+                aspect="auto",
+                extent=[min(energy_GeV), max(energy_GeV), -np.pi / 2, np.pi / 2],
+                cmap=cmap_diff,
+                vmin=-1.0,
+                vmax=1.0,
+            )
+            ax[i].set_ylabel("Declination (rad)")
+            ax[i].set_xscale(xscale)
+            
+            # Add colorbar
+            cbar = fig.colorbar(im, ax=ax[i], label=r"$P(\nu_{\mu}\rightarrow \nu_{" + final_flavor + r"})$")
+    
+            
+        # Plot total oscillations to any final state
+        if final_flavor is not None:
+            osc_probs_flavor_sum = diff_probabilities2d.sum(axis=-1)
+            ax[-1].imshow(
+                osc_probs_flavor_sum[::-1],
+                aspect="auto",
+                extent=[min(energy_GeV), max(energy_GeV), -np.pi/2, np.pi/2],  # Assuming declination range is [-1, 1]
+                cmap=cmap_diff,
+            )
+            ax[-1].set_ylabel("Declination (rad)")
+            ax[-1].set_xlabel(ENERGY_LABEL)
+            ax[-1].set_xscale(xscale)
+        
+            #Add colorbar
+            cbar = fig.colorbar(ax[-1].get_images()[0], ax=ax[-1], label=r"$P(\nu_{\mu}\rightarrow \nu_{all})$")
+    
+
+        return fig, ax, diff_probabilities2d
+    
+    
+    def plot_right_ascension_vs_energy_2D_diff(
+    self,
+    # Steer physics
+    initial_flavor,
+    energy_GeV,
+    distance_km=None, coszen=None,
+    nubar=False,
+    final_flavor=None,
+    # Plotting
+    fig=None, ax=None,
+    label=None,
+    title=None,
+    xscale="linear",
+    ylim=None,
+    **plot_kw
+    ):
+        '''
+        Make a 2D plot of the difference of oscillation probabilities between standard osc and with SME
+        vs neutrino energy (x-axis) and declination (y-axis).
+        '''
+    
+        # Check inputs
+        assert isinstance(initial_flavor, int)
+        assert isinstance(energy_GeV, np.ndarray)
+        assert isinstance(nubar, bool)
+        if final_flavor is not None:
+            assert isinstance(final_flavor, int)
+    
+        # User may provide a figure, otherwise make one
+        ny = self.num_neutrinos + 1 if final_flavor is None else 1
+        if fig is None:
+            fig, ax = plt.subplots(nrows=ny, sharex=True, sharey=False, figsize=(6, 4 * ny))
+            if ny == 1:
+                ax = [ax]
+            if title is not None:
+                for this_ax in ax:
+                    this_ax.set_title(title)  # Set the same title for all subplots
+        else:
+            assert ax is not None
+            assert len(ax) == ny
+            assert title is None
+    
+        # Get a_eV, c and ra for naming the plot
+        if self._sme_model_kw:    
+            a_eV = self._sme_model_kw.get("a_eV")
+            c = self._sme_model_kw.get("c")
+            dec_0 = np.deg2rad(self._neutrino_source_kw["dec"][0])
+    
+        # Set title of figure     
+        if self._sme_model_kw:
+            fig.suptitle(
+                r"$\delta \sim {:.2f}$".format(dec_0)
+                + r", $a^X = {:.2e} \, \rm GeV$".format(a_eV[0])
+                + r", $a^Y = {:.2e} \, \rm GeV$".format(a_eV[1])
+                + r", $c^X = {:.2e}$".format(c[0])
+                + r", $c^Y = {:.2e}$".format(c[1]),
+                fontsize=14,
+            )
+        else:
+            fig.suptitle("Standard osc",
+                fontsize=14,
+            )
+        
+        # Handle distance vs coszen
+        if self.atmospheric:
+            assert coszen is not None
+            dist_kw = {"coszen": coszen}
+        else:
+            assert distance_km is not None
+            dist_kw = {"distance_km": distance_km}
+            
+        # Calculate probabilities for the non-standard case
+        sme_probabilities2d = self.calc_osc_prob(
+            initial_flavor=initial_flavor,
+            energy_GeV=energy_GeV,
+            **dist_kw
+        )
+        
+        # Call method to set parameters for the standard oscillation case
+        self.set_std_osc()
+        
+        # Calculate probabilities for the standard case
+        standard_probabilities2d = self.calc_osc_prob(
+            initial_flavor=initial_flavor,
+            energy_GeV=energy_GeV,
+            **dist_kw
+        )
+
+        # Calculate the difference of probabilities between non-standard and standard cases
+        diff_probabilities2d = sme_probabilities2d - standard_probabilities2d
+
+        # Create a custom colormap
+        cmap_diff = 'bwr'
+        
+        # Define the possible final states
+        final_states = ["e", "\u03BC", "\u03C4"]  # Use unicode characters for mu and tau
+        
+        # Loop over each final state and create the corresponding plot
+        for i, final_flavor in enumerate(final_states):
+            
+            # Use the custom colormap to plot the difference of probabilities
+            im = ax[i].imshow(
+                diff_probabilities2d[:, :, i][::-1],
+                aspect="auto",
+                extent=[min(energy_GeV), max(energy_GeV), 0, 2 * np.pi ],
+                cmap=cmap_diff,
+                vmin=-1.0,
+                vmax=1.0,
+            )
+            ax[i].set_ylabel("Right Ascension (rad)")
+            ax[i].set_xscale(xscale)
+            
+            # Add colorbar
+            cbar = fig.colorbar(im, ax=ax[i], label=r"$P(\nu_{\mu}\rightarrow \nu_{" + final_flavor + r"})$")
+    
+            
+        # Plot total oscillations to any final state
+        if final_flavor is not None:
+            osc_probs_flavor_sum = diff_probabilities2d.sum(axis=-1)
+            ax[-1].imshow(
+                osc_probs_flavor_sum[::-1],
+                aspect="auto",
+                extent=[min(energy_GeV), max(energy_GeV), 0, 2 * np.pi],  # Assuming declination range is [-1, 1]
+                cmap=cmap_diff,
+            )
+            ax[-1].set_ylabel("Right Asencion (rad)")
+            ax[-1].set_xlabel(ENERGY_LABEL)
+            ax[-1].set_xscale(xscale)
+        
+            #Add colorbar
+            cbar = fig.colorbar(ax[-1].get_images()[0], ax=ax[-1], label=r"$P(\nu_{\mu}\rightarrow \nu_{all})$")
+    
+
+        return fig, ax, diff_probabilities2d
     def compare_models(
         self,
         model_defs,
