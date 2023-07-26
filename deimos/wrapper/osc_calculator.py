@@ -5,10 +5,11 @@ both from this project and external.
 Tom Stuttard
 '''
 
-import sys, os, collections, numbers
+import sys, os, collections, numbers, re
 import numpy as np
 import matplotlib.pyplot as plt
 import warnings
+import healpy as hp
 
 try:
     import nuSQUIDSpy as nsq
@@ -525,12 +526,12 @@ class OscCalculator(object) :
             )
     
     def set_neutrino_source(self,
-                            # Location on the sky
-                            ra, 
-                            dec,
                             # Date, Time and Timezone
                             date_str,
                             utc_offset_hr=0,
+                            # Location on the sky
+                            ra=None, 
+                            dec=None,
                             ):
         
         #
@@ -560,6 +561,9 @@ class OscCalculator(object) :
                 # Equatorial Coordinate System
                 "ra" : ra,
                 "dec" : dec,
+                # Store date_str and utc_offset_hr for skymap
+                "date_str" : date_str,
+                "utc_offset_hr": utc_offset_hr,
             }
 
     def calc_osc_prob(self,
@@ -1271,13 +1275,19 @@ class OscCalculator(object) :
         
         # Loop over each final state and create the corresponding plot
         for i, final_flavor in enumerate(final_states):
-    
+            
+            # Check for values outside the range [0.9, 1.1]
+            if np.any(probabilities2d[:, :, i] < -0.1) or np.any(probabilities2d[:, :, i] > 1.1):
+                warnings.warn("Values of oscillation probabilities outside the range [0, 1].", UserWarning)
+                
             # Plot the results
             im = ax[i].imshow(
                 probabilities2d[:, :, i][::-1],
                 aspect="auto",
                 extent=[min(energy_GeV), max(energy_GeV), 0, 2 * np.pi],
                 cmap="RdPu",
+                vmin=0,
+                vmax=1.0,
             )
             ax[i].set_ylabel("Right Ascension (rad)")
             ax[i].set_xscale(xscale)
@@ -1288,11 +1298,19 @@ class OscCalculator(object) :
         # Plot total oscillations to any final state
         if final_flavor is not None:
             osc_probs_flavor_sum = probabilities2d.sum(axis=-1)
+            
+            # Check for values outside the range [0.9, 1.1]
+            if np.any(osc_probs_flavor_sum < 0.9) or np.any(osc_probs_flavor_sum > 1.1):
+                warnings.warn("Values outside the range [0.9, 1.1] in osc_probs_flavor_sum.", UserWarning)
+            
             ax[-1].imshow(
                 osc_probs_flavor_sum[::-1],
                 aspect="auto",
                 extent=[min(energy_GeV), max(energy_GeV), 0, 2 * np.pi],
                 cmap="RdPu",
+                # Set the minimum values for the colorbar
+                vmin=0.9,  
+                vmax=1.1,
             )
             ax[-1].set_ylabel("Right Ascension (rad)")
             ax[-1].set_xlabel(ENERGY_LABEL)
@@ -1357,7 +1375,7 @@ class OscCalculator(object) :
         # Set title of figure     
         if self._sme_model_kw:
             fig.suptitle(
-                r"$\delta \sim {:.2f}$".format(ra_0)
+                r"$\alpha \sim {:.2f}$".format(ra_0)
                 + r", $a^X = {:.2e} \, \rm GeV$".format(a_eV[0])
                 + r", $a^Y = {:.2e} \, \rm GeV$".format(a_eV[1])
                 + r", $c^X = {:.2e}$".format(c[0])
@@ -1392,13 +1410,19 @@ class OscCalculator(object) :
             
         # Loop over each final state and create the corresponding plot
         for i, final_flavor in enumerate(final_states):
-    
+            
+            # Check for values outside the range [0.9, 1.1]
+            if np.any(probabilities2d[:, :, i] < -0.1) or np.any(probabilities2d[:, :, i] > 1.1):
+                warnings.warn("Values of oscillation probabilities outside the range [0, 1].", UserWarning)
+              
             # Plot the results
             im = ax[i].imshow(
                 probabilities2d[:, :, i][::-1],
                 aspect="auto",
                 extent=[min(energy_GeV), max(energy_GeV), -np.pi / 2, np.pi / 2],  # Assuming declination range is [-1, 1]
                 cmap="RdPu",
+                vmin=0,
+                vmax=1.0,
             )
             ax[i].set_ylabel("Declination (rad)")
             ax[i].set_xscale(xscale)
@@ -1409,11 +1433,18 @@ class OscCalculator(object) :
         # Plot total oscillations to any final state
         if final_flavor is not None:
             osc_probs_flavor_sum = probabilities2d.sum(axis=-1)
+            
+            # Check for values outside the range [0.9, 1.1]
+            if np.any(osc_probs_flavor_sum < 0.9) or np.any(osc_probs_flavor_sum > 1.1):
+                warnings.warn("Values outside the range [0.9, 1.1] in osc_probs_flavor_sum.", UserWarning)
+            
             ax[-1].imshow(
                 osc_probs_flavor_sum[::-1],
                 aspect="auto",
                 extent=[min(energy_GeV), max(energy_GeV), -np.pi/2, np.pi/2],  # Assuming declination range is [-1, 1]
                 cmap="RdPu",
+                vmin=0.9,
+                vmax=1.1,
             )
             ax[-1].set_ylabel("Declination (rad)")
             ax[-1].set_xlabel(ENERGY_LABEL)
@@ -1479,7 +1510,7 @@ class OscCalculator(object) :
         # Set title of figure     
         if self._sme_model_kw:
             fig.suptitle(
-                r"$\delta \sim {:.2f}$".format(ra_0)
+                r"$\alpha \sim {:.2f}$".format(ra_0)
                 + r", $a^X = {:.2e} \, \rm GeV$".format(a_eV[0])
                 + r", $a^Y = {:.2e} \, \rm GeV$".format(a_eV[1])
                 + r", $c^X = {:.2e}$".format(c[0])
@@ -1528,6 +1559,10 @@ class OscCalculator(object) :
         # Loop over each final state and create the corresponding plot
         for i, final_flavor in enumerate(final_states):
             
+            # Check for values outside the range [0.9, 1.1]
+            if np.any(diff_probabilities2d[:, :, i] < -1.1) or np.any(diff_probabilities2d[:, :, i] > 1.1):
+                warnings.warn("Values of the difference of the oscillation probabilities outside the range [-1, 1].", UserWarning)
+            
             # Use the custom colormap to plot the difference of probabilities
             im = ax[i].imshow(
                 diff_probabilities2d[:, :, i][::-1],
@@ -1541,24 +1576,31 @@ class OscCalculator(object) :
             ax[i].set_xscale(xscale)
             
             # Add colorbar
-            cbar = fig.colorbar(im, ax=ax[i], label=r"$P(\nu_{\mu}\rightarrow \nu_{" + final_flavor + r"})$")
+            cbar = fig.colorbar(im, ax=ax[i], label=r"$\Delta P(\nu_{\mu}\rightarrow \nu_{" + final_flavor + r"})$")
     
             
         # Plot total oscillations to any final state
         if final_flavor is not None:
             osc_probs_flavor_sum = diff_probabilities2d.sum(axis=-1)
+            
+            # Check for values outside the range [0.9, 1.1]
+            if np.any(osc_probs_flavor_sum < -0.1) or np.any(osc_probs_flavor_sum > 0.1):
+                warnings.warn("Values outside the range [-0.1, 0.1] in osc_probs_flavor_sum.", UserWarning)
+            
             ax[-1].imshow(
                 osc_probs_flavor_sum[::-1],
                 aspect="auto",
                 extent=[min(energy_GeV), max(energy_GeV), -np.pi/2, np.pi/2],  # Assuming declination range is [-1, 1]
                 cmap=cmap_diff,
+                vmin=-0.1,
+                vmax=0.1,
             )
             ax[-1].set_ylabel("Declination (rad)")
             ax[-1].set_xlabel(ENERGY_LABEL)
             ax[-1].set_xscale(xscale)
         
             #Add colorbar
-            cbar = fig.colorbar(ax[-1].get_images()[0], ax=ax[-1], label=r"$P(\nu_{\mu}\rightarrow \nu_{all})$")
+            cbar = fig.colorbar(ax[-1].get_images()[0], ax=ax[-1], label=r"$\Delta P(\nu_{\mu}\rightarrow \nu_{all})$")
     
 
         return fig, ax, diff_probabilities2d
@@ -1664,40 +1706,263 @@ class OscCalculator(object) :
         # Loop over each final state and create the corresponding plot
         for i, final_flavor in enumerate(final_states):
             
+            # Check for values outside the range [0.9, 1.1]
+            if np.any(diff_probabilities2d[:, :, i] < -1.1) or np.any(diff_probabilities2d[:, :, i] > 1.1):
+                warnings.warn("Values of the difference of the oscillation probabilities outside the range [-1, 1].", UserWarning)
+               
             # Use the custom colormap to plot the difference of probabilities
             im = ax[i].imshow(
                 diff_probabilities2d[:, :, i][::-1],
                 aspect="auto",
                 extent=[min(energy_GeV), max(energy_GeV), 0, 2 * np.pi ],
                 cmap=cmap_diff,
-                vmin=-1.0,
-                vmax=1.0,
+                vmin=-0.1,
+                vmax=0.1,
             )
             ax[i].set_ylabel("Right Ascension (rad)")
             ax[i].set_xscale(xscale)
             
             # Add colorbar
-            cbar = fig.colorbar(im, ax=ax[i], label=r"$P(\nu_{\mu}\rightarrow \nu_{" + final_flavor + r"})$")
+            cbar = fig.colorbar(im, ax=ax[i], label=r"$\Delta P(\nu_{\mu}\rightarrow \nu_{" + final_flavor + r"})$")
     
             
         # Plot total oscillations to any final state
         if final_flavor is not None:
             osc_probs_flavor_sum = diff_probabilities2d.sum(axis=-1)
+            
+            # Check for values outside the range [0.9, 1.1]
+            if np.any(osc_probs_flavor_sum < -0.1) or np.any(osc_probs_flavor_sum > 0.1):
+                warnings.warn("Values outside the range [-0.1, 0.1] in osc_probs_flavor_sum.", UserWarning)
+            
             ax[-1].imshow(
                 osc_probs_flavor_sum[::-1],
                 aspect="auto",
                 extent=[min(energy_GeV), max(energy_GeV), 0, 2 * np.pi],  # Assuming declination range is [-1, 1]
                 cmap=cmap_diff,
+                vmin=-0.1,
+                vmax=0.1,
             )
             ax[-1].set_ylabel("Right Asencion (rad)")
             ax[-1].set_xlabel(ENERGY_LABEL)
             ax[-1].set_xscale(xscale)
         
             #Add colorbar
-            cbar = fig.colorbar(ax[-1].get_images()[0], ax=ax[-1], label=r"$P(\nu_{\mu}\rightarrow \nu_{all})$")
+            cbar = fig.colorbar(ax[-1].get_images()[0], ax=ax[-1], label=r"$\Delta P(\nu_{\mu}\rightarrow \nu_{all})$")
     
 
         return fig, ax, diff_probabilities2d
+    
+
+    def plot_healpix_map(
+            self,
+            healpix_map, 
+            nside,
+            title,
+            cbar_label,
+            cmap='viridis',
+            ):
+        
+        #Plot in the mollview projection
+        projected_map = hp.mollview(
+                            map = healpix_map, 
+                            title=title + "\n", 
+                            cmap=cmap,
+                            xsize=2000, 
+                            nest=False,
+                            rot=(180, 0, 0),
+                            coord='C',
+                            flip = 'astro',
+                            min=-1,
+                            max=1,
+                            cbar=False,
+                            return_projected_map=True,
+                            )
+        
+        # Add meridians and parallels
+        hp.graticule()
+        
+        # Add declination labels
+        for dec in np.arange(-75, 0, 15):
+            #lonlat If True, theta and phi are interpreted as longitude and latitude in degree, otherwise, as colatitude and longitude in radian
+            hp.projtext(359.9, dec, "\n" + f"{dec}°   ", lonlat=True, color="black", ha="right", va="center")  
+        for dec in np.arange(0, 76, 15):
+            if dec == 0:
+                hp.projtext(359.9, dec, r"Declination $\delta$" + "\n\n", lonlat=True, color="black", ha="right", va="center", rotation ='vertical')
+                continue
+            hp.projtext(359.9, dec, f"{dec}°   " + "\n", lonlat=True, color="black", ha="right", va="center")
+            
+        # Add the right ascension labels
+        hp.projtext(359.9, 0, "24h ", lonlat=True, color="black", ha="right", va="center")
+        hp.projtext(0, 0, " 0h", lonlat=True, color="black", ha="left", va="center")
+        hp.projtext(180, -90, "\n\n\n12h" + "\nRight Ascension " +  r"$\alpha$", lonlat=True, color="black", ha="center", va="center")
+    
+        # Create an empty image plot as a mappable for the colorbar
+        img = plt.imshow(projected_map, cmap=cmap, vmin=-1, vmax=1)
+        cb = plt.colorbar(img, shrink=0.7)  # You can adjust the size of the colorbar using 'shrink' parameter
+        cb.set_label(label=cbar_label)  
+        
+        # Save the plot to a file
+        # Replace Greek symbols with English letters
+        cbar_label = cbar_label.replace(r"$\Delta", "Delta")
+        cbar_label = cbar_label.replace(r"\nu", "nu")
+        cbar_label = cbar_label.replace(r"\mu", "mu")
+        cbar_label = cbar_label.replace(r"\rightarrow", "to")
+        cbar_label = cbar_label.replace(r"_", " ")
+
+        # Remove any remaining LaTeX commands (e.g., "{", "}", "$")
+        cbar_label = re.sub(r"{|}|\$", "", cbar_label)
+
+        # Remove spaces and add underscores between words
+        cbar_label = cbar_label.replace(" ", "_")
+        title = title.replace(" ", "_")
+        plt.savefig(title + cbar_label + ".png", bbox_inches='tight')
+        plt.show()
+        
+        # Close the current plot to free memory
+        plt.close()  
+        
+        
+    def plot_osc_prob_skymap_2D(
+        self,
+        # Steer physics
+        initial_flavor,
+        energy_GeV,
+        distance_km=None, coszen=None,
+        nubar=False,
+        final_flavor=None,
+        #Plotting
+        resolution= 8,
+        cmap='bwr',
+        ) :
+        
+        '''
+        Make a 2D plot of neutrino oscillation probabilities vs right ascension and declination
+        for a fixed energy.
+        '''
+        
+        # Check inputs
+        assert isinstance(initial_flavor, int)
+        assert isinstance(energy_GeV, np.ndarray)
+        assert isinstance(nubar, bool)
+        if final_flavor is not None:
+            assert isinstance(final_flavor, int)
+        assert resolution > 0 and (resolution & (resolution - 1)) == 0, "resolution needs to be a power of 2."
+    
+        # Get a_eV, c and ra for naming the plot
+        if self._sme_model_kw:    
+            a_eV = self._sme_model_kw.get("a_eV")
+            c = self._sme_model_kw.get("c")
+        
+        # Handle distance vs coszen
+        if self.atmospheric:
+            assert coszen is not None
+            dist_kw = {"coszen": coszen}
+        else:
+            assert distance_km is not None
+            dist_kw = {"distance_km": distance_km}
+        
+        # Generate minimal ra and dec to cover all pixels of healpy map
+        # Number of pixels of healpy map
+        npix = hp.nside2npix(nside=resolution)
+        # Convert pixel to polar coordinates
+        right_ascension_flat, declination_flat = hp.pix2ang(nside=resolution, ipix=np.arange(npix), lonlat=True)
+     
+        # Store in dictionary for density_matrix_osc_solver
+        self._neutrino_source_kw["ra"] = right_ascension_flat
+        self._neutrino_source_kw["dec"] = declination_flat
+        
+        # Calculate corresponding coszen and azimuth values
+        coszen_neutrino_source, azimuth_neutrino_source = self.detector_coordinates.get_coszen_and_azimuth(
+            ra = right_ascension_flat, 
+            dec = declination_flat,
+            date_str = self._neutrino_source_kw["date_str"],
+            utc_offset_hr = self._neutrino_source_kw["utc_offset_hr"],
+            )
+        
+        # Store in dictionary for density_matrix_osc_solver
+        self._neutrino_source_kw["coszen"] = coszen_neutrino_source
+        self._neutrino_source_kw["azimuth"] = azimuth_neutrino_source
+        
+        #Store dictionaries for later use
+        neutrinos_dict = self._neutrino_source_kw
+        sme_dict = self._sme_model_kw
+
+        # Calculate probabilities with SME model
+        sme_probabilities2d = self.calc_osc_prob(
+            initial_flavor=initial_flavor,
+            energy_GeV=energy_GeV,
+            **dist_kw
+        )
+        # Call method to set parameters for the standard oscillation case
+        self.set_std_osc()
+        neutrinos_dict["ra"] = right_ascension_flat
+        neutrinos_dict["dec"] = declination_flat
+        
+        # Set _neutrino_source_kw values again and _sme_model_kw to zero to ensure 
+        # that standard_probabilities2d has the same shape as sme_probabilities2d
+        self._neutrino_source_kw = neutrinos_dict
+        self._sme_model_kw = {key: np.zeros_like(value) if isinstance(value, np.ndarray) else 0 for key, value in sme_dict.items()}
+        
+        # Calculate probabilities for the standard case
+        standard_probabilities2d = self.calc_osc_prob(
+            initial_flavor=initial_flavor,
+            energy_GeV=energy_GeV,
+            **dist_kw
+        )
+        
+        # Calculate the difference of probabilities between non-standard and standard cases
+        diff_probabilities = sme_probabilities2d - standard_probabilities2d
+        
+        # Define the possible final states
+        if final_flavor is None:
+            final_flavor = ["e", "\u03BC", "\u03C4"]  # Use unicode characters for mu and tau
+        else:
+            final_flavor = [final_flavor] 
+        
+        # Plot each healpix map
+        k = len(energy_GeV)
+        ny = self.num_neutrinos if final_flavor is None else 1
+        for i in range(k):
+            healpix_maps_flavours = diff_probabilities[i,:,:]
+            
+            # Round to two significant digits
+            rounded_energy = round(energy_GeV[i], -int(np.floor(np.log10(abs(energy_GeV[i]))) - 1))
+            
+            # Display in scientific notation
+            formatted_energy = f"{rounded_energy:.2e} GeV"
+        
+            for j in range(ny):
+                single_healpix_map = healpix_maps_flavours[:,j]
+                # Check if any values are outside the range [-1, 1]
+                if np.any(single_healpix_map < -1.1) or np.any(single_healpix_map > 1.1):
+                    warnings.warn("Values of the difference of the oscillation probabilities outside the range [-1, 1].", UserWarning)
+
+                #Plot the difference in oscillation probabilities for all flavours
+                self.plot_healpix_map(
+                    healpix_map=single_healpix_map, 
+                    nside=resolution, 
+                    title=formatted_energy,
+                    cbar_label=r"$\Delta P(\nu_{\mu}\rightarrow \nu_{" + final_flavor[j] + r"})$", 
+                    cmap=cmap
+                )
+               
+            healpix_maps_sum_flavours = np.sum(healpix_maps_flavours, axis=1)
+            healpix_maps_sum_flavours = np.squeeze(healpix_maps_sum_flavours)
+            
+            # Check if any values are outside the range [-0.1, 0.1]
+            if np.any(single_healpix_map < -0.1) or np.any(single_healpix_map > 0.1):
+                warnings.warn("Values of the sum of the difference of the oscillation probabilities outside the range [-0.1, 0.1].", UserWarning)
+            
+            # Plot sum of flavours 
+            self.plot_healpix_map(
+                healpix_map=healpix_maps_sum_flavours, 
+                nside=resolution, 
+                title=formatted_energy,
+                cbar_label=r"$\Delta P(\nu_{\mu}\rightarrow \nu_{all})$", 
+                cmap=cmap
+            )
+            
+            
     def compare_models(
         self,
         model_defs,
