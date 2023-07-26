@@ -750,10 +750,10 @@ class DensityMatrixOscSolver(object) :
                     
                     #effective hamiltonian
                     h_eff = As * np.sin(ra) + Ac * np.sin(ra)
-        		
+                    
+                    #full hamiltonian with SME
                     H = H + h_eff
-            
-                
+                    
                 # Handle decoherence gamma param (or D matrix) energy-depenedence
                 # Using the `gamma` function, but actually applying to the whole matrix rather than the individual elements (which is equivalent)
                 if include_decoherence :
@@ -901,7 +901,7 @@ class DensityMatrixOscSolver(object) :
                 L_val = L
                 L = L[i]
                 L = np.asarray([L])
-                L_nodes = np.array( [0.1*L[0]] + L.tolist() + [2.*L[-1]] )
+                L_nodes = np.array( [0.5*L[0]] + L.tolist() + [1.5*L[-1]] )
                 energies = []
                 calc_osc_probs_energy_evolution(
                     array = energies,
@@ -922,7 +922,7 @@ class DensityMatrixOscSolver(object) :
                 L_restore = L
                 L = L_val
                 L = np.asarray([L])
-                L_nodes = np.array( [0.1*L_val] + [L_val] + [2.*L_val] )
+                L_nodes = np.array( [0.5*L_val] + [L_val] + [1.5*L_val] )
                 energies = []
                 calc_osc_probs_energy_evolution(
                     array = energies,
@@ -935,16 +935,16 @@ class DensityMatrixOscSolver(object) :
             osc_prob_results = np.squeeze(osc_prob_results, axis =2)
             osc_prob_results = np. transpose(osc_prob_results, (1,0,2) )
         
+        elif include_sme:
+            calc_osc_probs_energy_evolution(
+                array = osc_prob_results,
+                ra = ra,
+                dec = dec,
+                )
+            
         else:
-            if include_sme:
-                calc_osc_probs_energy_evolution(
-                    array = osc_prob_results,
-                    ra = ra,
-                    dec = dec,
-                    )
-            else:
-                calc_osc_probs_energy_evolution(
-                array = osc_prob_results)
+            calc_osc_probs_energy_evolution(
+            array = osc_prob_results)
         
         # Numpy-ify
         osc_prob_results = np.asarray(osc_prob_results) # Indexing [E value, L value, final state flavor]
