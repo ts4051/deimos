@@ -412,6 +412,7 @@ class DensityMatrixOscSolver(object) :
 
         # Options to be passed to the SME calculator
         sme_opts=None,
+        detector_opts= None,
         neutrino_source_opts=None,
         
         # Misc
@@ -751,8 +752,12 @@ class DensityMatrixOscSolver(object) :
                     #effective hamiltonian
                     h_eff = As * np.sin(ra) + Ac * np.sin(ra)
                     
+                    #rotate to mass basis
+                    h_eff = rho_flav_to_mass_basis(h_eff, PMNS)
+                    
                     #full hamiltonian with SME
-                    H = H + h_eff
+                    #H = H + h_eff
+                    H= h_eff
                     
                 # Handle decoherence gamma param (or D matrix) energy-depenedence
                 # Using the `gamma` function, but actually applying to the whole matrix rather than the individual elements (which is equivalent)
@@ -901,7 +906,10 @@ class DensityMatrixOscSolver(object) :
                 L_val = L
                 L = L[i]
                 L = np.asarray([L])
-                L_nodes = np.array( [0.5*L[0]] + L.tolist() + [1.5*L[-1]] )
+                #h = 1e9
+                #L_nodes = np.array([L[0]-h] + L.tolist() + [L[-1]+h] )
+                h=1e-4
+                L_nodes = np.array([(1-h)*L[0]] + L.tolist() + [(1+h)*L[-1]] )
                 energies = []
                 calc_osc_probs_energy_evolution(
                     array = energies,
