@@ -24,7 +24,7 @@ OSC_FREQUENCY_UNIT_CONVERSION = 1.267 #TODO More precise
 # Functions
 #
 
-def calc_path_length_from_coszen(cz, r=(EARTH_DIAMETER_km/2.), h=15., d=1.) :
+def calc_path_length_from_coszen(cz, r=(EARTH_DIAMETER_km/2.), h=22., d=0.) :
     '''
     Get the path length (baseline) for an atmospheric neutrino,
     given some cos(zenith angle).
@@ -35,6 +35,10 @@ def calc_path_length_from_coszen(cz, r=(EARTH_DIAMETER_km/2.), h=15., d=1.) :
     d = Depth of detector, in km
     '''
     return -r*cz +  np.sqrt( (r*cz)**2 - r**2 + (r+h+d)**2 )
+
+def get_coszen_from_path_length(L,r=(EARTH_DIAMETER_km/2.), h=22., d=0.) :
+    
+    return (d**2+2*d*(h+r)+h**2+2*h*r-L**2)/(2*L*r)
 
 
 
