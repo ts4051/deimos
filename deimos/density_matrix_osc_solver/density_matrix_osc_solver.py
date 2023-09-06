@@ -569,8 +569,8 @@ class DensityMatrixOscSolver(object) :
             sme_opts = copy.deepcopy(sme_opts)
             sme_a = sme_opts.pop("a_eV")
             sme_c = sme_opts.pop("c") # dimensionless
-            ra = neutrino_source_opts.pop("ra")
-            dec = neutrino_source_opts.pop("dec")
+            ra = neutrino_source_opts["ra"]
+            dec = neutrino_source_opts["dec"]
             
             # Convert from degree to radians 
             ra_rad = np.deg2rad(ra)
@@ -738,7 +738,8 @@ class DensityMatrixOscSolver(object) :
                 #
     
                 # Get the vacuum Hamiltonian at this energy
-                self.H = M**2 / (2. * E_val)
+                # M is the mass squared difference
+                self.H = M / (2. * E_val)
                 
                 # Add/subtract the matter hamiltonian for nu/nubar
                 if V is not None :
@@ -867,6 +868,7 @@ class DensityMatrixOscSolver(object) :
         
                     # Solve matrix ODE to get rho (mass basis) for each L
                     #print("\nSolving...")
+                    
                     solved_rho_mass, infodict = odeintw(
                         derive, # d(rho)/dL
                         initial_rho_mass, # rho(0)
@@ -875,7 +877,7 @@ class DensityMatrixOscSolver(object) :
                         full_output=True,
                         rtol=self.rtol,
                         atol=self.atol,
-                        #mxstep=self.mxstep,
+                        mxstep=self.mxstep,
                     )
                     assert infodict["message"] == "Integration successful.", "Solver failed : %s" % infodict["message"]
                     #print("Solver completed successfully")
@@ -976,7 +978,7 @@ class DensityMatrixOscSolver(object) :
                         args=(decoh_D_matrix_basis, decoh_D_matrix),
                         rtol=self.rtol,
                         atol=self.atol,  # atol + rtol * abs(y)
-                        #mxstep=self.mxstep,
+                        mxstep=self.mxstep,
                     )
                     
                     assert solved_rho_mass.success == True, print(solved_rho_mass.message)
@@ -1098,7 +1100,6 @@ class DensityMatrixOscSolver(object) :
         # If L_km is not ascending solve for each L_node separately
         elif calc_L_nodes_separately == True:
             for i in range(len(L)):
-                print(i)
                 # Adjust input depending on solver 
                 if self.custom_solver == 'solve_ivp':
                     L_val = L
@@ -1118,7 +1119,7 @@ class DensityMatrixOscSolver(object) :
             
             # Bring array into the same shape and form as without SME options
             osc_prob_results = np.asarray(osc_prob_results)
-            print(osc_prob_results.shape)
+            
             osc_prob_results = np.squeeze(osc_prob_results, axis =2)
             osc_prob_results = np. transpose(osc_prob_results, (1,0,2) )
         
