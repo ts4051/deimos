@@ -265,7 +265,11 @@ class OscCalculator(object) :
 
 
     def get_mixing_angles(self) :
-        raise Exception("TODO")
+
+        if self.tool == "deimos" :
+            return self.solver.theta_rad #TOD delta CP ?
+        else :
+            raise Exception("TODO")
 
 
     def set_deltacp(self, deltacp) :
@@ -376,6 +380,9 @@ class OscCalculator(object) :
         # If user specified the full matrix, check dimensions
         assert isinstance(D_matrix_eV, np.ndarray)
 
+        # Check all relevent matrix conditions
+        self.check_decoherence_D_matrix(D_matrix_eV)
+
 
         #
         # Set values
@@ -394,6 +401,137 @@ class OscCalculator(object) :
                 "E0_eV" : E0_eV,
                 "D_matrix_basis" : "sun" # Added this line!
             }
+
+
+    def check_decoherence_D_matrix(self, D) :
+        '''
+        There exist inequalities between the elements of the D matrix, meaning that the elements are not fully independent
+
+        Enforcing these inequalities here:
+
+         - 2 flavor: https://arxiv.org/pdf/hep-ph/0105303.pdf
+         - 3 flavor: https://arxiv.org/pdf/1811.04982.pdf Appendix B
+        '''
+
+        if self.num_neutrinos == 3 :
+
+            #
+            # SU(3) case
+            #
+
+            #TODO What enforces g1=g1, g4=g5, g6=g7 ?
+
+            assert D.shape == (9, 9)
+
+            #TODO what about 0th row/col?
+
+            # Check everything is real
+            assert np.all( D.imag == 0. )
+
+            # Check everything is positive or zero
+            assert np.all( D >= 0. )
+
+            # Extract diagonal elements (gamma)
+            g1 = D[1,1]
+            g2 = D[2,2]
+            g3 = D[3,3]
+            g4 = D[4,4]
+            g5 = D[5,5]
+            g6 = D[6,6]
+            g7 = D[7,7]
+            g8 = D[8,8]
+
+            # Extract off-diagonal elements (beta)
+            # Enforce pairs either side of the diagonal match in the process
+            b12 = D[1,2]
+            assert D[2,1] == b12
+            b13 = D[1,3]
+            assert D[3,1] == b13
+            b14 = D[1,4]
+            assert D[4,1] == b14
+            b15 = D[1,5]
+            assert D[5,1] == b15
+            b16 = D[1,6]
+            assert D[6,1] == b16
+            b17 = D[1,7]
+            assert D[7,1] == b17
+            b18 = D[1,8]
+            assert D[8,1] == b18
+            b23 = D[2,3]
+            assert D[3,2] == b23
+            b24 = D[2,4]
+            assert D[4,2] == b24
+            b25 = D[2,5]
+            assert D[5,2] == b25
+            b26 = D[2,6]
+            assert D[6,2] == b26
+            b27 = D[2,7]
+            assert D[7,2] == b27
+            b28 = D[2,8]
+            assert D[8,2] == b28
+            b34 = D[3,4]
+            assert D[4,3] == b34
+            b35 = D[3,5]
+            assert D[5,3] == b35
+            b36 = D[3,6]
+            assert D[6,3] == b36
+            b37 = D[3,7]
+            assert D[7,3] == b37
+            b38 = D[3,8]
+            assert D[8,3] == b38
+            b45 = D[4,5]
+            assert D[5,4] == b45
+            b46 = D[4,6]
+            assert D[6,4] == b46
+            b47 = D[4,7]
+            assert D[7,4] == b47
+            b48 = D[4,8]
+            assert D[8,4] == b48
+            b56 = D[5,6]
+            assert D[6,5] == b56
+            b57 = D[5,7]
+            assert D[7,5] == b57
+            b58 = D[5,8]
+            assert D[8,5] == b58
+            b67 = D[6,7]
+            assert D[7,6] == b67
+            b68 = D[6,8]
+            assert D[8,6] == b68
+            b78 = D[7,8]
+            assert D[8,7] == b78
+
+            # Now implement all inequalities
+            a1 = -g1 + g2 + g3 - (g8/3.) 
+            a2 =  g1 - g2 + g3 - (g8/3.)
+            a3 =  g1 + g2  -g3 - (g8/3.)
+
+            a4 = -g4 + g5 + g3 + (2.*g8/3.) - (2.*b38/np.sqrt(3.)) # See here that beta38 is somehwat special (since it relates to the special gamma3/8 params)
+            a5 =  g4 - g5 + g3 + (2.*g8/3.) - (2.*b38/np.sqrt(3.))
+            a6 = -g6 + g7 + g3 + (2.*g8/3.) + (2.*b38/np.sqrt(3.))
+            a7 =  g6 - g7 + g3 + (2.*g8/3.) + (2.*b38/np.sqrt(3.))
+
+            a8 = -(g1/3.) - (g2/3.) - (g3/3.) + (2.*g4/3.) + (2.*g5/3.) + (2.*g6/3.) + (2.*g7/3.) - g8
+
+            assert a1 >= 0., "Inequality failure (a1)"
+            assert a2 >= 0., "Inequality failure (a2)"
+            assert a3 >= 0., "Inequality failure (a3)"
+            assert a4 >= 0., "Inequality failure (a4)"
+            assert a5 >= 0., "Inequality failure (a5)"
+            assert a6 >= 0., "Inequality failure (a1)"
+            assert a7 >= 0., "Inequality failure (a7)"
+            assert a8 >= 0., "Inequality failure (a8)"
+
+            assert (4.*np.square(b12)) <= ( np.square(g3 - (g8/3.)) - np.square(g1 - g2) )
+            assert (4.*np.square(b13)) <= ( np.square(g2 - (g8/3.)) - np.square(g1 - g3) )
+            assert (4.*np.square(b23)) <= ( np.square(g1 - (g8/3.)) - np.square(g2 - g3) )
+
+            # assert np.square( 4.*np.square(b38) + (g4/np.sqrt(3.)) + (g5/np.sqrt(3.)) - (g6/np.sqrt(3.)) - (g7/np.sqrt(3.)) ) <= (a3*a8)
+
+            #TODO there are still quite a few more involving beta....
+
+        else :
+            print("Checks on decoherence D matrix inequalities not yet implemented for a %i neutrino system" % self.num_neutrinos)
+            pass
 
 
     def set_decoherence_model(self, model_name, **kw) :
@@ -866,10 +1004,13 @@ class OscCalculator(object) :
         energy_GeV, 
         distance_km=None, coszen=None, 
         nubar=False, 
+        final_flavor=None,
         # Plotting
         fig=None, ax=None, 
         label=None, 
         title=None,
+        xscale="linear",
+        ylim=None,
         **plot_kw
     ) :
         '''
@@ -895,11 +1036,15 @@ class OscCalculator(object) :
         assert isinstance(x, np.ndarray)
         assert np.isscalar(energy_GeV)
         assert isinstance(nubar, bool)
+        if final_flavor is not None :
+            assert isinstance(final_flavor, int)
 
         # User may provide a figure, otherwise make one
-        ny = self.num_neutrinos + 1
+        ny = ( self.num_neutrinos + 1 ) if final_flavor is None else 1
         if fig is None : 
-            fig, ax = plt.subplots( nrows=ny, sharex=True, figsize=( 6, 7 if self.num_neutrinos == 3 else 5) )
+            fig, ax = plt.subplots( nrows=ny, sharex=True, figsize=( 6, 4 if ny == 1 else 2*ny) )
+            if ny == 1 :
+                ax = [ax]
             if title is not None :
                 fig.suptitle(title) 
         else :
@@ -918,22 +1063,27 @@ class OscCalculator(object) :
         osc_probs = osc_probs[0,...]
 
         # Plot oscillations to all possible final states
-        for final_flavor, tex in zip(self.states, self.flavors_tex) :
-            ax[final_flavor].plot( x, osc_probs[:,final_flavor], label=label, **plot_kw )
-            ax[final_flavor].set_ylabel( r"$%s$" % self.get_transition_prob_tex(initial_flavor, final_flavor, nubar) )
+        final_flavor_values = self.states if final_flavor is None else [final_flavor]
+        for i, final_flavor in enumerate(final_flavor_values) :
+            ax[i].plot( x, osc_probs[:,final_flavor], label=label, **plot_kw )
+            ax[i].set_ylabel( r"$%s$" % self.get_transition_prob_tex(initial_flavor, final_flavor, nubar) )
 
         # Plot total oscillations to any final state
-        osc_probs_flavor_sum = np.sum(osc_probs,axis=1)
-        ax[-1].plot( x, osc_probs_flavor_sum, label=label, **plot_kw ) # Dimension 2 is flavor
-        ax[-1].set_ylabel( r"$%s$" % self.get_transition_prob_tex(initial_flavor, None, nubar) )
+        if len(final_flavor_values) > 1 :
+            osc_probs_flavor_sum = np.sum(osc_probs,axis=1)
+            ax[-1].plot( x, osc_probs_flavor_sum, label=label, **plot_kw ) # Dimension 2 is flavor
+            ax[-1].set_ylabel( r"$%s$" % self.get_transition_prob_tex(initial_flavor, None, nubar) )
 
         # Formatting
+        if ylim is None :
+            ylim = (-0.05, 1.05)
         ax[-1].set_xlabel(xlabel)
         if label is not None :
             ax[0].legend(fontsize=12) # loc='center left', bbox_to_anchor=(1, 0.5), 
         for this_ax in ax :
+            this_ax.set_ylim(ylim)
             this_ax.set_xlim(x[0], x[-1])
-            this_ax.set_ylim(-0.05, 1.05)
+            this_ax.set_xscale(xscale)
             this_ax.grid(True)
         fig.tight_layout()
 
@@ -958,6 +1108,7 @@ class OscCalculator(object) :
         title=None,
         xscale="linear",
         ylim=None,
+        plot_LoE=False,
         **plot_kw
     ) :
         '''
@@ -987,7 +1138,7 @@ class OscCalculator(object) :
         # User may provide a figure, otherwise make one
         ny = ( self.num_neutrinos + 1 ) if final_flavor is None else 1
         if fig is None : 
-            fig, ax = plt.subplots( nrows=ny, sharex=True, figsize=( 6, 4*ny) )
+            fig, ax = plt.subplots( nrows=ny, sharex=True, figsize=( 6, 4 if ny == 1 else 2*ny) )
             if ny == 1 :
                 ax = [ax]
             if title is not None :
@@ -1007,26 +1158,39 @@ class OscCalculator(object) :
         # Remove distance dimension, since this is single distance
         osc_probs = osc_probs[:,0,...]
 
+        # Convert to L/E, if requested
+        xplot = energy_GeV
+        if plot_LoE :
+            assert not self.atmospheric, "Need to handle coszen conversion for L/E plot"
+            LoE = dist_kw["distance_km"] / energy_GeV
+            xplot = LoE
+
         # Plot oscillations to all possible final states
         final_flavor_values = self.states if final_flavor is None else [final_flavor]
         for i, final_flavor in enumerate(final_flavor_values) :
-            ax[i].plot( energy_GeV, osc_probs[:,final_flavor], label=label, **plot_kw )
+            ax[i].plot( xplot, osc_probs[:,final_flavor], label=label, **plot_kw )
             ax[i].set_ylabel( r"$%s$" % self.get_transition_prob_tex(initial_flavor, final_flavor, nubar) )
 
         # Plot total oscillations to any final state
         if len(final_flavor_values) > 1 :
             osc_probs_flavor_sum = np.sum(osc_probs,axis=1)
-            ax[-1].plot( energy_GeV, osc_probs_flavor_sum, label=label, **plot_kw ) # Dimension 2 is flavor
+            ax[-1].plot( xplot, osc_probs_flavor_sum, label=label, **plot_kw ) # Dimension 2 is flavor
             ax[-1].set_ylabel( r"$%s$" % self.get_transition_prob_tex(initial_flavor, None, nubar) )
 
         # Formatting
         if ylim is None :
             ylim = (-0.05, 1.05)
-        ax[-1].set_xlabel(ENERGY_LABEL)
+        if plot_LoE :
+            ax[-1].set_xlabel("%s / %s" % (DISTANCE_LABEL, ENERGY_LABEL))
+        else :
+            ax[-1].set_xlabel(ENERGY_LABEL)
         if label is not None :
             ax[0].legend(fontsize=10) # loc='center left', bbox_to_anchor=(1, 0.5), 
         for this_ax in ax :
-            this_ax.set_xlim(energy_GeV[0], energy_GeV[-1])
+            if plot_LoE :
+                this_ax.set_xlim(xplot[-1], xplot[0]) # Reverse
+            else :
+                this_ax.set_xlim(xplot[0], xplot[-1])
             this_ax.set_ylim(ylim)
             this_ax.grid(True)
             this_ax.set_xscale(xscale)
