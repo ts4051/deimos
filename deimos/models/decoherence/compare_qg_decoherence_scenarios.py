@@ -221,6 +221,52 @@ def calc_2flav_survival_prob(
     return P_qg
 
     
+def generate_random_D_matrix(calculator, random_state, disable_relaxation_params=False, disable_decoh_params=False, enforce_12_45_67_pairs=False) :
+    '''
+    Generate a random D matrix, and check if it is valid
+    '''
+
+    #TODO support beta terms
+
+    #TODO doesn't really need to use calculator, need to move check_decoherence_D_matrix outside of the class
+
+    # Generate a random diagonal D matrix
+    D_diag = random_state.uniform(0., 1, size=9)
+    D_diag[0] = 0.
+
+    # Disable relaxation params, if requested
+    if disable_relaxation_params :
+        D_diag[3] = 0.
+        D_diag[8] = 0.
+
+    # Disable decoherence params, if requested
+    if disable_decoh_params :
+        D_diag[1] = 0.
+        D_diag[2] = 0.
+        D_diag[4] = 0.
+        D_diag[5] = 0.
+        D_diag[6] = 0.
+        D_diag[7] = 0.
+
+    # Enforce the 12/45/67 pair equalities, if requested
+    if enforce_12_45_67_pairs :
+        D_diag[2] = D_diag[1]
+        D_diag[5] = D_diag[4]
+        D_diag[7] = D_diag[6]
+
+    # Form the full matrix
+    D = np.diag(D_diag.tolist())
+
+    # Test which cases are valid
+    try :
+        calculator.check_decoherence_D_matrix(D)
+        valid = True
+    except Exception as e:
+        # print(str(e))
+        valid = False
+
+    return D, valid
+
 
 #
 # Plot functions
@@ -443,7 +489,6 @@ def compare_qg_models_coherence_length() :
 
 
 
-
 def compare_D_matrix_textures() :
     '''
     Compare decoherence resulting from different textures of the D matrix
@@ -486,18 +531,18 @@ def compare_D_matrix_textures() :
         {
             "n" : 0,
             "E_GeV_ref" : 1e3,
-            "gamma0_eV" : 1.18e-15, # https://arxiv.org/pdf/2308.00105.pdf table 1 (90% CL)
+            "gamma0_eV" : 1.18e-15 * 5., # https://arxiv.org/pdf/2308.00105.pdf table 1 (90% CL), multiplied by 5 for larger signal
         },
         {
             "n" : 2,
             "E_GeV_ref" : 1e5,
-            "gamma0_eV" : 9.80e-18, # https://arxiv.org/pdf/2308.00105.pdf table 1 (90% CL)
+            "gamma0_eV" : 9.80e-18 * 5., # https://arxiv.org/pdf/2308.00105.pdf table 1 (90% CL), multiplied by 5 for larger signal
         },
     ]
 
     for n_case in n_cases :
 
-        print("n = %i" % n)
+        print("n = %i" % n_case["n"])
 
 
         #
@@ -517,28 +562,29 @@ def compare_D_matrix_textures() :
                 # "gamma_scaling" : 1,
                 "color" : "black",
                 "linestyle" : "-",
-                "label" : r"$\Gamma_1 = \Gamma_2 = \Gamma_4 = \Gamma_5 = \Gamma_6 = \Gamma_7 = \Gamma$",
+                # "label" : r"$\Gamma_1 = \Gamma_2 = \Gamma_4 = \Gamma_5 = \Gamma_6 = \Gamma_7 = \Gamma$",
+                "label" : r"Phase perturbation (PP)",
             },
             {
                 "D_matrix_eV" : np.diag([0., 0., 0., 0., n_case["gamma0_eV"], n_case["gamma0_eV"], n_case["gamma0_eV"], n_case["gamma0_eV"], 0.]),
                 # "gamma_scaling" : 1.1,
                 "color" : "magenta",
                 "linestyle" : "--",
-                "label" : r"$\Gamma_4 = \Gamma_5 = \Gamma_6 = \Gamma_7 =\Gamma$, $\Gamma_1 = \Gamma_2 = 0$",
+                "label" : r"PP w/ $\Gamma_1 = \Gamma_2 = 0$",
             },
             {
                 "D_matrix_eV" : np.diag([0., n_case["gamma0_eV"], n_case["gamma0_eV"], 0., 0., 0., n_case["gamma0_eV"], n_case["gamma0_eV"], 0.]),
                 # "gamma_scaling" : 1.1,
                 "color" : "orange",
                 "linestyle" : "--",
-                "label" : r"$\Gamma_1 = \Gamma_2 = \Gamma_6 = \Gamma_7 =\Gamma$, $\Gamma_4 = \Gamma_5 = 0$",
+                "label" : r"PP w/ $\Gamma_4 = \Gamma_5 = 0$",
             },
             {
                 "D_matrix_eV" : np.diag([0., n_case["gamma0_eV"], n_case["gamma0_eV"], 0., n_case["gamma0_eV"], n_case["gamma0_eV"], 0., 0., 0.]),
                 # "gamma_scaling" : 4.,
                 "color" : "dodgerblue",
                 "linestyle" : "--",
-                "label" : r"$\Gamma_1 = \Gamma_2 = \Gamma_4 = \Gamma_5 = \Gamma$, $\Gamma_6 = \Gamma_7 = 0$",
+                "label" : r"PP w/ $\Gamma_6 = \Gamma_7 = 0$",
             },
             # { # Forbidden
             #     "D_matrix_eV" : np.diag([0., n_case["gamma0_eV"], n_case["gamma0_eV"], 0., 0., 0., 0., 0., 0.]),
@@ -578,7 +624,7 @@ def compare_D_matrix_textures() :
             # Plot vs coszen
             fig_cz, ax_cz, _ = calculator.plot_osc_prob_vs_distance( 
                 initial_flavor=initial_flavor,
-                final_flavor=None,
+                final_flavor=final_flavor,
                 energy_GeV=n_case["E_GeV_ref"], 
                 coszen=coszen_values, 
                 nubar=nubar, 
@@ -588,14 +634,14 @@ def compare_D_matrix_textures() :
                 color=gamma_case["color"], 
                 linestyle=gamma_case["linestyle"], 
                 xscale="linear",
-                ylim=(-0.02, 1.02),
+                ylim=(-0.05, 1.05),
                 lw=2,
             )
 
             # Plot vs E
             fig_E, ax_E, _ = calculator.plot_osc_prob_vs_energy( 
                 initial_flavor=initial_flavor,
-                final_flavor=None,
+                final_flavor=final_flavor,
                 energy_GeV=E_GeV_values, 
                 coszen=coszen_ref, 
                 nubar=nubar, 
@@ -605,15 +651,206 @@ def compare_D_matrix_textures() :
                 color=gamma_case["color"], 
                 linestyle=gamma_case["linestyle"], 
                 xscale="log",
-                ylim=(-0.02, 1.02),
+                ylim=(-0.05, 1.05),
                 lw=2,
             )
 
+        # Titles
+        fig_E.suptitle(r"$n$ = %i, $\Gamma_0$ = %0.3g eV, $\cos(\theta)$ = %0.3g" % (n_case["n"], n_case["gamma0_eV"], coszen_ref) )
+        fig_cz.suptitle(r"$n$ = %i, $\Gamma_0$ = %0.3g eV, $E_\nu$ = %0.3g GeV" % (n_case["n"], n_case["gamma0_eV"], n_case["E_GeV_ref"]) )
+
         # Format
+        for ax in [ax_E, ax_cz] :
+            ax[0].legend(fontsize=10)
         for fig in [fig_E, fig_cz] :
-            fig.suptitle("Phase perturbation")
             fig.tight_layout()
 
+
+
+        #
+        # Including relaxation terms (state selection cases)
+        #
+
+        #TODO
+
+
+def compare_random_D_matrix_textures() :
+    '''
+    Generate random (valid) D matrix textures and compare them
+    '''
+
+    # Init RNG
+    random_state = np.random.RandomState(12345)
+
+
+    #
+    # Create model
+    # 
+
+    calculator = OscCalculator(
+        tool=SOLVER,
+        atmospheric=True,
+        num_neutrinos=3,
+    )
+
+    # Vacuum
+    calculator.set_matter("vacuum")
+
+    # Define plot range
+    initial_flavor, final_flavor = 1, 1
+    nubar = False
+    E_GeV_values = np.logspace(2., 5., num=NUM_SCAN_POINTS)
+    coszen_values = np.linspace(-1, 0., num=NUM_SCAN_POINTS)
+    coszen_ref = -1.
+
+
+    #
+    # Loop over n
+    #
+
+    E0_eV = 1e12 # 1 TeV
+
+    n_cases = [
+        {
+            "n" : 0,
+            "E_GeV_ref" : 1e3,
+            "gamma0_eV" : 1.18e-15 * 5., # https://arxiv.org/pdf/2308.00105.pdf table 1 (90% CL), multiplied by 5 for larger signal
+        },
+        {
+            "n" : 2,
+            "E_GeV_ref" : 1e5,
+            "gamma0_eV" : 9.80e-18 * 5., # https://arxiv.org/pdf/2308.00105.pdf table 1 (90% CL), multiplied by 5 for larger signal
+        },
+    ]
+
+    for n_case in n_cases :
+
+        print("n = %i" % n_case["n"])
+
+
+        #
+        # Plot our cases
+        #
+
+        # Make figures
+        fig_E, ax_E = plt.subplots(figsize=(6,4))
+        ax_E = [ax_E]
+        fig_cz, ax_cz = plt.subplots(figsize=(6,4))
+        ax_cz = [ax_cz]
+
+        # Plot helper function
+        def _plot(color, linestyle, lw, zorder, label=None, alpha=1.) :
+            # Common args
+            plot_kw = dict(
+                initial_flavor=initial_flavor,
+                final_flavor=final_flavor,
+                nubar=nubar, 
+                ylim=(-0.05, 1.05),
+                label=label,
+                color=color,
+                linestyle=linestyle,
+                lw=lw,
+                zorder=zorder,
+                alpha=alpha,
+            )
+            # Plot vs coszen
+            calculator.plot_osc_prob_vs_distance( 
+                energy_GeV=n_case["E_GeV_ref"], 
+                coszen=coszen_values, 
+                fig=fig_cz, 
+                ax=ax_cz, 
+                xscale="linear",
+                **plot_kw,
+            )
+            # Plot vs E
+            calculator.plot_osc_prob_vs_energy( 
+                energy_GeV=E_GeV_values, 
+                coszen=coszen_ref, 
+                fig=fig_E, 
+                ax=ax_E, 
+                xscale="log",
+                **plot_kw,
+            )
+
+        # Plot standard osc
+        calculator.set_std_osc()
+        _plot(color="grey", linestyle="-", lw=3, label="Standard osc", zorder=5)
+
+        # Plot phase perturbation model
+        calculator.set_decoherence_model("randomize_phase", gamma0_eV=n_case["gamma0_eV"], n=n_case["n"], E0_eV=E0_eV)
+        phase_perturbation_color = "red"
+        _plot(color=phase_perturbation_color, linestyle="-", lw=3, label="Phase perturbation", zorder=5)
+
+        # Plot state selection
+        calculator.set_decoherence_model("randomize_state", gamma0_eV=n_case["gamma0_eV"], n=n_case["n"], E0_eV=E0_eV)
+        state_selection_color = "blue"
+        _plot(color=state_selection_color, linestyle="-", lw=3, label="State selection", zorder=5)
+
+
+
+        #
+        # Generate random models and plot resulting transition probabilities
+        #
+
+        # Plot steering
+        num_models = 50
+        # cmap = matplotlib.cm.get_cmap("jet")
+
+        # Handle both with and without relaxation params cases           #TODO beta
+        for (disable_relaxation_params, enforce_12_45_67_pairs, color) in [ (True, True, phase_perturbation_color), (False, False, state_selection_color) ] :
+
+            # Loop to generate models
+            trial_counter, model_counter = 0, 0 
+            while model_counter < num_models :
+
+                # Report
+                print("Trial %i (valid models so far = %i of %i)" % (trial_counter, model_counter, num_models))
+                trial_counter += 1
+
+                # Generate random D matrix
+                D, valid = generate_random_D_matrix(
+                    calculator=calculator,
+                    random_state=random_state, 
+                    disable_relaxation_params=disable_relaxation_params, 
+                    disable_decoh_params=False, 
+                    enforce_12_45_67_pairs=enforce_12_45_67_pairs,
+                )
+
+                # Only proceed if valid
+                if valid :
+
+                    # Book-keeping
+                    # model_color = cmap(float(model_counter)/float(num_models))
+                    # model_color = "seagreen"
+                    model_counter += 1
+
+                    # Scale to gamma
+                    D = D * n_case["gamma0_eV"]    #TODO best way to do this?
+
+                    # Set model
+                    calculator.set_decoherence_D_matrix(D_matrix_eV=D, n=n_case["n"], E0_eV=E0_eV)
+
+                    # Plot model
+                    _plot(color=color, linestyle="-", lw=1, zorder=4, alpha=0.1)
+
+
+        # Titles
+        fig_E.suptitle(r"$n$ = %i, $\Gamma_0$ = %0.3g eV, $\cos(\theta)$ = %0.3g" % (n_case["n"], n_case["gamma0_eV"], coszen_ref) )
+        fig_cz.suptitle(r"$n$ = %i, $\Gamma_0$ = %0.3g eV, $E_\nu$ = %0.3g GeV" % (n_case["n"], n_case["gamma0_eV"], n_case["E_GeV_ref"]) )
+
+        # Format
+        for ax in [ax_E, ax_cz] :
+            ax[0].legend(fontsize=10)
+        for fig in [fig_E, fig_cz] :
+            fig.tight_layout()
+
+
+
+        #
+        # Including relaxation terms (state selection cases)
+        #
+
+        #TODO
 
 
 
@@ -635,7 +872,6 @@ def explore_D_matrix_constraints() :
     )
 
     calculator.set_matter("vacuum")
-    random_state = np.random.RandomState(12345)
 
 
     #
@@ -658,62 +894,46 @@ def explore_D_matrix_constraints() :
          - There is a clear relation limit between g1/2 and g8, but not for the g4/5/6/7   => g8 >= 3 * g1/2   (ceomes from a1,2,3 conditions, which only affect g1/2/3/8. g3 not limited do to lack of factor 3 there)
     '''
 
+    N = 10000
+    random_state = np.random.RandomState(12345)
+
     disable_relaxation_params = True
     disable_decoh_params = False
     enforce_12_45_67_pairs = True
 
-    N = 10000
-    valid, invalid = [], []
+    valid_D_matrices, invalid_D_matrices = [], []
     for n in range(N) :
 
-        # Generate a random diagonal D matrix
-        D_diag = random_state.uniform(0., 1, size=9)
-        D_diag[0] = 0.
+        # Generate random D matrix
+        D, valid = generate_random_D_matrix(
+            calculator=calculator,
+            random_state=random_state, 
+            disable_relaxation_params=disable_relaxation_params, 
+            disable_decoh_params=disable_decoh_params, 
+            enforce_12_45_67_pairs=enforce_12_45_67_pairs,
+        )
 
-        # Disable relaxation params, if requested
-        if disable_relaxation_params :
-            D_diag[3] = 0.
-            D_diag[8] = 0.
+        # Store
+        if valid :
+            valid_D_matrices.append( np.diagonal(D).tolist() )
+        else :
+            invalid_D_matrices.append( np.diagonal(D).tolist() )
 
-        # Disable decoherence params, if requested
-        if disable_decoh_params :
-            D_diag[1] = 0.
-            D_diag[2] = 0.
-            D_diag[4] = 0.
-            D_diag[5] = 0.
-            D_diag[6] = 0.
-            D_diag[7] = 0.
-
-        # Enforce the 12/45/67 pair equalities, if requested
-        if enforce_12_45_67_pairs :
-            D_diag[2] = D_diag[1]
-            D_diag[5] = D_diag[4]
-            D_diag[7] = D_diag[6]
-
-        # Form the full matrix
-        D = np.diag(D_diag.tolist())
-
-        # Test which cases are valid
-        try :
-            calculator.check_decoherence_D_matrix(D)
-            valid.append(D_diag)
-        except Exception as e:
-            # print(str(e))
-            invalid.append(D_diag)
-
-    valid = np.array(valid)
-    invalid = np.array(invalid)
+    valid_D_matrices = np.array(valid_D_matrices)
+    invalid_D_matrices = np.array(invalid_D_matrices)
 
     # Plot pairs...
     # Loop over pairs of interest
     for (i, j) in [ (1, 2), (4, 5), (6, 7), (1, 4), (1, 6), (4, 6), (3, 8), (1, 3), (1, 8), (4, 3), (4, 8), (6, 3), (6, 8) ] :
 
+
+
         # Scatter plots param pairs
         fig, ax = plt.subplots(figsize=(6,5))
-        # if np.shape(invalid)[0] > 0 :
-        #     ax.scatter(invalid[:,i], invalid[:,j], color="red", marker=".")
-        if np.shape(valid)[0] > 0 :
-            ax.scatter(valid[:,i], valid[:,j], color="green", marker=".")
+        # if np.shape(invalid_D_matrices)[0] > 0 :
+        #     ax.scatter(invalid_D_matrices[:,i], invalid_D_matrices[:,j], color="red", marker=".")
+        if np.shape(valid_D_matrices)[0] > 0 :
+            ax.scatter(valid_D_matrices[:,i], valid_D_matrices[:,j], color="green", marker=".")
 
         # Add conditions of interest
         if (i in [1,2,3]) and (j==8) :
@@ -753,7 +973,9 @@ if __name__ == "__main__" :
     # compare_qg_models_coherence_length()
 
     # explore_D_matrix_constraints()
-    compare_D_matrix_textures()
+    compare_random_D_matrix_textures()
+
+    # compare_D_matrix_textures()
 
 
     #TODO verify damping term implement of nuVBH models matches the full solver version
