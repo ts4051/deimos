@@ -733,10 +733,7 @@ def compare_random_D_matrix_textures() :
         #
 
         # Make figures
-        fig_E, ax_E = plt.subplots(figsize=(6,4))
-        ax_E = [ax_E]
-        fig_cz, ax_cz = plt.subplots(figsize=(6,4))
-        ax_cz = [ax_cz]
+        fig, ax = plt.subplots(ncols=2, figsize=(10,4))
 
         # Plot helper function
         def _plot(color, linestyle, lw, zorder, label=None, alpha=1.) :
@@ -757,8 +754,8 @@ def compare_random_D_matrix_textures() :
             calculator.plot_osc_prob_vs_distance( 
                 energy_GeV=n_case["E_GeV_ref"], 
                 coszen=coszen_values, 
-                fig=fig_cz, 
-                ax=ax_cz, 
+                fig=fig, 
+                ax=[ax[0]], 
                 xscale="linear",
                 **plot_kw,
             )
@@ -766,8 +763,8 @@ def compare_random_D_matrix_textures() :
             calculator.plot_osc_prob_vs_energy( 
                 energy_GeV=E_GeV_values, 
                 coszen=coszen_ref, 
-                fig=fig_E, 
-                ax=ax_E, 
+                fig=fig, 
+                ax=[ax[1]], 
                 xscale="log",
                 **plot_kw,
             )
@@ -785,7 +782,6 @@ def compare_random_D_matrix_textures() :
         calculator.set_decoherence_model("randomize_state", gamma0_eV=n_case["gamma0_eV"], n=n_case["n"], E0_eV=E0_eV)
         state_selection_color = "blue"
         _plot(color=state_selection_color, linestyle="-", lw=3, label="State selection", zorder=5)
-
 
 
         #
@@ -824,8 +820,8 @@ def compare_random_D_matrix_textures() :
                     # model_color = "seagreen"
                     model_counter += 1
 
-                    # Scale to gamma
-                    D = D * n_case["gamma0_eV"]    #TODO best way to do this?
+                    # Scale such that the largest D matrix element = gamma0
+                    D = D * n_case["gamma0_eV"] * (1. / np.max(D))    #TODO how exactly to do this? Is this coherence length of largest element? think so
 
                     # Set model
                     calculator.set_decoherence_D_matrix(D_matrix_eV=D, n=n_case["n"], E0_eV=E0_eV)
@@ -835,23 +831,14 @@ def compare_random_D_matrix_textures() :
 
 
         # Titles
-        fig_E.suptitle(r"$n$ = %i, $\Gamma_0$ = %0.3g eV, $\cos(\theta)$ = %0.3g" % (n_case["n"], n_case["gamma0_eV"], coszen_ref) )
-        fig_cz.suptitle(r"$n$ = %i, $\Gamma_0$ = %0.3g eV, $E_\nu$ = %0.3g GeV" % (n_case["n"], n_case["gamma0_eV"], n_case["E_GeV_ref"]) )
+        ax[0].set_title(r"$\cos(\theta)$ = %0.3g" % (coszen_ref) )
+        ax[1].set_title(r"$E_\nu$ = %0.3g GeV" % (n_case["E_GeV_ref"]) )
+        fig.suptitle(r"$n$ = %i, $\Gamma_0$ = %0.3g eV" % (n_case["n"], n_case["gamma0_eV"]) )
 
         # Format
-        for ax in [ax_E, ax_cz] :
-            ax[0].legend(fontsize=10)
-        for fig in [fig_E, fig_cz] :
-            fig.tight_layout()
-
-
-
-        #
-        # Including relaxation terms (state selection cases)
-        #
-
-        #TODO
-
+        for this_ax in ax :
+            this_ax.legend(fontsize=8)
+        fig.tight_layout()
 
 
 
@@ -925,8 +912,6 @@ def explore_D_matrix_constraints() :
     # Plot pairs...
     # Loop over pairs of interest
     for (i, j) in [ (1, 2), (4, 5), (6, 7), (1, 4), (1, 6), (4, 6), (3, 8), (1, 3), (1, 8), (4, 3), (4, 8), (6, 3), (6, 8) ] :
-
-
 
         # Scatter plots param pairs
         fig, ax = plt.subplots(figsize=(6,5))
