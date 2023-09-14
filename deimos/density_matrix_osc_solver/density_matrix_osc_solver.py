@@ -569,6 +569,13 @@ class DensityMatrixOscSolver(object) :
             sme_opts = copy.deepcopy(sme_opts)
             sme_a = sme_opts.pop("a_eV")
             sme_c = sme_opts.pop("c") # dimensionless
+            sme_e = sme_opts.pop("e") # dimensionless
+            
+            if nubar:
+                sme_a = - sme_a
+                sme_e = - sme_e
+                warnings.warn("Solver assumes that the CPT-odd parameters are specified for neutrinos and changes sign.")
+                
             ra = neutrino_source_opts["ra"]
             dec = neutrino_source_opts["dec"]
             
@@ -578,6 +585,7 @@ class DensityMatrixOscSolver(object) :
             
             a_eV_x, a_eV_y, a_eV_z = sme_a
             c_tx, c_ty, c_tz = sme_c
+            e_m_x, e_m_y,e_m_z = sme_e
             
         
            
@@ -739,8 +747,8 @@ class DensityMatrixOscSolver(object) :
     
                 # Get the vacuum Hamiltonian at this energy
                 # M is the mass squared difference
-                self.H = M / (2. * E_val)
-                
+                self.H = M/ (2. * E_val)
+            
                 # Add/subtract the matter hamiltonian for nu/nubar
                 if V is not None :
                     self.H -= V if nubar else - V 
@@ -777,16 +785,33 @@ class DensityMatrixOscSolver(object) :
                     theta = np.pi/2 + dec 
                     phi = ra 
                     
-                    #unit propagation vectors
+                    # spherical coordinates unit propagation vectors
                     NX = np.sin(theta) * np.cos(phi)
                     NY = np.sin(theta) * np.sin(phi)
                     NZ = np.cos(theta)
+                    
+                    # theta vector
+                    ThetaX = np.cos(theta)*np.cos(phi)
+                    ThetaY = np.cos(theta)*np.sin(phi)
+                    ThetaZ = -np.sin(theta)
+                    
+                    # phi vector
+                    PhiX = -np.sin(phi)
+                    PhiY = np.cos(phi)
+                    PhiZ = 0
+                    
+                    # Polarization vector
+                    PolX = 1/np.sqrt(2)*(ThetaX+1j*PhiX)
+                    PolY = 1/np.sqrt(2)*(ThetaY+1j*PhiY)
+                    PolZ = 1/np.sqrt(2)*(ThetaZ+1j*PhiZ)
                     
                     # amplitudes
                     # the right ascension and declination of a neutrino are measured when detected. 
                     # To account for the rotation of the earth during propagation we need to rotate
                     # by R_z(-omega_sid*T_sid)
                     # If ra and dec of source are known change sign of As. (As = -As)
+                    
+                    #mass independent operators
                     As0 = -NY * a_eV_x + NX * a_eV_y
                     As1 = + 2 * NY * c_tx - 2 * NX * c_ty
                     As = As0 + E_val * As1
@@ -795,6 +820,12 @@ class DensityMatrixOscSolver(object) :
                     Ac1 = 2 * NX * c_tx + 2 * NY * c_ty
                     Ac = Ac0 + E_val * Ac1
        
+                    #mass dependent operators
+                    diagonal_value = 1e-2
+                    my_array = diagonal_value * np.eye(3)
+                    Ac0_e_m = 1/2*(NX*e_m_x+NY*e_m_y)*dagger(M+my_array)+1/2*(M+my_array)*(NX*e_m_x+NY*e_m_y)
+                    Ac += Ac0_e_m
+                    
                     return As, Ac, NZ*a_eV_z
                     
                 # Handle decoherence gamma param (or D matrix) energy-depenedence
@@ -875,8 +906,8 @@ class DensityMatrixOscSolver(object) :
                         L_nodes, # L
                         args=(decoh_D_matrix_basis, decoh_D_matrix),
                         full_output=True,
-                        rtol=self.rtol,
-                        atol=self.atol,
+                        #rtol=self.rtol,
+                        #atol=self.atol,
                         mxstep=self.mxstep,
                     )
                     assert infodict["message"] == "Integration successful.", "Solver failed : %s" % infodict["message"]
