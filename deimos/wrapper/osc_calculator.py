@@ -489,6 +489,7 @@ class OscCalculator(object) :
     def set_sme(self,
         a_eV,
         c,
+        e,
     ) :
         '''
         TODO
@@ -500,6 +501,7 @@ class OscCalculator(object) :
 
         assert isinstance(a_eV, np.ndarray), "a_eV should be an array"
         assert isinstance(c, np.ndarray), "c should be an array"
+        assert isinstance(e, np.ndarray), "c should be an array"
 
 
         #
@@ -512,7 +514,8 @@ class OscCalculator(object) :
         elif self.tool == "deimos" :
             self._sme_model_kw = {
                 "a_eV" : a_eV,
-                "c" : c
+                "c" : c,
+                "e": e
             }
 
     def set_detector_location(self,
@@ -1448,6 +1451,7 @@ class OscCalculator(object) :
                                       vmin=0, vmax=1.0, 
                                       cmap='RdPu')
                 ax[i].set_ylabel("Coszen")
+                
             ax[i].set_xscale(xscale)
     
             # Add colorbar
@@ -1600,7 +1604,7 @@ class OscCalculator(object) :
                                       np.deg2rad(self._neutrino_source_kw["dec"]),
                                       diff_probabilities2d[:, :, i],
                                       vmin=-1.0, vmax=1.0, 
-                                      cmap='RdPu')
+                                      cmap=cmap_diff)
                 ax[i].set_ylabel("Declination (rad)")
             
             else:
@@ -1608,7 +1612,7 @@ class OscCalculator(object) :
                                       coszen,
                                       diff_probabilities2d[:, :, i],
                                       vmin=-1.0, vmax=1.0, 
-                                      cmap='RdPu')
+                                      cmap=cmap_diff)
                 ax[i].set_ylabel("Coszen")
             
             ax[i].set_xscale(xscale)
@@ -1630,7 +1634,7 @@ class OscCalculator(object) :
                     np.deg2rad(self._neutrino_source_kw["dec"]),
                     osc_probs_flavor_sum,
                     vmin=-0.1, vmax=0.1,
-                    cmap="RdPu")
+                    cmap=cmap_diff)
                 
                 ax[-1].set_ylabel("Declination (rad)")
             
@@ -1639,7 +1643,7 @@ class OscCalculator(object) :
                     coszen,
                     osc_probs_flavor_sum,
                     vmin=-0.1, vmax=0.1,
-                    cmap="RdPu")
+                    cmap=cmap_diff)
                 
                 ax[-1].set_ylabel("Coszen")
             ax[-1].set_xlabel(ENERGY_LABEL)
@@ -1762,7 +1766,7 @@ class OscCalculator(object) :
                                       np.deg2rad(self._neutrino_source_kw["ra"]),
                                       diff_probabilities2d[:, :, i],
                                       vmin=-1.0, vmax=1.0, 
-                                      cmap='RdPu')
+                                      cmap=cmap_diff)
                 ax[i].set_ylabel("Declination (rad)")
             
             else:
@@ -1770,7 +1774,7 @@ class OscCalculator(object) :
                                       coszen,
                                       diff_probabilities2d[:, :, i],
                                       vmin=-1.0, vmax=1.0, 
-                                      cmap='RdPu')
+                                      cmap=cmap_diff)
                 ax[i].set_ylabel("Coszen")
             ax[i].set_xscale(xscale)
             
@@ -1791,7 +1795,7 @@ class OscCalculator(object) :
                     np.deg2rad(self._neutrino_source_kw["ra"]),
                     osc_probs_flavor_sum,
                     vmin=-0.1, vmax=0.1,
-                    cmap="RdPu")
+                    cmap=cmap_diff)
                 
                 ax[-1].set_ylabel("Right Ascension (rad)")
             
@@ -1986,7 +1990,7 @@ class OscCalculator(object) :
                     healpix_map=single_healpix_map, 
                     nside=resolution, 
                     title=formatted_energy,
-                    cbar_label=r"$\Delta P(\nu_{\mu}\rightarrow \nu_{" + final_flavor[j] + r"})$", 
+                    cbar_label=r"$P(\nu_{\mu}\rightarrow \nu_{" + final_flavor[j] + r"})$", 
                     cmap=cmap,
                     min_val=0
                 )
@@ -2003,7 +2007,7 @@ class OscCalculator(object) :
                 healpix_map=healpix_maps_sum_flavours, 
                 nside=resolution, 
                 title=formatted_energy,
-                cbar_label=r"$\Delta P(\nu_{\mu}\rightarrow \nu_{all})$", 
+                cbar_label=r"$P(\nu_{\mu}\rightarrow \nu_{all})$", 
                 cmap=cmap,
                 max_val=1.1,
                 min_val=0.9,
