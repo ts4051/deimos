@@ -5,7 +5,7 @@ both from this project and external.
 Tom Stuttard
 '''
 
-import sys, os, collections, numbers
+import sys, os, collections, numbers, copy
 
 try:
     import nuSQUIDSpy as nsq
@@ -413,6 +413,8 @@ class OscCalculator(object) :
          - 3 flavor: https://arxiv.org/pdf/1811.04982.pdf Appendix B
         '''
 
+        #TODO Move this function out of this class, into models dir
+
         if self.num_neutrinos == 3 :
 
             #
@@ -525,7 +527,7 @@ class OscCalculator(object) :
             assert (4.*np.square(b13)) <= ( np.square(g2 - (g8/3.)) - np.square(g1 - g3) )
             assert (4.*np.square(b23)) <= ( np.square(g1 - (g8/3.)) - np.square(g2 - g3) )
 
-            # assert np.square( 4.*np.square(b38) + (g4/np.sqrt(3.)) + (g5/np.sqrt(3.)) - (g6/np.sqrt(3.)) - (g7/np.sqrt(3.)) ) <= (a3*a8)
+            assert np.square( 4.*np.square(b38) + (g4/np.sqrt(3.)) + (g5/np.sqrt(3.)) - (g6/np.sqrt(3.)) - (g7/np.sqrt(3.)) ) <= (a3*a8)
 
             #TODO there are still quite a few more involving beta....
 
@@ -539,7 +541,7 @@ class OscCalculator(object) :
         Set the decoherence model to be one of the pre-defined models
         '''
 
-        from deimos.utils.model.nuVBH_interactions.nuVBH_model import get_randomize_phase_decoherence_D_matrix, get_randomize_state_decoherence_D_matrix, get_neutrino_loss_decoherence_D_matrix
+        from deimos.models.decoherence.nuVBH_model import get_randomize_phase_decoherence_D_matrix, get_randomize_state_decoherence_D_matrix, get_neutrino_loss_decoherence_D_matrix
 
         get_D_matrix_func = None
 

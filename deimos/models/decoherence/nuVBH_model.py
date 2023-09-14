@@ -205,6 +205,8 @@ def get_randomize_phase_decoherence_D_matrix(num_states, gamma, basis="sun") :
 
     '''
 
+    gamma_E = gamma #TODO is this correct? check fridge version
+
     # Toggle based on basis
     if basis == "nxn" :
 
