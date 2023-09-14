@@ -30,8 +30,25 @@ NUM_SCAN_POINTS = 100
 
 
 #
-# Helper functions
+# Helper functions/classes
 #
+
+class Envelope(object) :
+    '''
+    Track the envelope of many curves
+    '''
+
+    def __init__(self) :
+        self.upper = None
+        self.lower = None
+
+    def update(self, values) :
+        if self.upper is None :
+            self.upper = values
+            self.lower = values
+        else :
+            self.upper = np.maximum(values, self.upper)
+            self.lower = np.minimum(values, self.lower)
 
 def plot_LoE(ax, E_GeV, L_km, P, color, linestyle, label=None) :
     '''
@@ -734,11 +751,16 @@ def compare_random_D_matrix_textures(num_models=100) :
         # Plot our cases
         #
 
+        # Choose whether to plot individual models, or the envelope
+        plot_individual_models = True
+        first_model_plot = True
+        osc_probs_envelope_cz, osc_probs_envelope_E = Envelope(), Envelope()
+
         # Make figures
         fig, ax = plt.subplots(ncols=2, figsize=(10,4))
 
         # Plot helper function
-        def _plot(color, linestyle, lw, zorder, label=None, alpha=1.) :
+        def _plot(color, linestyle, lw, zorder, label=None, alpha=1., update_envelope=False) :
             # Common args
             plot_kw = dict(
                 initial_flavor=initial_flavor,
@@ -753,7 +775,7 @@ def compare_random_D_matrix_textures(num_models=100) :
                 alpha=alpha,
             )
             # Plot vs coszen
-            calculator.plot_osc_prob_vs_distance( 
+            _, _, osc_probs_cz = calculator.plot_osc_prob_vs_distance( 
                 energy_GeV=n_case["E_GeV_ref"], 
                 coszen=coszen_values, 
                 fig=fig, 
@@ -761,8 +783,9 @@ def compare_random_D_matrix_textures(num_models=100) :
                 xscale="linear",
                 **plot_kw,
             )
+            osc_probs_cz = osc_probs_cz[...,final_flavor]
             # Plot vs E
-            calculator.plot_osc_prob_vs_energy( 
+            _, _, osc_probs_E = calculator.plot_osc_prob_vs_energy( 
                 energy_GeV=E_GeV_values, 
                 coszen=coszen_ref, 
                 fig=fig, 
@@ -770,20 +793,36 @@ def compare_random_D_matrix_textures(num_models=100) :
                 xscale="log",
                 **plot_kw,
             )
+            osc_probs_E = osc_probs_E[...,final_flavor]
+            if update_envelope :
+                osc_probs_envelope_cz.update(osc_probs_cz)
+                osc_probs_envelope_E.update(osc_probs_E)
+            return osc_probs_cz, osc_probs_E
 
         # Plot standard osc
         calculator.set_std_osc()
-        _plot(color="grey", linestyle="-", lw=3, label="Standard osc", zorder=5)
+        _plot(color="black", linestyle="-", lw=3, label="Standard osc", zorder=5, update_envelope=False)
 
-        # # Plot phase perturbation model
+        # Plot phase perturbation model
         calculator.set_decoherence_model("randomize_phase", gamma0_eV=n_case["gamma0_eV"], n=n_case["n"], E0_eV=E0_eV)
         phase_perturbation_color = "red"
-        _plot(color=phase_perturbation_color, linestyle="-", lw=3, label="Phase perturbation", zorder=5)
+        _plot(color=phase_perturbation_color, linestyle="-", lw=3, label="Phase perturbation", zorder=6, update_envelope=True)
 
-        # # Plot state selection
+        # Plot state selection
         calculator.set_decoherence_model("randomize_state", gamma0_eV=n_case["gamma0_eV"], n=n_case["n"], E0_eV=E0_eV)
         state_selection_color = "blue"
-        _plot(color=state_selection_color, linestyle="-", lw=3, label="State selection", zorder=5)
+        _plot(color=state_selection_color, linestyle="-", lw=3, label="State selection", zorder=6, update_envelope=True)
+
+        # Add some other cases, in particular those known to be bounding
+        if False :
+            calculator.set_decoherence_D_matrix(D_matrix_eV=np.diag([0., 0., 0., 0., 1., 1., 1., 1., 0.])*n_case["gamma0_eV"], n=n_case["n"], E0_eV=E0_eV)
+            _plot(color="orange", linestyle=":", lw=3, label=r"$\Gamma_3 = \Gamma_1 = \Gamma_2 = \Gamma_8 = 0$", zorder=5, update_envelope=True)
+
+            calculator.set_decoherence_D_matrix(D_matrix_eV=np.diag([0., 1., 1., 0., 0., 0., 1., 1., 0.])*n_case["gamma0_eV"], n=n_case["n"], E0_eV=E0_eV)
+            _plot(color="orange", linestyle="-.", lw=3, label=r"$\Gamma_3 = \Gamma_4 = \Gamma_5 = \Gamma_8 = 0$", zorder=5, update_envelope=True)
+
+        calculator.set_decoherence_D_matrix(D_matrix_eV=np.diag([0., 1., 1., 0., 1., 1., 0., 0., 0.])*n_case["gamma0_eV"], n=n_case["n"], E0_eV=E0_eV) # This appears to be the lower bound for numu survival
+        _plot(color="orange", linestyle="-", lw=3, label=r"$\Gamma_3 = \Gamma_6 = \Gamma_7 = \Gamma_8 = 0$", zorder=5, update_envelope=True)
 
 
         #
@@ -796,12 +835,10 @@ def compare_random_D_matrix_textures(num_models=100) :
         # for (disable_relaxation_params, enforce_12_45_67_pairs, color) in [ (True, True, phase_perturbation_color), (False, False, state_selection_color) ] :
         for (disable_relaxation_params, enforce_12_45_67_pairs, color) in [ (False, False, state_selection_color), (True, True, phase_perturbation_color) ] :
 
-            # Choose whether to plot individual models, or the envelope
-            plot_envelope = True
-
             # Loop to generate models
             trial_counter, model_counter = 0, 0
             ymin_E, ymax_E, ymin_cz, ymax_cz = None, None, None, None
+            num_models_to_plot = min(num_models, 30)
             while model_counter < num_models :
 
                 # Report
@@ -831,47 +868,39 @@ def compare_random_D_matrix_textures(num_models=100) :
                     # Set model
                     calculator.set_decoherence_D_matrix(D_matrix_eV=D, n=n_case["n"], E0_eV=E0_eV)
 
-                    # Either model this model, or instead build an envelope
-                    if not plot_envelope :
-                        _plot(color=color, linestyle="-", lw=1, zorder=4, alpha=0.1)
+                    # Get osc probs for this model
+                    osc_probs_E = calculator.calc_osc_prob(
+                        initial_flavor=initial_flavor,
+                        nubar=nubar, 
+                        energy_GeV=E_GeV_values,
+                        coszen=coszen_ref,
+                    )
+                    osc_probs_E = osc_probs_E[:,0,final_flavor]
+                    assert osc_probs_E.ndim == 1
 
-                    else :
-                        # Just get osc probs, for calculating envelope
-                        osc_probs_E = calculator.calc_osc_prob(
-                            initial_flavor=initial_flavor,
-                            nubar=nubar, 
-                            energy_GeV=E_GeV_values,
-                            coszen=coszen_ref,
-                        )
-                        osc_probs_E = osc_probs_E[:,0,final_flavor]
-                        assert osc_probs_E.ndim == 1
-                        osc_probs_cz = calculator.calc_osc_prob(
-                            initial_flavor=initial_flavor,
-                            nubar=nubar, 
-                            energy_GeV=n_case["E_GeV_ref"],
-                            coszen=coszen_values,
-                        )
-                        osc_probs_cz = osc_probs_cz[0,:,final_flavor]
-                        assert osc_probs_cz.ndim == 1
+                    osc_probs_cz = calculator.calc_osc_prob(
+                        initial_flavor=initial_flavor,
+                        nubar=nubar, 
+                        energy_GeV=n_case["E_GeV_ref"],
+                        coszen=coszen_values,
+                    )
+                    osc_probs_cz = osc_probs_cz[0,:,final_flavor]
+                    assert osc_probs_cz.ndim == 1
 
-                        if False : # Only for debugging envelope
-                            ax[0].plot( coszen_values, osc_probs_cz, color=color, alpha=1, linestyle="--", zorder=3)
-                            ax[1].plot( E_GeV_values, osc_probs_E, color=color, alpha=1, linestyle="--", zorder=3)
+                    # Update envelopes
+                    osc_probs_envelope_cz.update(osc_probs_cz)
+                    osc_probs_envelope_E.update(osc_probs_E)
 
-                        # Now update envelope
-                        if ymax_E is None : # First time
-                            ymax_E, ymin_E = osc_probs_E, osc_probs_E
-                            ymax_cz, ymin_cz = osc_probs_cz, osc_probs_cz
-                        else :
-                            ymax_E, ymin_E = np.maximum(ymax_E, osc_probs_E), np.minimum(ymin_E, osc_probs_E)
-                            ymax_cz, ymin_cz = np.maximum(ymax_cz, osc_probs_cz), np.minimum(ymin_cz, osc_probs_cz)
+                    # Plot some examples
+                    if plot_individual_models :
+                        if model_counter < num_models_to_plot :
+                            for (i, x, y) in zip([0, 1], [coszen_values, E_GeV_values], [osc_probs_cz, osc_probs_E]) :
+                                ax[i].plot( x, y, color="black", alpha=0.1, lw=1, zorder=3, label=("Random models" if first_model_plot else None))
+                            first_model_plot = False
 
-            # Plot envelope
-            if plot_envelope :
-                # Plot vs coszen
-                ax[0].fill_between( coszen_values, ymin_cz, ymax_cz, color=color, alpha=0.2, zorder=3)
-                ax[1].fill_between( E_GeV_values, ymin_E, ymax_E, color=color, alpha=0.2, zorder=3)
-
+        # Plot envelope
+        for (i, x, y) in zip([0, 1], [coszen_values, E_GeV_values], [osc_probs_envelope_cz, osc_probs_envelope_E]) :
+            ax[i].fill_between( x, y.lower, y.upper, color="magenta", alpha=0.2, zorder=3, label="All models (envelope)")
 
         # Titles
         ax[0].set_title(r"$\cos(\theta)$ = %0.3g" % (coszen_ref) )
@@ -880,8 +909,12 @@ def compare_random_D_matrix_textures(num_models=100) :
 
         # Format
         for this_ax in ax :
-            this_ax.legend(fontsize=8)
+            this_ax.legend(fontsize=8, loc="lower right", ncol=2)
         fig.tight_layout()
+
+        # Save
+        for ext in ["png", "pdf"] :
+            fig.savefig("compare_random_D_matrix_textures_n%i.%s"%(n_case["n"], ext))
 
     # Report time (can be slow)
     time_taken = datetime.datetime.now() - start_time
@@ -1006,7 +1039,7 @@ if __name__ == "__main__" :
     # compare_qg_models_coherence_length()
 
     # explore_D_matrix_constraints()
-    compare_random_D_matrix_textures(num_models=1000)
+    compare_random_D_matrix_textures(num_models=100)
 
     # compare_D_matrix_textures()
 
