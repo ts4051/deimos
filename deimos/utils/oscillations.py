@@ -24,6 +24,13 @@ OSC_FREQUENCY_UNIT_CONVERSION = 1.267 #TODO More precise
 # Functions
 #
 
+def calc_disappearance_prob_2flav_vacuum(E_GeV, L_km, mass_splitting_eV2, theta_rad) :
+    '''
+    Simple analytic 2-flavor oscillation disappearance probability calculation
+    '''
+    return np.sin(2.*theta_rad)**2 * np.square(np.sin(1.27*mass_splitting_eV2*L_km/E_GeV))
+
+
 def calc_path_length_from_coszen(cz, r=(EARTH_DIAMETER_km/2.), h=15., d=1.) :
     '''
     Get the path length (baseline) for an atmospheric neutrino,

@@ -718,7 +718,7 @@ def compare_random_D_matrix_textures(num_models=100) :
     # Define plot range
     initial_flavor, final_flavor = 1, 1
     nubar = False
-    E_GeV_values = np.geomspace(500, 10e3, num=NUM_SCAN_POINTS)
+    E_GeV_values = np.geomspace(500, 100e3, num=NUM_SCAN_POINTS)
     coszen_values = np.linspace(-1, 0., num=NUM_SCAN_POINTS)
     coszen_ref = -1.
 
@@ -752,7 +752,7 @@ def compare_random_D_matrix_textures(num_models=100) :
         #
 
         # Choose whether to plot individual models, or the envelope
-        plot_individual_models = True
+        plot_individual_models = False
         first_model_plot = True
         osc_probs_envelope_cz, osc_probs_envelope_E = Envelope(), Envelope()
 
@@ -1039,7 +1039,7 @@ if __name__ == "__main__" :
     # compare_qg_models_coherence_length()
 
     # explore_D_matrix_constraints()
-    compare_random_D_matrix_textures(num_models=100)
+    compare_random_D_matrix_textures(num_models=10)
 
     # compare_D_matrix_textures()
 
