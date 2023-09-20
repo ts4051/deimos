@@ -448,7 +448,7 @@ def install_nusquids(
         "export SQUIDS_DIR=" + squids_target_dir, # path to SQuIDS
         "export NUSQUIDS_DIR=" + nusquids_target_dir, # path to SQuIDS
         "export LD_LIBRARY_PATH=" + nusquids_lib_path + ":$LD_LIBRARY_PATH", # Lib path
-        "export PYTHONPATH=$NUSQUIDS_DIR/resources/python/bindings/:$PYTHONPATH", # Add python bindings
+        "export PYTHONPATH=$NUSQUIDS_DIR/lib/:$NUSQUIDS_DIR/resources/python/bindings/:$PYTHONPATH", # Add python bindings (old nuSQuIDS versions use resources/python/bindings dir, new ones use top-level lib dir)
     ]
 
 

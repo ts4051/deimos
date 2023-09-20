@@ -8,6 +8,7 @@ Tom Stuttard
 import sys, os, collections, numbers, copy
 
 # Import nuSQuIDS
+NUSQUIDS_AVAIL = False
 try:
     import nuSQuIDS as nsq # Modern
     NUSQUIDS_AVAIL = True
@@ -16,14 +17,17 @@ except ImportError as e:
         import nuSQUIDSpy as nsq # Old (backwards compatibility)
         NUSQUIDS_AVAIL = True
     except ImportError as e:
-        NUSQUIDS_AVAIL = False
+        pass
 
 # Import nuSQuIDS decoherence implementation
-try:
-    from nuSQUIDSDecohPy import nuSQUIDSDecoh, nuSQUIDSDecohAtm
-    NUSQUIDS_DECOH_AVAIL = True
-except ImportError as e:
-    NUSQUIDS_DECOH_AVAIL = False
+# NUSQUIDS_DECOH_AVAIL = False
+# try:
+#     print("+++ OW 5")
+#     from nuSQUIDSDecohPy import nuSQUIDSDecoh, nuSQUIDSDecohAtm  #TODO this is hanging, why? for no have commented this out
+#     print("+++ OW 6")
+#     NUSQUIDS_DECOH_AVAIL = True
+# except ImportError as e:
+#     pass
 
 from deimos.utils.constants import *
 from deimos.models.decoherence.decoherence_operators import get_model_D_matrix

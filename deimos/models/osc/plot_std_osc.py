@@ -52,11 +52,13 @@ if __name__ == "__main__" :
     # Plot NOvA
     #
 
+    print("\nPlot NOvA...")
+
     fig, ax, osc_probs = calculator.plot_osc_prob_vs_energy(
         initial_flavor=1, 
         final_flavor=1, 
         nubar=False,
-        energy_GeV=np.linspace(0., 10., num=500), 
+        energy_GeV=np.linspace(1e-3, 10., num=500), # Does not like E=0
         distance_km=810., 
         color="black", 
         label="Standard osc",
@@ -69,27 +71,18 @@ if __name__ == "__main__" :
     # Plot DeepCore
     #
 
+    print("\nPlot DeepCore...")
+
     fig, ax, osc_probs = calculator.plot_osc_prob_vs_energy(
         initial_flavor=1, 
         final_flavor=2, 
         nubar=False,
         energy_GeV=np.geomspace(1., 200., num=500), 
-        coszen=-1., 
+        distance_km=EARTH_DIAMETER_km, # coszen = -1 
         color="black", 
         label="Standard osc",
         title="DeepCore",
         xscale="log",
-    )
-
-    fig, ax, osc_probs = calculator.plot_osc_prob_vs_coszen(
-        initial_flavor=1, 
-        final_flavor=2, 
-        nubar=False,
-        energy_GeV=25., 
-        coszen=np.linspace(-1., +1., num=500), 
-        color="black", 
-        label="Standard osc",
-        title="DeepCore",
     )
 
 
