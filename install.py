@@ -114,6 +114,8 @@ def create_conda_env(anaconda_bin, env_name, env_file=None, overwrite=False, con
     Return the commands required by a setup script to configure the environment to use this env
     '''
 
+    print("\nCreating conda env...")
+
     # Check inputs
     assert os.path.isdir(anaconda_bin), "anaconda bin directory does not exist : %s" % anaconda_bin
     if env_file is not None :
@@ -255,6 +257,7 @@ def install_mceq(target_dir, repo_path=None, branch=None, overwrite=False, insta
     Use the `classic_version` arg to get this older version. 
     '''
 
+    print("\nInstalling MCEQ...")
 
     #
     # Check inputs
@@ -410,6 +413,8 @@ def install_nusquids(
     Install nuSQuIDS (https://github.com/arguelles/nuSQuIDS)
     '''
 
+    print("\nInstalling (nu)SQuIDS...")
+
     #
     # Check inputs
     #
@@ -560,6 +565,8 @@ def install_pisa(anaconda_bin, env_name, target_dir, repo_path=None, branch=None
     '''
     Install PISA (https://github.com/IceCubeOpenSource/pisa)
     '''
+
+    print("\nInstalling PISA...")
 
     #
     # Check inputs
@@ -887,7 +894,13 @@ if __name__ == "__main__" :
     args = parser.parse_args()
 
     # Get path to deimos installation (should be where this script lives)
-    deimos_dir = os.path.abspath( os.path.join( os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."  ) )
+    deimos_dir = os.path.abspath( os.path.dirname( os.path.abspath(__file__) ) )
+
+    # Define python version
+    python_version = "3.7.5"
+    python_major_version = int(python_version.split(".")[0])
+    assert python_major_version in [2, 3]
+    print("Using python%i (%s)" % (python_major_version, python_version))
 
     # Use same install location as DEIMOS if user didn't specific anything else
     if args.install_dir is None :
@@ -895,12 +908,6 @@ if __name__ == "__main__" :
     args.install_dir = os.path.realpath(args.install_dir)
     assert os.path.exists(args.install_dir), "Could not find install dir : %s" % args.install_dir
     print("Install dir : %s" % (args.install_dir))
-
-    # Define python version
-    python_version = "3.7.5"
-    python_major_version = int(python_version.split(".")[0])
-    assert python_major_version in [2, 3]
-    print("Using python%i (%s)" % (python_major_version, python_version))
 
     # Find anaconda, specifically the bin directory
     # If user did not provide a path, assume in same place as deimos and assume path structure
@@ -958,6 +965,7 @@ if __name__ == "__main__" :
     }
 
     # Run installer
+    print("Starting installation process (you may be prompted for passwords, etc to clone git repos)...")
     install_osc_software(
         install_dir=args.install_dir,
         anaconda_bin=anaconda_bin,
