@@ -7,12 +7,23 @@ Tom Stuttard
 
 import sys, os, collections, numbers
 
+# Import nuSQuIDS
 try:
-    import nuSQUIDSpy as nsq
-    from nuSQUIDSDecohPy import nuSQUIDSDecoh, nuSQUIDSDecohAtm
+    import nuSQuIDS as nsq # Modern
     NUSQUIDS_AVAIL = True
 except ImportError as e:
-    NUSQUIDS_AVAIL = False
+    try:
+        import nuSQUIDSpy as nsq # Old (backwards compatibility)
+        NUSQUIDS_AVAIL = True
+    except ImportError as e:
+        NUSQUIDS_AVAIL = False
+
+# Import nuSQuIDS decoherence implementation
+try:
+    from nuSQUIDSDecohPy import nuSQUIDSDecoh, nuSQUIDSDecohAtm
+    NUSQUIDS_DECOH_AVAIL = True
+except ImportError as e:
+    NUSQUIDS_DECOH_AVAIL = False
 
 from deimos.utils.constants import *
 from deimos.models.decoherence.decoherence_operators import get_model_D_matrix
@@ -121,16 +132,21 @@ class OscCalculator(object) :
         # Alwys do both, not the most efficient but simplifies things
         nu_type = nsq.NeutrinoType.both 
 
+        # Toggle between atmo. vs regular modes
         if self.atmospheric :
 
             # Instantiate nuSQuIDS atmospheric calculator
-            self.nusquids = nuSQUIDSDecohAtm(
+            args = [
                 self.coszen_nodes,
                 self.energy_nodes_GeV * self.units.GeV,
                 self.num_neutrinos,
                 nu_type,
                 interactions,
-            )
+            ]
+            if NUSQUIDS_DECOH_AVAIL :
+                self.nusquids = nuSQUIDSDecohAtm(*args)
+            else :
+                self.nusquids = nuSQUIDSAtm(*args)
 
             # Add tau regeneration
             # if interactions :
@@ -139,13 +155,17 @@ class OscCalculator(object) :
         else :
 
             # Instantiate nuSQuIDS regular calculator
-            self.nusquids = nuSQUIDSDecoh(
+            args = [
                 self.energy_nodes_GeV * self.units.GeV,
                 self.num_neutrinos,
                 nu_type,
                 interactions,
-            )
-
+            ]
+            if NUSQUIDS_DECOH_AVAIL :
+                self.nusquids = nuSQUIDSDecoh(*args)
+            else :
+                self.nusquids = nuSQUIDS(*args)
+            
 
         #
         # Various settings
@@ -382,6 +402,7 @@ class OscCalculator(object) :
         #
 
         if self.tool == "nusquids" :
+            assert NUSQUIDS_DECOH_AVAIL
             assert np.allclose(D_matrix_eV.imag, 0.), "nuSQuIDS decoherence implementation currently does not support imaginary gamma matrix"
             self.nusquids.Set_DecoherenceGammaMatrix(D_matrix_eV.real * self.units.eV)
             self.nusquids.Set_DecoherenceGammaEnergyDependence(n)
