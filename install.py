@@ -890,6 +890,7 @@ if __name__ == "__main__" :
     parser = argparse.ArgumentParser()
     parser.add_argument('-ad','--anaconda-dir', type=str, required=True, default=None, help='Path to anaconda dir' )
     parser.add_argument('-id','--install-dir', type=str, required=False, default=None, help='Installation directory' )
+    parser.add_argument('-en','--env-name', type=str, required=False, default=None, help='Conda env name' )
     parser.add_argument('-ow','--overwrite', action="store_true", required=False, help='overwrite any existing installation' )
     args = parser.parse_args()
 
@@ -919,7 +920,8 @@ if __name__ == "__main__" :
     print("Anaconda bin : %s" % anaconda_bin)
 
     # Environment name
-    env_name = "deimos"
+    if args.env_name is None :
+        args.env_name = "deimos"
 
     # Define any additional packages to install
     conda_packages = [
@@ -969,7 +971,7 @@ if __name__ == "__main__" :
     install_osc_software(
         install_dir=args.install_dir,
         anaconda_bin=anaconda_bin,
-        env_name=env_name,
+        env_name=args.env_name,
         conda_env_kw=conda_env_kw,
         overwrite=args.overwrite,
         pisa=pisa,
