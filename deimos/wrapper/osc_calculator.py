@@ -20,7 +20,7 @@ except ImportError as e:
         pass
 
 # Import nuSQuIDS decoherence implementation
-# NUSQUIDS_DECOH_AVAIL = False
+NUSQUIDS_DECOH_AVAIL = False
 # try:
 #     print("+++ OW 5")
 #     from nuSQUIDSDecohPy import nuSQUIDSDecoh, nuSQUIDSDecohAtm  #TODO this is hanging, why? for no have commented this out
