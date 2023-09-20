@@ -150,13 +150,15 @@ class OscCalculator(object) :
             if NUSQUIDS_DECOH_AVAIL :
                 self.nusquids = nuSQUIDSDecohAtm(*args)
             else :
-                self.nusquids = nuSQUIDSAtm(*args)
+                self.nusquids = nsq.nuSQUIDSAtm(*args)
 
             # Add tau regeneration
             # if interactions :
             #     self.nusquids.Set_TauRegeneration(True) #TODO results look wrong, disable for now and investigate
 
         else :
+
+            print(self.energy_nodes_GeV)
 
             # Instantiate nuSQuIDS regular calculator
             args = [
@@ -168,7 +170,7 @@ class OscCalculator(object) :
             if NUSQUIDS_DECOH_AVAIL :
                 self.nusquids = nuSQUIDSDecoh(*args)
             else :
-                self.nusquids = nuSQUIDS(*args)
+                self.nusquids = nsq.nuSQUIDS(*args)
             
 
         #

@@ -58,7 +58,7 @@ if __name__ == "__main__" :
         initial_flavor=1, 
         final_flavor=1, 
         nubar=False,
-        energy_GeV=np.linspace(1e-3, 10., num=500), # Does not like E=0
+        energy_GeV=np.linspace(0.5, 10., num=500), # Does not like E=0
         distance_km=810., 
         color="black", 
         label="Standard osc",
