@@ -143,100 +143,6 @@ class CoordTransform(object):
         return right_ascension, declination
 
 
-    def get_observer_frame(self,date_str):
-        
-        # Create observation time object
-        if self.datetime_obj is None:
-            date_obj = self.parse_date_string(date_str)
-        else:
-            date_obj = self.datetime_obj
-            
-        self.observer_frame = AltAz(obstime=date_obj, location=self.detector_location)
-        
-        return self.observer_frame
-    
-    
-    def rotate_vector_from_ICRS_to_local_AltAz_frame(self,date_str,vec):
-        
-        if self.observer_frame is None:
-            observer_frame = self.get_observer_frame(date_str)
-        else:
-            observer_frame = self.observer_frame
-            
-        # Define the Cartesian coordinates for the unit vectors in the ICRS frame
-        # The x, y, and z coordinates are simply 1 for the respective directions
-        x_unit_vector = 1 * u.dimensionless_unscaled
-        y_unit_vector = 1 * u.dimensionless_unscaled
-        z_unit_vector = 1 * u.dimensionless_unscaled
-        
-        # Initialize the SkyCoord objects for the unit vectors
-        # Use representation_type='cartesian' to specify Cartesian coordinates
-        x_vector_icrs = SkyCoord(x=x_unit_vector, y=0*u.dimensionless_unscaled, z=0*u.dimensionless_unscaled, frame='icrs', representation_type='cartesian')
-        y_vector_icrs = SkyCoord(x=0*u.dimensionless_unscaled, y=y_unit_vector, z=0*u.dimensionless_unscaled, frame='icrs', representation_type='cartesian')
-        z_vector_icrs = SkyCoord(x=0*u.dimensionless_unscaled, y=0*u.dimensionless_unscaled, z=z_unit_vector, frame='icrs', representation_type='cartesian')
-        
-        # Transform unit vectors to the topocentric frame specified by zenith angle and azimuth
-        x_vector_topo = x_vector_icrs.transform_to(observer_frame)
-        y_vector_topo = y_vector_icrs.transform_to(observer_frame)
-        z_vector_topo = z_vector_icrs.transform_to(observer_frame)
-        
-        # Define unit vectors in the topocentric frame theta = 90-alt, azimuth = phi
-        # x = sin(theta) cos(phi)
-        # y = sin(theta) sin(phi)
-        # z = cos(theta)
-        # x_unit_vector_topo = SkyCoord(az=0*u.deg, alt=0*u.deg, frame=observer_frame)
-        # y_unit_vector_topo = SkyCoord(az=90*u.deg, alt=0*u.deg, frame=observer_frame)
-        # z_unit_vector_topo = SkyCoord(az=0*u.deg, alt=90*u.deg, frame=observer_frame)
-        # print(z_unit_vector_topo.cartesian.xyz)
-        # print(z_vector_topo.cartesian.xyz)
-        # Calculate new vector
-        new_vec = np.zeros(vec.shape)
-        # new_vec[0] = vec[0] * np.dot(x_vector_topo.cartesian.xyz, x_unit_vector_topo.cartesian.xyz)
-        # new_vec[1] = vec[1] * np.dot(y_vector_topo.cartesian.xyz, y_unit_vector_topo.cartesian.xyz)
-        # new_vec[2] = vec[2] * np.dot(z_vector_topo.cartesian.xyz, z_unit_vector_topo.cartesian.xyz)
-        new_vec[0] = vec[0] * x_vector_topo.cartesian.xyz[0] + vec[1] * y_vector_topo.cartesian.xyz[0]
-        new_vec[1] = vec[0] * x_vector_topo.cartesian.xyz[1] + vec[1] * y_vector_topo.cartesian.xyz[1]
-        new_vec[2] = vec[0] * x_vector_topo.cartesian.xyz[2] + vec[1] * y_vector_topo.cartesian.xyz[2]
-        
-        return new_vec
-    
-    
-    def get_local_sidereal_time(self, date_str):
-        """
-        Get the local sidereal time corresponding to the given date/time.
-
-        Parameters:
-            date_str (str): Date string in the format "Month day, Year, Hour:Minute(:Second)" (e.g., "July 15, 2023, 14:30").
-        
-        Returns:
-            float: Local sidereal time in degrees.
-        """
-        # Create observation time object
-        date_obj = self.parse_date_string(date_str)
-        # Calculate local sidereal time
-        lst = date_obj.sidereal_time('apparent', longitude=self.detector_location.lon)
-        return lst.to(u.deg).value
-
-    def get_angle_to_aries(self, date_str):
-        """
-        Get the angle between the lines from Earth and the first point of Aries to the Sun at the specified date/time.
-
-        Parameters:
-            date_str (str): Date string in the format "Month day, Year, Hour:Minute(:Second)" (e.g., "July 15, 2023, 14:30").
-        
-        Returns:
-            float: Angle to the first point of Aries in degrees.
-        """
-        # Get the position of the Sun at the specified date/time
-        date_obj = self.parse_date_string(date_str)
-        sun_position = get_sun(date_obj)
-    
-        # Calculate the angle between the lines from Earth and the first point of Aries to the Sun
-        aries = SkyCoord(ra=0*u.deg, dec=0*u.deg, frame='icrs')
-        angle_to_aries = sun_position.separation(aries)
-    
-        return angle_to_aries.to(u.deg).value
-        
     def path_length(self, coszen, prodHeight, detectorDepth):
         """
         Calculate the path length of neutrinos from the production height to the detector.
@@ -247,7 +153,7 @@ class CoordTransform(object):
             detectorDepth (float): Depth at which the detector lies below the Earth's surface (in km).
 
         Returns:
-            numpy.ndarray: An array containing the path lengths of neutrinos in the same shape as coszen.       
+            numpy.ndarray: An array containing the path lengths of neutrinos in the same shape as coszen. Units: km       
         """
         
         # Approximate Earth's radius in km

@@ -565,8 +565,7 @@ class OscCalculator(object) :
                 "dec" : dec_deg,
                 # Store date_str for skymap
                 "date_str" : date_str,
-                "sidereal_time" : self.detector_coordinates.get_local_sidereal_time(date_str),
-                "angle_to_aries": self.detector_coordinates.get_angle_to_aries(date_str)
+                "sidereal_time" : self.detector_coordinates.get_local_sidereal_time(date_str)
             }
          
             
@@ -1819,7 +1818,8 @@ class OscCalculator(object) :
 
     def plot_healpix_map(
             self,
-            healpix_map, 
+            healpix_map,
+            visible_sky_map,
             nside,
             title,
             cbar_label,
@@ -1845,7 +1845,28 @@ class OscCalculator(object) :
                             max=max_val,
                             cbar=False,
                             return_projected_map=True,
+                            # Allow overlaying
+                            hold = True
                             )
+        # Overlay the visible_sky map
+        hp.mollview(
+            map=visible_sky_map,  # Add the visible_sky map as an overlay
+            cmap='Greys',  # Set the colormap to 'Greys'
+            xsize=2000,
+            # An additional rotation of angle psi around this direction is applied.
+            rot=(180, 0, 0),
+            # equatorial (celestial) coordinate system
+            coord='C',
+            # east towards left, west towards right
+            flip = 'astro',
+            min = 0,
+            max =1,
+            # Set opacity to 0.2
+            alpha=visible_sky_map,  
+            # Allow overlaying
+            reuse_axes=True,
+            cbar=False,
+            )
         
         # Add meridians and parallels
         hp.graticule()
@@ -1949,6 +1970,17 @@ class OscCalculator(object) :
         neutrinos_dict = self._neutrino_source_kw
         sme_dict = self._sme_model_kw
         
+        # Evaluate which pixels are above the horizon 
+        _, alt, _ = self.detector_coordinates.get_coszen_altitude_and_azimuth(date_str = date_str, ra_deg = right_ascension_flat, dec_deg = declination_flat)
+        # Create a mask for altitudes between 0 and 90 degrees
+        mask = (alt >= 0) # & (alt <= 90)
+        # Create an array of zeros with the same shape as alt
+        visible_sky = np.zeros_like(alt)
+        
+        # Set the elements where the condition is met to .4
+        visible_sky[mask] = .4
+
+        
         
         # Calculate probabilities with SME model
         sme_probabilities2d = self.calc_osc_prob(
@@ -1988,6 +2020,7 @@ class OscCalculator(object) :
                 #Plot the difference in oscillation probabilities for all flavours
                 self.plot_healpix_map(
                     healpix_map=single_healpix_map, 
+                    visible_sky_map=visible_sky,
                     nside=resolution, 
                     title=formatted_energy,
                     cbar_label=r"$P(\nu_{\mu}\rightarrow \nu_{" + final_flavor[j] + r"})$", 
@@ -2004,7 +2037,8 @@ class OscCalculator(object) :
             
             # Plot sum of flavours 
             self.plot_healpix_map(
-                healpix_map=healpix_maps_sum_flavours, 
+                healpix_map=healpix_maps_sum_flavours,
+                visible_sky_map=visible_sky, 
                 nside=resolution, 
                 title=formatted_energy,
                 cbar_label=r"$P(\nu_{\mu}\rightarrow \nu_{all})$", 
