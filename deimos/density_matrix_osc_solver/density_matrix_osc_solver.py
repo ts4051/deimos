@@ -373,7 +373,8 @@ class DensityMatrixOscSolver(object) :
 
     def set_mixing_angles(self, theta_rad, deltacp=0.) :
         self.theta_rad = theta_rad
-        self.PMNS = get_pmns_matrix(self.theta_rad, dcp=deltacp)
+        self.deltacp = deltacp
+        self.PMNS = get_pmns_matrix(self.theta_rad, dcp=self.deltacp)
         # self.PMNS_inv = get_pmns_matrix(-1.*self.theta_rad, dcp=deltacp) #TODO check this
         assert self.PMNS.shape == (self.num_states,self.num_states,)
 

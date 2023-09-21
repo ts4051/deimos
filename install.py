@@ -539,7 +539,7 @@ def install_nusquids(
 
     # Make pybindings
     if make :
-        # install_commands.append( "cd " + os.path.join(nusquids_target_dir,"resources","python","src") + " ; make clean ; make" ) # Older versions
+        # install_commands.append( "cd " + os.path.join(nusquids_target_dir, "resources", "python", "src") + " ; make clean ; make" ) # Older versions
         install_commands.append( "make python" ) # Latest version
 
     # Test pybindings (check can import it)
@@ -556,6 +556,85 @@ def install_nusquids(
     execute_commands(install_commands)
 
     print(">>> (nu)SQuIDS installation complete!\n")
+
+    # Return the environment setup commands
+    return setup_commands
+
+
+def install_prob3(
+    anaconda_bin, env_name,
+    target_dir,
+    repo_path=None,   
+    branch=None,
+    overwrite=False, 
+    make=True, # Optionally build prob3
+    git_protocol=None,
+) :
+    '''
+    Install prob3 (https://github.com/rogerwendell/Prob3plusplus)
+    '''
+
+    print("\nInstalling prob3...")
+
+    #
+    # Check inputs
+    #
+
+    # Defaults
+    if repo_path is None :
+        repo_path = "https://github.com/rogerwendell/Prob3plusplus"
+    if branch is None :
+        branch = "main"
+
+    # Absoute paths
+    target_dir = os.path.abspath(target_dir)
+
+
+    #
+    # Setup env
+    #
+
+    install_commands = []
+
+    # Prepare conda env
+    conda_env_commands = get_conda_env_init_commands(anaconda_bin, env_name=env_name)
+    install_commands.extend(conda_env_commands)
+
+
+    #
+    # Install prob3
+    #
+
+    # Git clone
+    clone_git_repo(
+        repo_path=repo_path,
+        target_dir=target_dir,
+        branch=branch,
+        recursive=False,
+        overwrite=overwrite,
+        git_protocol=git_protocol,
+    ) 
+
+    # Make
+    if make :
+        install_commands.append("cd " + target_dir + " ; make clean ; make ; make shared") # "make shared" adds pybindings
+
+
+    #
+    # Done
+    #
+
+    # Finally, run the commands
+    execute_commands(install_commands)
+
+    print(">>> prob3 installation complete!\n")
+
+    # Define commands that user will need to configure env for running prob3
+    setup_commands = [
+        "export PROB3_DIR=" + target_dir,
+        "export LD_LIBRARY_PATH=$PROB3_DIR:$LD_LIBRARY_PATH",
+        "export PYTHONPATH=$PROB3_DIR:$PYTHONPATH",
+    ]
 
     # Return the environment setup commands
     return setup_commands
@@ -716,6 +795,8 @@ def install_osc_software(
     mceq_kw=None, # keyword args to pass to `install_mceq`
     nusquids=False, # Decide whether to install nuSQuIDS
     nusquids_kw=None, # keyword args to pass to `install_nusquids`
+    prob3=False,
+    prob3_kw=None, # keyword args to pass to `install_prob3`
     setup_commands=None, # Optionally user can provide a list of setup commands to add to the setup script
     git_protocol=None,
 ) :
@@ -761,6 +842,8 @@ def install_osc_software(
         nusquids_kw = {}
     if pisa_kw is None :
         pisa_kw = {}
+    if prob3_kw is None :
+        prob3_kw = {}
 
     # Use absolute path for anaconda
     anaconda_bin = os.path.abspath(anaconda_bin)
@@ -768,16 +851,19 @@ def install_osc_software(
     # Define target paths for each package
     # If provides one use that, otherwise create one
     if 'target_dir' not in pisa_kw.keys():
-        pisa_kw['target_dir'] = os.path.join(install_dir,"pisa","src")
+        pisa_kw['target_dir'] = os.path.join(install_dir, "pisa", "src")
 
     if 'target_dir' not in mceq_kw.keys():
-        mceq_kw['target_dir'] = os.path.join(install_dir,"MCEq","src")
+        mceq_kw['target_dir'] = os.path.join(install_dir, "MCEq", "src")
 
     if 'squids_target_dir' not in nusquids_kw.keys():
-        nusquids_kw['squids_target_dir'] = os.path.join(install_dir,"SQuIDS","src")
+        nusquids_kw['squids_target_dir'] = os.path.join(install_dir, "SQuIDS", "src")
 
     if 'nusquids_target_dir' not in nusquids_kw.keys():
-        nusquids_kw['nusquids_target_dir'] = os.path.join(install_dir,"nuSQuIDS","src")
+        nusquids_kw['nusquids_target_dir'] = os.path.join(install_dir, "nuSQuIDS", "src")
+
+    if 'target_dir' not in prob3_kw.keys():
+        prob3_kw['target_dir'] = os.path.join(install_dir, "Prob3plusplus", "src")
 
     # Check setup commands format (should be a list of strings)
     if setup_commands is not None :
@@ -818,6 +904,16 @@ def install_osc_software(
             **nusquids_kw
         )
 
+    # Install prob3
+    if prob3 :
+        prob3_setup_commands = install_prob3(
+            anaconda_bin=anaconda_bin,
+            env_name=env_name,
+            overwrite=overwrite,
+            git_protocol=git_protocol,
+            **prob3_kw
+        )
+
     # Install PISA
     if pisa :
         pisa_setup_commands = install_pisa(
@@ -850,6 +946,10 @@ def install_osc_software(
     if nusquids :
         commands.append("\n# (nu)SQuIDS env")
         commands.extend(nusquids_setup_commands)
+
+    if prob3 :
+        commands.append("\n# prob3 env")
+        commands.extend(prob3_setup_commands)
 
     if pisa :
         commands.append("\n# PISA env")
@@ -966,6 +1066,10 @@ if __name__ == "__main__" :
         "test" : False,
     }
 
+    # Steer prob3 installation
+    prob3 = True
+    prob3_kw = None # Can optionally steer e.g. branch, fork, etc
+
     # Run installer
     print("Starting installation process (you may be prompted for passwords, etc to clone git repos)...")
     install_osc_software(
@@ -980,4 +1084,6 @@ if __name__ == "__main__" :
         mceq_kw=mceq_kw,
         nusquids=nusquids,
         nusquids_kw=nusquids_kw,
+        prob3=prob3,
+        prob3_kw=prob3_kw,
     )

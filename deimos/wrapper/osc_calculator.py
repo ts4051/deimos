@@ -29,6 +29,15 @@ NUSQUIDS_DECOH_AVAIL = False
 # except ImportError as e:
 #     pass
 
+# Import prob3
+PROB3_AVAIL = False
+try:
+    from BargerPropagator import * 
+    PROB3_AVAIL = True
+except ImportError as e:
+    pass
+
+# General DEIMOS imports
 from deimos.utils.constants import *
 from deimos.models.decoherence.decoherence_operators import get_model_D_matrix
 from deimos.density_matrix_osc_solver.density_matrix_osc_solver import DensityMatrixOscSolver, get_pmns_matrix, get_matter_potential_flav
@@ -76,6 +85,8 @@ class OscCalculator(object) :
             self._init_nusquids(**kw)
         elif self.tool == "deimos" :
             self._init_deimos(**kw)
+        elif self.tool == "prob3" :
+            self._init_prob3(**kw)
         else :
             raise Exception("Unrecognised tool : %s" % self.tool)
 
@@ -205,6 +216,21 @@ class OscCalculator(object) :
         )
 
 
+    def _init_prob3(self,
+        **kw
+    ) :
+
+        assert PROB3_AVAIL, "Prob3 not installed"
+
+        # Create a dict to hold settings
+        self._prob3_settings = {}
+
+        # Create propagator
+        self._propagator = BargerPropagator()
+
+
+
+
     def set_matter(self, matter, **kw) :
 
         #
@@ -219,6 +245,8 @@ class OscCalculator(object) :
             elif self.tool == "deimos" :
                 self.solver.set_matter_potential(None)
 
+            elif self.tool == "prob3" :
+                self._prob3_settings["matter"] = None
 
         #
         # Earth
@@ -234,6 +262,9 @@ class OscCalculator(object) :
 
             elif self.tool == "deimos" :
                 raise Exception("`%s` does have an Earth model" % self.tool)
+
+            elif self.tool == "prob3" :
+                self._prob3_settings["matter"] = "earth"
 
 
         #
@@ -253,6 +284,11 @@ class OscCalculator(object) :
                 V = get_matter_potential_flav(num_states=self.num_neutrinos, matter_density_g_per_cm3=kw["matter_density_g_per_cm3"], electron_fraction=kw["electron_fraction"], nsi_matrix=None)
                 self.solver.set_matter_potential(V)
 
+
+            elif self.tool == "prob3" :
+                print("WARNING : electron fraction not currently handled by prob3 wrapper")
+                self._prob3_settings["matter"] = "constant"
+                self._prob3_settings["matter_density_g_per_cm3"] = kw["matter_density_g_per_cm3"]
 
 
         #
@@ -289,20 +325,49 @@ class OscCalculator(object) :
             self.solver.set_mixing_angles( np.array([ t for t in [theta12,theta13,theta23] if t is not None ]), deltacp=deltacp )
             # self.solver.set_mixing_angles( -1. * np.array([ t for t in [theta12,theta13,theta23] if t is not None ]) ) #TODO
 
+        elif self.tool == "prob3" :
+            # Just store for passing an propagation time to solver
+            self._prob3_settings["theta12"] = theta12
+            self._prob3_settings["theta13"] = theta13
+            self._prob3_settings["theta23"] = theta23
+            self._prob3_settings["deltacp"] = deltacp
+
 
     def get_mixing_angles(self) :
 
         if self.tool == "deimos" :
-            return self.solver.theta_rad #TOD delta CP ?
+            return self.solver.theta_rad
+
+        elif self.tool == "prob3" :
+            assert self.num_neutrinos == 3
+            return (self._prob3_settings["theta12"],  self._prob3_settings["theta13"], self._prob3_settings["theta23"])
+
+        else :
+            raise Exception("TODO")
+
+
+    def get_deltacp(self) :
+
+        if self.tool == "deimos" :
+            return self.solver.deltacp
+
+        elif self.tool == "prob3" :
+            return self._prob3_settings["deltacp"]
+
         else :
             raise Exception("TODO")
 
 
     def set_deltacp(self, deltacp) :
+
         if self.tool == "nusquids" :
             self.nusquids.Set_CPPhase( 0, 2, deltacp )
+
         elif self.tool == "deimos" :
             raise Exception("Cannot set delta CP on its own for `deimos`, use `set_mixing_angles`")
+
+        elif self.tool == "prob3" :
+            self._prob3_settings["deltacp"] = deltacp
 
 
     def set_mass_splittings(self, deltam21, deltam31=None) :
@@ -325,6 +390,10 @@ class OscCalculator(object) :
         elif self.tool == "deimos" :
             self.solver.set_mass_splittings( np.array([ dm2 for dm2 in [deltam21, deltam31] if dm2 is not None ]) )
 
+        elif self.tool == "prob3" :
+            self._prob3_settings["deltam21"] = deltam21
+            self._prob3_settings["deltam31"] = deltam31
+
 
     def get_mass_splittings(self) :
         '''
@@ -340,6 +409,8 @@ class OscCalculator(object) :
         elif self.tool == "deimos" :
             return self.solver.get_mass_splittings()
 
+        elif self.tool == "prob3" :
+            return ( self._prob3_settings["deltam21"], self._prob3_settings["deltam31"] )
 
 
     def set_std_osc(self) :
@@ -356,6 +427,7 @@ class OscCalculator(object) :
             self._lightcone_model_kw = None
             self._sme_model_kw = None
 
+
     def set_calc_basis(self, basis) :
 
         if self.tool == "nusquids" :
@@ -363,6 +435,9 @@ class OscCalculator(object) :
 
         elif self.tool == "deimos" :
             self._calc_basis = basis # Store for use later
+
+        elif self.tool == "prob3" :
+            pass # Basis not relevent here, not solving Linblad master equation
 
         else :
             raise Exception("`%s` does not support setting calculation basis" % self.tool)
@@ -709,12 +784,21 @@ class OscCalculator(object) :
         # Calculate
         #
 
+        # Call sub-function for relevent solver
         if self.tool == "nusquids" :
-            return self._calc_osc_prob_nusquids( initial_flavor=initial_flavor, initial_state=initial_state, energy_GeV=energy_GeV, distance_km=distance_km, coszen=coszen, nubar=nubar )
+            osc_probs = self._calc_osc_prob_nusquids( initial_flavor=initial_flavor, initial_state=initial_state, energy_GeV=energy_GeV, distance_km=distance_km, coszen=coszen, nubar=nubar )
 
-        if self.tool == "deimos" :
+        elif self.tool == "deimos" :
             assert initial_flavor is not None, "must provide `initial_flavor` (`initial_state` not currently supported for %s" % self.tool
-            return self._calc_osc_prob_deimos( initial_flavor=initial_flavor, nubar=nubar, energy_GeV=energy_GeV, distance_km=distance_km, coszen=coszen)
+            osc_probs = self._calc_osc_prob_deimos( initial_flavor=initial_flavor, nubar=nubar, energy_GeV=energy_GeV, distance_km=distance_km, coszen=coszen)
+       
+        elif self.tool == "prob3" :
+            osc_probs = self._calc_osc_prob_prob3( initial_flavor=initial_flavor, energy_GeV=energy_GeV, distance_km=distance_km, coszen=coszen, nubar=nubar )
+
+        # Checks
+        assert np.all( np.isfinite(osc_probs) ), "Found non-finite osc probs"
+
+        return osc_probs
 
 
     def _calc_osc_prob_nusquids(self,
@@ -862,6 +946,131 @@ class OscCalculator(object) :
 
             return results
 
+
+
+    def _calc_osc_prob_prob3(self,
+        initial_flavor,
+        energy_GeV,
+        distance_km=None,
+        coszen=None,
+        nubar=False,
+    ) :
+
+
+        #
+        # Check inputs
+        #
+
+        # Check num flavors
+        assert self.num_neutrinos == 3, "prob3 wrapper only supporting 3-flavor oscillations currently" #TODO probably can add supoort for N != 3
+
+        # Note that coszen vs distance handling already done in level above
+
+        #TODO coszen->distance conversion for vacuum atmo case
+
+
+
+        #
+        # Define system
+        #
+
+        # Get osc propeties
+        theta12, theta13, theta23 = self.get_mixing_angles()
+        sin2_theta12, sin2_theta13, sin2_theta23 = np.square(np.sin(theta12)), np.square(np.sin(theta13)), np.square(np.sin(theta23))
+        deltacp = self.get_deltacp()
+        dm21, dm32 = self.get_mass_splittings()
+        KNuType = -1 if nubar else +1
+
+        # Dertemine all final states
+        final_flavors = self.states
+
+        # Determine matter
+        earth, matter_density_g_per_cm3 = False, None
+        vacuum = self._prob3_settings["matter"] is None
+        if not vacuum :
+            if self._prob3_settings["matter"] == "earth" :
+                earth = True
+            else :
+                assert self._prob3_settings["matter"] == "constant"
+                matter_density_g_per_cm3 = self._prob3_settings["matter_density_g_per_cm3"]
+
+
+        #
+        # Loop over energy/coszen
+        #
+
+        # Array-ify
+        energy_GeV = np.asarray( [energy_GeV] if np.isscalar(energy_GeV) else energy_GeV )
+        distance_km = np.asarray( [distance_km] if np.isscalar(distance_km) else distance_km )
+ 
+        # Init outputs container
+        energy_dim = np.size(energy_GeV)
+        distance_dim = np.size(distance_km)
+        results = np.full( (energy_dim, distance_dim, self.num_neutrinos), np.NaN )
+
+        # Loop over energy
+        for i_E in range(energy_dim) :
+
+            # Update propagator settings
+            # Must do this each time energy changes, but don't need to for distance
+            self._propagator.SetMNS(
+                sin2_theta12, # sin2_theta12,
+                sin2_theta13, # sin2_theta13,
+                sin2_theta23, # sin2_theta23,
+                dm21, # dm12,
+                dm32, # dm23,
+                deltacp, # delta_cp ,
+                energy_GeV[i_E], # Energy,
+                True, # True means expect sin^2(theta), False means expect sin^2(2*theta)
+                KNuType,
+            )
+
+            # Loop over distance f
+            for i_L in range(distance_dim) :
+
+                # Loop over flavor
+                for i_f, final_flavor in enumerate(final_flavors) :
+
+
+                    #
+                    # Calc osc probs
+                    #
+
+                    # Handle prob3 flavor index format: uses [1,2,3], not [0,1,3]
+                    initial_flavor_prob3 = initial_flavor + 1 # prob3 
+                    final_flavor_prob3 = final_flavor + 1
+
+                    # Calculation depends of matter type
+                    if vacuum :
+
+                        # Run propagation and calc osc probs
+                        P = self._propagator.GetVacuumProb( initial_flavor_prob3, final_flavor_prob3 , energy_GeV[i_E],  distance_km[i_L])
+
+                    else :
+
+                        # Toggle between Earth vs constant density
+                        if earth :
+
+                            # Propagate in Earth
+                            raise Exception("Not yet implemented") #TODO need to handle coszen, etc
+                            self._propagator.DefinePath( cosineZ, prod_height )
+                            self._propagator.propagate( KNuType )
+
+                        else :
+
+                            # Propagate in constant density matter
+                            self._propagator.propagateLinear( KNuType, distance_km[i_L] , matter_density_g_per_cm3 )
+
+                        # Calc osc probs for mater case (after propagation done abopve already)
+                        P = self._propagator.GetProb( initial_flavor_prob3, final_flavor_prob3 )
+
+
+                    # Set to output array
+                    assert np.isscalar(P)
+                    results[i_E, i_L, i_f] = P
+
+
+        return results
 
 
     def _calc_osc_prob_deimos(self,
@@ -1074,12 +1283,14 @@ class OscCalculator(object) :
             fig, ax = plt.subplots( nrows=ny, sharex=True, figsize=( 6, 4 if ny == 1 else 2*ny) )
             if ny == 1 :
                 ax = [ax]
-            if title is not None :
-                fig.suptitle(title) 
+
         else :
             assert ax is not None
             assert len(ax) == ny
-            assert title is None
+
+        # Handle title
+        if title is not None :
+            fig.suptitle(title) 
 
         # Calc osc probs
         osc_probs = self.calc_osc_prob(
@@ -1170,12 +1381,13 @@ class OscCalculator(object) :
             fig, ax = plt.subplots( nrows=ny, sharex=True, figsize=( 6, 4 if ny == 1 else 2*ny) )
             if ny == 1 :
                 ax = [ax]
-            if title is not None :
-                fig.suptitle(title) 
         else :
             assert ax is not None
             assert len(ax) == ny
-            assert title is None
+
+        # Handle title
+        if title is not None :
+            fig.suptitle(title) 
 
         # Calc osc probs
         osc_probs = self.calc_osc_prob(
@@ -1254,7 +1466,7 @@ class OscCalculator(object) :
         import matplotlib.pyplot as plt
         from deimos.utils.plotting import plot_colormap, value_spacing_is_linear
 
-        assert self.atmospheric, "`plot_oscillogram` can only be called in atmopsheric mode"
+        assert self.atmospheric, "`plot_oscillogram` can only be called in atmospheric mode"
 
         #
         # Steerig
