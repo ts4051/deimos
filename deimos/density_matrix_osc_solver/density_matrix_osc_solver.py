@@ -569,7 +569,8 @@ class DensityMatrixOscSolver(object) :
         #TODO Could I just solve for energy rather than distance in this case?
         pad_L = L.size == 1
         if pad_L :
-            L_nodes = np.array( [0.1*L[0]] + L.tolist() + [2.*L[-1]] )
+            L_val = L[0]
+            L_nodes = np.array( [L_val, 2.*L_val] ) #TODO was usinf one node either side, by this seems to be failing. This new system with a single larger padded node seems to work foer now,m but needs investigating...
         else :
             L_nodes = L
 
@@ -589,7 +590,7 @@ class DensityMatrixOscSolver(object) :
             PMNS = np.conj(PMNS)
 
         # Define the mass component of the vacuum Hamiltonian
-        # Do not considder the energy depenednce yet
+        # Do not consider the energy depenednce yet
         M = dm2
 
         if verbose :
@@ -743,7 +744,7 @@ class DensityMatrixOscSolver(object) :
 
             # Remove the extra nodes added for solver stability
             if pad_L :
-                mask = np.array( [False] + ([True]*L.size) + [False], dtype=bool )
+                mask = np.array( [False, True], dtype=bool ) #TODO I expect I need the zero'th element to get the "unpadded" version, but actually need the other? And having big problems with 3 nodes? Not sure what is going on here...
                 solved_rho_mass = solved_rho_mass[mask]
 
             # Convert solutions to flavor basis
