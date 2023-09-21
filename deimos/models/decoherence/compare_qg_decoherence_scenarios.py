@@ -326,7 +326,7 @@ def reproduce_2306_14778() :
 
     # This is for KamLAND
     L_km = KAMLAND_BASELINE_km
-    LoE_values_km_per_MeV = np.linspace(20., 105, num=NUM_SCAN_POINTS) # Match range of Figure
+    LoE_values_km_per_MeV = np.linspace(20., 105, num=NUM_SCAN_POINTS) # Match range of Figure (corresponds to roughly 1-10 MeV)
     E_GeV_values = np.sort( L_km / (LoE_values_km_per_MeV*1e3) )
     initial_flavor, final_flavor, nubar = 0, 0, True # antinu survival
 
@@ -1034,14 +1034,14 @@ if __name__ == "__main__" :
     # Run plotters
     #
 
-    # reproduce_2306_14778()
+    reproduce_2306_14778()
 
-    # compare_qg_models_coherence_length()
+    compare_qg_models_coherence_length()
 
-    # explore_D_matrix_constraints()
+    explore_D_matrix_constraints()
     compare_random_D_matrix_textures(num_models=10)
 
-    # compare_D_matrix_textures()
+    compare_D_matrix_textures()
 
 
     #TODO verify damping term implement of nuVBH models matches the full solver version

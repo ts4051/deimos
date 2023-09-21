@@ -403,7 +403,7 @@ class OscCalculator(object) :
         if self.tool == "nusquids" :
             mass_splittings_eV2 = [ self.nusquids.Get_SquareMassDifference(1)/(self.units.eV*self.units.eV) ]
             if self.num_neutrinos > 2 :
-                mass_splittings_eV2.append( self.nusquids.Set_GquareMassDifference(2)/(self.units.eV*self.units.eV) )
+                mass_splittings_eV2.append( self.nusquids.Get_SquareMassDifference(2)/(self.units.eV*self.units.eV) )
             return tuple(mass_splittings_eV2)
 
         elif self.tool == "deimos" :
@@ -978,7 +978,8 @@ class OscCalculator(object) :
         theta12, theta13, theta23 = self.get_mixing_angles()
         sin2_theta12, sin2_theta13, sin2_theta23 = np.square(np.sin(theta12)), np.square(np.sin(theta13)), np.square(np.sin(theta23))
         deltacp = self.get_deltacp()
-        dm21, dm32 = self.get_mass_splittings()
+        dm21, dm31 = self.get_mass_splittings()
+        dm32 = dm31 - dm21 #TODO careful with mass ordering
         KNuType = -1 if nubar else +1
 
         # Dertemine all final states
@@ -1019,8 +1020,8 @@ class OscCalculator(object) :
                 sin2_theta23, # sin2_theta23,
                 dm21, # dm12,
                 dm32, # dm23,
-                deltacp, # delta_cp ,
-                energy_GeV[i_E], # Energy,
+                deltacp, # delta_cp [rad]   #TODO get diagreeement between prob3 and other solvers (DEIMOS, nuSQuIDS) when this is >0, not sure why?
+                energy_GeV[i_E], # Energy
                 True, # True means expect sin^2(theta), False means expect sin^2(2*theta)
                 KNuType,
             )

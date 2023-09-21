@@ -34,7 +34,8 @@ MASS_SPLITTINGS_eV2 = np.array([ 7.39e-5, 2.528e-3 ]) # [21, 31] nufit v4.1, NO,
 MIXING_ANGLES_rad = np.deg2rad( np.array([ 33.82, 8.60, 48.6 ]) ) # nufit v4.1, NO, with SK atmo data
 
 # CP violating phase
-DELTACP_rad =  np.deg2rad(221.) # nufit v4.1, NO, with SK atmo data
+DELTACP_rad =  0. #  Default to no CP violation
+# DELTACP_rad =  np.deg2rad(221.) # nufit v4.1, NO, with SK atmo data
 
 # Planck scale
 PLANCK_MASS_eV = 1.22e28
