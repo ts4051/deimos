@@ -586,17 +586,13 @@ class DensityMatrixOscSolver(object) :
             a_eV_x, a_eV_y, a_eV_z = sme_a
             c_tx, c_ty, c_tz = sme_c
             e_m_x, e_m_y,e_m_z = sme_e
+            # TODO implement the full effective hamiltonian
+            '''
+            So far the solver can handle the SME parameters a_L^i,"c_L^t^i (mass-independent SME operators) with flavor-dependent components 
+            and e_l^i (mass-dependent SME operators) with flavor-dependent components.
+            This could be extended in the future to include more parameters, see http://arxiv.org/abs/1112.6395v2.
+            '''
             
-        
-           
-           # TODO implement the full effective hamiltonian
-           # # Check if the inputs are matrices
-           #  if isinstance(sme_a, np.ndarray) and isinstance(sme_c, np.ndarray):
-           #      assert sme_a.shape == (4, 3, 3), "a_L^mu should be a hermitian 3x3 complex matrix"
-           #      assert sme_c.shape == (4, 4, 3, 3), "c_L^mu^nu should be a hermitian 3x3 complex matrix"
-           #  else:
-           #  	raise TypeError("a_eV and c should be 4x4 matrices with numeric values.")
-          
             
             # Allow ra and dec to be arrays abd loop through elements
             if not np.all((ra_rad >= 0) & (ra_rad <= 2 * np.pi)):
@@ -748,7 +744,7 @@ class DensityMatrixOscSolver(object) :
                 # Get the vacuum Hamiltonian at this energy
                 # M is the mass squared difference
                 self.H = M/ (2. * E_val)
-            
+                self.H=0
                 # Add/subtract the matter hamiltonian for nu/nubar
                 if V is not None :
                     self.H -= V if nubar else - V 
@@ -786,6 +782,8 @@ class DensityMatrixOscSolver(object) :
                     phi = ra 
                     
                     # spherical coordinates unit propagation vectors
+                    
+                    # r vector
                     NX = np.sin(theta) * np.cos(phi)
                     NY = np.sin(theta) * np.sin(phi)
                     NZ = np.cos(theta)
@@ -812,18 +810,18 @@ class DensityMatrixOscSolver(object) :
                     # If ra and dec of source are known change sign of As. (As = -As)
                     
                     #mass independent operators
+                    
+                    #amplitude to be multiplied with sin(omega_sid L)
                     As0 = -NY * a_eV_x + NX * a_eV_y
                     As1 = + 2 * NY * c_tx - 2 * NX * c_ty
                     As = As0 + E_val * As1
-                    
+                    #amplitude to be multiplied with cos(omega_sid L)
                     Ac0 = - NX * a_eV_x - NY * a_eV_y
                     Ac1 = 2 * NX * c_tx + 2 * NY * c_ty
                     Ac = Ac0 + E_val * Ac1
        
                     #mass dependent operators
-                    diagonal_value = 1e-2
-                    my_array = diagonal_value * np.eye(3)
-                    Ac0_e_m = 1/2*(NX*e_m_x+NY*e_m_y)*dagger(M+my_array)+1/2*(M+my_array)*(NX*e_m_x+NY*e_m_y)
+                    Ac0_e_m = 1/2*(NX*e_m_x+NY*e_m_y)*dagger(M)+1/2*(M)*(NX*e_m_x+NY*e_m_y)
                     Ac += Ac0_e_m
                     
                     return As, Ac, NZ*a_eV_z
@@ -924,21 +922,7 @@ class DensityMatrixOscSolver(object) :
                     # Convert solutions to flavor basis
                     solved_rho_flav = np.array([ rho_mass_to_flav_basis(rm, PMNS) for rm in solved_rho_mass ])
                     
-                    # Calculate time evolution operator
-                    # print(self.H.shape)
-                    # print("L: ",L)
-                    # time_evol_operator = self.time_evolution_operator(H = self.H, L = L)
-                    # print("Time evol operator: ", time_evol_operator)
-                    # initial_psi_mass = psi_flav_to_mass_basis(initial_psi_flav, PMNS)
-                    # initial_psi_mass_2 = np.dot( dagger(PMNS), initial_psi_flav )
-                    # print("Initial Flavor vector: ",initial_psi_flav)
-                    # print("PMNS matrix: ",PMNS)
-                    # print("Initial Mass vector: ", initial_rho_mass, get_rho(initial_psi_mass))
-                    # final_psi_mass = np.dot(time_evol_operator, initial_psi_mass)
-                    # print("Final Mass vector: ", final_psi_mass)
-                    # final_psi_flav = psi_mass_to_flav_basis(final_psi_mass, PMNS)
-                    # print("Final Flavor vector: ", final_psi_flav)
-                
+
                 # Solve-ivp for more flexible calcuations 
                 else:
                     #
