@@ -181,7 +181,8 @@ class OscCalculator(object) :
             if NUSQUIDS_DECOH_AVAIL :
                 self.nusquids = nuSQUIDSDecoh(*args)
             else :
-                self.nusquids = nsq.nuSQUIDS(*args)
+                # self.nusquids = nsq.nuSQUIDS(*args)
+                self.nusquids = nsq.nuSQUIDSLIV(*args)
             
 
         #
@@ -421,7 +422,34 @@ class OscCalculator(object) :
         if self.tool == "nusquids" :
             self.set_calc_basis(DEFAULT_CALC_BASIS)
             # self.set_decoherence_D_matrix_basis(DEFAULT_CALC_BASIS)
-            self.set_decoherence_D_matrix(D_matrix_eV=np.zeros((self.num_sun_basis_vectors,self.num_sun_basis_vectors)), n=0, E0_eV=1.)
+
+
+            #TODO REPLACE
+            #TODO REPLACE
+            #TODO REPLACE
+            #TODO REPLACE
+            #TODO REPLACE
+            #TODO REPLACE
+            #TODO REPLACE
+            #TODO REPLACE
+            #TODO REPLACE
+            #TODO REPLACE
+            #TODO REPLACE
+            #TODO REPLACE
+            # self.set_decoherence_D_matrix(D_matrix_eV=np.zeros((self.num_sun_basis_vectors,self.num_sun_basis_vectors)), n=0, E0_eV=1.)
+            #TODO REPLACE
+            #TODO REPLACE
+            #TODO REPLACE
+            #TODO REPLACE
+            #TODO REPLACE
+            #TODO REPLACE
+            #TODO REPLACE
+            #TODO REPLACE
+            #TODO REPLACE
+            #TODO REPLACE
+            #TODO REPLACE
+
+            self.set_sme(cft=0., n=0)
         else :
             self._decoh_model_kw = None
             self._lightcone_model_kw = None
@@ -721,8 +749,8 @@ class OscCalculator(object) :
     #
 
     def set_sme(self,
-        a_eV,
-        c,
+        cft,
+        n,
     ) :
         '''
         TODO
@@ -732,8 +760,8 @@ class OscCalculator(object) :
         # Check inputs
         #
 
-        assert isinstance(a_eV, numbers.Number)
-        assert isinstance(c, numbers.Number)
+        assert isinstance(cft, numbers.Number)
+        assert isinstance(n, numbers.Number)
 
 
         #
@@ -741,13 +769,17 @@ class OscCalculator(object) :
         #
 
         if self.tool == "nusquids" :
-            raise NotImplemented()
+            self.nusquids.Set_LIVCoefficient(cft)
+            self.nusquids.Set_LIVEnergyDependence(n)
 
         elif self.tool == "deimos" :
             self._sme_model_kw = {
-                "a_eV" : a_eV,
-                "c" : c,
+                "cft" : cft,
+                "n" : n,
             }
+
+        else :
+            raise NotImplemented("SME not yet wrapped for %s" % self.tool) #TODO this is already supported by prob3, just need to wrap it
 
 
 

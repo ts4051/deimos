@@ -529,8 +529,11 @@ class DensityMatrixOscSolver(object) :
         # SME (LIV) parameters
         #
 
-        sme_a = None
-        sme_c = None
+        # Get the SME coefficient and energy index
+        # This is equation 1 from https://arxiv.org/pdf/2111.04654.pdf, but ony considering one term at a time
+        # 'cft' here means the term's coefficient, e.g. a(i) or c(i) depending on the terms dimension e.g. from E^n
+        sme_cft = None
+        sme_n = None
         include_sme = False
 
         if sme_opts is not None :
@@ -538,14 +541,17 @@ class DensityMatrixOscSolver(object) :
             include_sme = True
 
             # User provides a a(3) and c(4) coefficients
-            assert "a_eV" in sme_opts
-            assert "c" in sme_opts
+            assert "cft" in sme_opts
+            assert "n" in sme_opts
 
             # Grab the vars, handling units
             sme_opts = copy.deepcopy(sme_opts)
-            sme_a = sme_opts.pop("a_eV")
-            sme_c = sme_opts.pop("c") # dimensionless
+            sme_cft = sme_opts.pop("cft") # Unit depends on term's dimension (e.g. n)
+            sme_n = sme_opts.pop("n")
             assert len(sme_opts) == 0, "Unused SME arguments!?!"
+
+            # Determine if the term in SME is +ve or -ve
+            sme_term_negative = ( sme_n % 2 != 0 )
 
 
         #
@@ -676,19 +682,13 @@ class DensityMatrixOscSolver(object) :
             if V is not None :
                 H = H - V if nubar else H + V
 
-            # Add SME terms to Hamiltonian
+            # Add/subtract SME term to Hamiltonian     #TODO what about antineutrinos?
             if include_sme :
-                # CPT-even terms
-                H = H + sme_a
-                # CPT-odd terms
-                H = H + ( E_val * (-1. if nubar else 1.) *  sme_c )
-                #TODO add sidereal component
-                #TODO add sidereal component
-                #TODO add sidereal component
-                #TODO add sidereal component
-                #TODO add sidereal component
-                #TODO add sidereal component
-                #TODO add sidereal component
+                sme_term = sme_cft * np.power(E_val, sme_n)
+                if sme_term_negative :
+                    H -= sme_term
+                else :
+                    H += sme_term
 
             # Handle decoherence gamma param (or D matrix) energy-depenedence
             # Using the `gamma` function, but actually applying to the whole matrix rather than the individual elements (which is equivalent)
