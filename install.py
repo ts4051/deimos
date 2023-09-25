@@ -15,6 +15,12 @@ Tom Stuttard
 
 import os, subprocess, collections, datetime, sys
 
+# Handle change over time in `collections` module
+try :
+    from collections.abc import Mapping, Sequence # Required as of py3.10
+except Exception as e :
+    from collections import Mapping, Sequence # Required in py2, works for py<3.10
+
 
 #
 # Tools
@@ -662,7 +668,7 @@ def install_pisa(anaconda_bin, env_name, target_dir, repo_path=None, branch=None
 
     # Check PISA resource format
     if pisa_resources is not None :
-        assert isinstance(pisa_resources,collections.Sequence)
+        assert isinstance(pisa_resources, Sequence)
 
 
     #
@@ -756,7 +762,7 @@ def generate_setup_script(script_path,commands) :
     '''
 
     # Check inputs
-    assert isinstance(commands,collections.Sequence)
+    assert isinstance(commands, Sequence)
 
     # Start by adding bash shebang
     script_contents = '#!/bin/bash\n'
@@ -867,7 +873,7 @@ def install_osc_software(
 
     # Check setup commands format (should be a list of strings)
     if setup_commands is not None :
-        assert isinstance(setup_commands,collections.Sequence)
+        assert isinstance(setup_commands, Sequence)
         assert all([ isinstance(c,str) for c in setup_commands ])
 
 
