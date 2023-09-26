@@ -1045,7 +1045,7 @@ if __name__ == "__main__" :
     pip_packages = [
         "uncertainties", # PISA doesn't seem to properly install `uncertainties`, add it here
         "odeintw", # Needed for DensityMatrixOscSolver
-        "ternary", # Needed for flavor triangle plots
+        "python-ternary", # Needed for flavor triangle plots
         "astropy", # Needed for astro/cosmo stuff
         "healpy", # Needed for astro/cosmo stuff
     ]
