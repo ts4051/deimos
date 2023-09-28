@@ -5,6 +5,7 @@ Tom Stuttard
 '''
 
 import matplotlib
+matplotlib.use('AGG') # In some installations, the 'import matplotlib.pyplot as plt' command below hangs without this (presumanly a issue with a different backend)
 import matplotlib.pyplot as plt
 import matplotlib.backends.backend_pdf
 

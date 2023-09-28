@@ -34,12 +34,17 @@ MASS_SPLITTINGS_eV2 = np.array([ 7.39e-5, 2.528e-3 ]) # [21, 31] nufit v4.1, NO,
 MIXING_ANGLES_rad = np.deg2rad( np.array([ 33.82, 8.60, 48.6 ]) ) # nufit v4.1, NO, with SK atmo data
 
 # CP violating phase
-DELTACP_rad =  np.deg2rad(221.) # nufit v4.1, NO, with SK atmo data
+DELTACP_rad =  0. #  Default to no CP violation
+# DELTACP_rad =  np.deg2rad(221.) # nufit v4.1, NO, with SK atmo data
 
 # Planck scale
 PLANCK_MASS_eV = 1.22e28
 PLANCK_LENGTH_m = 1.62e-35 #TODO 1/M_Planck
 PLANCK_TIME_s = 5.39e-44 #TODO calc from M_Planck
+
+# Atmospheric L<->coszen conversion defaults
+DEFAULT_ATMO_PROD_HEIGHT_km = 22. # Value used in nuSQuIDS
+DEFAULT_ATMO_DETECTOR_DEPTH_km = 1. # Value used in nuSQuIDS
 
 
 #
@@ -87,7 +92,7 @@ T2HKK_BASELINE_km = 1100.
 T2HKK_ENERGY_GeV = T2HK_ENERGY_GeV
 P2O_BASELINE_km = 2588.
 # P2O_ENERGY_GeV = TODO
-
+KAMLAND_BASELINE_km = 180. #TODO check
 
 #
 # Papers
