@@ -997,7 +997,11 @@ if __name__ == "__main__" :
     parser.add_argument('-ad','--anaconda-dir', type=str, required=True, default=None, help='Path to anaconda dir' )
     parser.add_argument('-id','--install-dir', type=str, required=False, default=None, help='Installation directory' )
     parser.add_argument('-en','--env-name', type=str, required=False, default=None, help='Conda env name' )
-    parser.add_argument('-ow','--overwrite', action="store_true", required=False, help='overwrite any existing installation' )
+    parser.add_argument('-ow','--overwrite', action="store_true", required=False, help='Overwrite any existing installation' )
+    parser.add_argument('--mceq', action="store_true", required=False, help='Install MCEq' )
+    parser.add_argument('--nusquids', action="store_true", required=False, help='Install nuSQuIDS' )
+    parser.add_argument('--pisa', action="store_true", required=False, help='Install PISA' )
+    parser.add_argument('--prob3', action="store_true", required=False, help='Install Prob3' )
     args = parser.parse_args()
 
     # Get path to deimos installation (should be where this script lives)
@@ -1037,7 +1041,7 @@ if __name__ == "__main__" :
         # "llvmlite==0.30.0", # segfaults with 0.31.0 # No longer need to manually force this (was a hack for older PISA versions)
     ]
     if "darwin" in sys.platform.lower() :
-        conda_packages.extend(["clang","clangxx",]) # Max compiler
+        conda_packages.extend(["clang","clangxx",]) # Mac OS X compiler
     # else : :
     #     conda_packages.extend(["gcc_linux-64","gxx_linux-64",]) # Can manually specific linux installer, but prefer to let system figure this out for itself
 
@@ -1045,7 +1049,7 @@ if __name__ == "__main__" :
     pip_packages = [
         "uncertainties", # PISA doesn't seem to properly install `uncertainties`, add it here
         "odeintw", # Needed for DensityMatrixOscSolver
-        "ternary", # Needed for flavor triangle plots
+        "python-ternary", # Needed for flavor triangle plots
         "astropy", # Needed for astro/cosmo stuff
         "healpy", # Needed for astro/cosmo stuff
     ]
@@ -1058,22 +1062,18 @@ if __name__ == "__main__" :
     }
 
     # Steer PISA installation
-    pisa = True
     pisa_kw = None # Can optionally steer e.g. branch, fork, etc
 
     # Steer MCEq installation
-    mceq = True
     mceq_kw = None # Can optionally steer e.g. branch, fork, etc
 
     # Steer nuSQuIDS installation
-    nusquids = True
     nusquids_kw = { # Can optionally steer e.g. branch, fork, etc
         "make" : True,
         "test" : False,
     }
 
     # Steer prob3 installation
-    prob3 = True
     prob3_kw = None # Can optionally steer e.g. branch, fork, etc
 
     # Run installer
@@ -1084,12 +1084,12 @@ if __name__ == "__main__" :
         env_name=args.env_name,
         conda_env_kw=conda_env_kw,
         overwrite=args.overwrite,
-        pisa=pisa,
+        pisa=args.pisa,
         pisa_kw=pisa_kw,
-        mceq=mceq,
+        mceq=args.mceq,
         mceq_kw=mceq_kw,
-        nusquids=nusquids,
+        nusquids=args.nusquids,
         nusquids_kw=nusquids_kw,
-        prob3=prob3,
+        prob3=args.prob3,
         prob3_kw=prob3_kw,
     )
