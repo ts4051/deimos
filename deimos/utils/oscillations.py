@@ -6,7 +6,7 @@ Tom Stuttard
 
 import numpy as np
 
-from deimos.utils.constants import EARTH_DIAMETER_km, DEFAULT_ATMO_PROD_HEIGHT_km, DEFAULT_ATMO_DETECTOR_DEPTH_km
+from deimos.utils.constants import EARTH_RADIUS_km, DEFAULT_ATMO_PROD_HEIGHT_km, DEFAULT_ATMO_DETECTOR_DEPTH_km
 
 from deimos.utils.matrix_algebra import *
 
@@ -24,7 +24,7 @@ OSC_FREQUENCY_UNIT_CONVERSION = 1.267 #TODO More precise
 # Functions
 #
 
-def calc_path_length_from_coszen(cz, r=(EARTH_DIAMETER_km/2.), h=DEFAULT_ATMO_PROD_HEIGHT_km, d=DEFAULT_ATMO_DETECTOR_DEPTH_km) :
+def calc_path_length_from_coszen(cz, r=EARTH_RADIUS_km, h=DEFAULT_ATMO_PROD_HEIGHT_km, d=DEFAULT_ATMO_DETECTOR_DEPTH_km) :
     '''
     Get the path length (baseline) for an atmospheric neutrino,
     given some cos(zenith angle).
@@ -32,12 +32,12 @@ def calc_path_length_from_coszen(cz, r=(EARTH_DIAMETER_km/2.), h=DEFAULT_ATMO_PR
     cz = cos(zenith) in radians, to be converted to path length in km
     r = Radius of Earth, in km
     h = Production height in atmosphere, in km
-    d = Depth of detector, in km
+    d = Depth of detector (w.r.t. Earth's radius), in km
     '''
     return -r*cz +  np.sqrt( (r*cz)**2 - r**2 + (r+h+d)**2 )
 
 
-def get_coszen_from_path_length(L,r=(EARTH_DIAMETER_km/2.), h=DEFAULT_ATMO_PROD_HEIGHT_km, d=DEFAULT_ATMO_DETECTOR_DEPTH_km) :
+def get_coszen_from_path_length(L,r=EARTH_RADIUS_km, h=DEFAULT_ATMO_PROD_HEIGHT_km, d=DEFAULT_ATMO_DETECTOR_DEPTH_km) :
     return (d**2+2*d*(h+r)+h**2+2*h*r-L**2)/(2*L*r)
 
 

@@ -19,6 +19,7 @@ BASES = ["mass","flavor"]
 
 # Some useful distances
 EARTH_DIAMETER_km = 12742.
+EARTH_RADIUS_km = EARTH_DIAMETER_km / 2.
 EARTH_SUN_DISTANCE_m = 148.92e9
 MILKY_WAY_DIAMETER_m = 1e21
 EARTH_TXS_RED_SHIFT = 0.3365 # From arXiv 1802.01939

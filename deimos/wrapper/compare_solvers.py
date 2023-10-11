@@ -155,7 +155,7 @@ def compare_osc_solvers(solver_defs) :
         # Plot KamLAND
         #
 
-        if True : # This is slow for DEIMOS currentl;y due to fast oscillations
+        if False : # This is slow for DEIMOS currentl;y due to fast oscillations
 
             print("\nPlot KamLAND...")
 
@@ -218,7 +218,7 @@ if __name__ == "__main__" :
 
 
     #
-    # Compare different ODE solves within DEIMOS
+    # Compare different ODE solvers within DEIMOS
     #
 
     solver_defs = collections.OrderedDict()
@@ -236,12 +236,6 @@ if __name__ == "__main__" :
         "color" : "red",
         "linestyle" : "--",
     }
-
-    # solver_defs["prob3"] = {
-    #     "tool" : "prob3",
-    #     "color" : "seagreen",
-    #     "linestyle" : ":",
-    # }
 
     compare_osc_solvers(solver_defs)
 

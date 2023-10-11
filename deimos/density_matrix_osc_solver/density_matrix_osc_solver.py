@@ -26,141 +26,11 @@ from deimos.utils.matrix_algebra import *
 from deimos.models.decoherence.decoherence_operators import get_complete_sun_matrix, get_decoherence_operator_nxn_basis, get_model_D_matrix
 from deimos.utils.coordinates import *
 
+# Import new physics models
+from deimos.models.decoherence.decoherence_operators import get_complete_sun_matrix, get_decoherence_operator_nxn_basis, get_model_D_matrix
+from deimos.models.liv.sme import get_sme_hamiltonian_isotropic, get_sme_hamiltonian_directional
 
 #TODO Write some tests for these functions that can be run with an arg or whatever...
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-
-def amplitudes_effective_hamiltonian_sme(
-    ra,
-    dec,
-    a_eV_x,
-    a_eV_y,
-    a_eV_z,
-    E_val,
-    L
-):
-    """
-    Calculate the effective Hamiltonian for the vector model of the Standard Model Extension (SME).
-
-    The function calculates the effective Hamiltonian for the "vector model" of the SME. 
-    It takes into account observer-dependent angles and amplitudes of the Lorentz-invariance violating physics
-    specified by sme_a and sme_c. The result is the effective Hamiltonian at a given location for a neutrino source 
-    located at (altitude, azimuth) on the sky and for a neutrino with energy E_val and propagating over a distance L.
-    
-    SME parameters are conventionally reported in the sun-centered celestial equatorial frame
-    For simplicity, we approximate this frame to coincide with the earth-centered celestial equatorial frame
-    Notes:
-        Angles are to be provided in rad
-    Returns: 
-        3x3 matrix in flavor basis as ndarray
-    References:
-        - arXiv:hep-ph/0406255
-        - arXiv:1010.4096
-    """
-    
-    #celestial colatitude and longitude
-    theta = np.pi/2 + dec 
-    phi = ra 
-    
-    # spherical coordinates unit propagation vectors
-    
-    # r vector
-    NX = np.sin(theta) * np.cos(phi)
-    NY = np.sin(theta) * np.sin(phi)
-    NZ = np.cos(theta)
-    
-    # theta vector
-    ThetaX = np.cos(theta)*np.cos(phi)
-    ThetaY = np.cos(theta)*np.sin(phi)
-    ThetaZ = -np.sin(theta)
-    
-    # phi vector
-    PhiX = -np.sin(phi)
-    PhiY = np.cos(phi)
-    PhiZ = 0
-    
-    # Polarization vector
-    PolX = 1/np.sqrt(2)*(ThetaX+1j*PhiX)
-    PolY = 1/np.sqrt(2)*(ThetaY+1j*PhiY)
-    PolZ = 1/np.sqrt(2)*(ThetaZ+1j*PhiZ)
-    
-    # amplitudes
-    # the right ascension and declination of a neutrino are measured when detected. 
-    # To account for the rotation of the earth during propagation we need to rotate
-    # by R_z(-omega_sid*T_sid)
-    # If ra and dec of source are known change sign of As. (As = -As)
-    
-    #mass independent operators
-    
-    #amplitude to be multiplied with sin(omega_sid L)
-    As0 = -NY * a_eV_x + NX * a_eV_y
-    As1 = + 2 * NY * c_tx - 2 * NX * c_ty
-    As = As0 + E_val * As1
-    #amplitude to be multiplied with cos(omega_sid L)
-    Ac0 = - NX * a_eV_x - NY * a_eV_y
-    Ac1 = 2 * NX * c_tx + 2 * NY * c_ty
-    Ac = Ac0 + E_val * Ac1
-
-    #mass dependent operators
-    Ac0_e_m = 1/2*(NX*e_m_x+NY*e_m_y)*dagger(M)+1/2*(M)*(NX*e_m_x+NY*e_m_y)
-    Ac += Ac0_e_m
-    
-    return As, Ac, NZ*a_eV_z
-
-
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-#TODO Move to dedicated SME file
-
-
-
 
 #
 # Globals
@@ -671,12 +541,16 @@ class DensityMatrixOscSolver(object) :
 
 
     def calc_osc_probs(self,
+        # Neutrino properties
         E_GeV,
         L_km,
         initial_state,
         initial_basis="flavor", # Optionally can set initial state in mass basis
         nubar=False,
-        calc_basis="nxn", # Optionally can choose which basis to perform calculation in (nxn, sun)
+
+        # Neutrino direction in celestial coords - only required for certain models (such as the SME)
+        ra_rad=None,
+        dec_rad=None,
 
         # Options to be passed to the decoherence calculator
         decoh_opts=None,
@@ -688,6 +562,7 @@ class DensityMatrixOscSolver(object) :
         neutrino_source_opts=None,
         
         # Misc
+        calc_basis="nxn", # Optionally can choose which basis to perform calculation in (nxn, sun)
         verbose=False,
         plot_density_matrix_evolution=False, # Flag for plotting the solved density matrix vs distance/energy
     ) :
@@ -813,66 +688,63 @@ class DensityMatrixOscSolver(object) :
         include_sme = False
 
         if sme_opts is not None :
-
-            raise NotImplented("TODO add SME params to solver derive")
             
             # To include SME parameters in calculation of the hamiltonian
             include_sme = True
 
-            # User provides a(3) and c(4) coefficients
-            assert "a_eV" in sme_opts
-            assert "c" in sme_opts
-            
-            # User provides location of the neutrino source in the sky
-            assert "ra" in neutrino_source_opts
-            assert "dec" in neutrino_source_opts
-            
+            # Handle isotropic vs directional
+            assert "directional" in sme_opts
+            sme_is_directional = sme_opts.pop("directional")
 
-            # Grab the vars, handling units
+            # Handle basis in which flavor/mass structure is defined
+            assert "basis" in sme_opts
+            sme_basis = sme_opts.pop("basis")
+            assert sme_basis in ["mass", "flavor"]
+            sme_basis_is_flavor = sme_basis == "flavor" # Bool fast checking during solving
+
+            # User provides a(3) and c(4) coefficients, plus a possible mass-dependent non-renomalizable term
             sme_opts = copy.deepcopy(sme_opts)
+            assert "a_eV" in sme_opts
             sme_a = sme_opts.pop("a_eV")
+            assert "c" in sme_opts
             sme_c = sme_opts.pop("c") # dimensionless
-            sme_e = sme_opts.pop("e") # dimensionless
+            if sme_is_directional : # e term only implemented for direction SME currently
+                assert "e" in sme_opts
+                sme_e = sme_opts.pop("e") # dimensionless
+
+            # Check shapes
+            if sme_is_directional :
+                for operator in [sme_a, sme_c, sme_e] :
+                    assert isinstance(operator, np.ndarray)
+                    assert operator.shape == (3, self.num_states, self.num_states) # First dimension is directional coordinate (x,y,z), next two are flavor/mass basis structure
+            else :
+                for operator in [sme_a, sme_c] :
+                    assert operator.shape == (self.num_states, self.num_states) # Flavor/mass basis structure
             
+            # Handle antineutrinos
             if nubar:
                 sme_a = - sme_a
-                sme_e = - sme_e
+                if sme_is_directional :
+                    sme_e = - sme_e
                 warnings.warn("Solver assumes that the CPT-odd parameters are specified for neutrinos and changes sign.")
                 
-            ra = neutrino_source_opts["ra"]
-            dec = neutrino_source_opts["dec"]
-            
-            # Convert from degree to radians 
-            ra_rad = np.deg2rad(ra)
-            dec_rad = np.deg2rad(dec)
-            
-            a_eV_x, a_eV_y, a_eV_z = sme_a
-            c_tx, c_ty, c_tz = sme_c
-            e_m_x, e_m_y,e_m_z = sme_e
-            # TODO implement the full effective hamiltonian
-            '''
-            So far the solver can handle the SME parameters a_L^i,"c_L^t^i (mass-independent SME operators) with flavor-dependent components 
-            and e_l^i (mass-dependent SME operators) with flavor-dependent components.
-            This could be extended in the future to include more parameters, see http://arxiv.org/abs/1112.6395v2.
-            '''
-            
-            
-            # Allow ra and dec to be arrays abd loop through elements
-            if not np.all((ra_rad >= 0) & (ra_rad <= 2 * np.pi)):
-                raise ValueError("ra should be within the range [0, 2*pi].")
-            
-            if not np.all((dec_rad >= -np.pi / 2) & (dec_rad <= np.pi / 2)):
-                raise ValueError("altitutde should be within the range [-pi/2, pi/2].")
-            
-            # Assert ra and dec have the same length
-            if isinstance(dec_rad, np.ndarray) and isinstance(ra_rad, np.ndarray):
-                assert len(dec_rad) == len(ra_rad), "ra and dec arrays provided must have the same length."
+            # Unpack parameters into directional components
+            if sme_is_directional :
+                sme_a_x, sme_a_y, sme_a_z = sme_a
+                sme_c_tx, sme_c_ty, sme_c_tz = sme_c
+                sme_e_m_x, sme_e_m_y, sme_e_m_z = sme_e
+
+            # Get neutrino direction in celestial coords
+            if sme_is_directional :
+                assert ra_rad is not None
+                assert dec_rad is not None
+                assert np.isscalar(ra_rad)
+                assert np.isscalar(dec_rad)
+                assert (ra_rad >= 0) and (ra_rad <= 2 * np.pi)
+                assert (dec_rad >= -np.pi / 2) and (dec_rad <= np.pi / 2)
             
             # Check for additional SME arguments
             assert len(sme_opts) == 0, "Unused SME arguments!?!"
-
-            # Determine if the term in SME is +ve or -ve
-            sme_term_negative = ( sme_n % 2 != 0 )
 
 
         #
@@ -937,7 +809,7 @@ class DensityMatrixOscSolver(object) :
 
         # Define the mass component of the vacuum Hamiltonian
         # Do not consider the energy depenednce yet
-        M = dm2
+        M = dm2.astype(np.complex128)
         if verbose :
             print("\nDelta mass matrix :")
             print(M)
@@ -1022,19 +894,37 @@ class DensityMatrixOscSolver(object) :
                 H = H - V if nubar else H + V
 
             # Add/subtract SME term to Hamiltonian     #TODO what about antineutrinos?
-            # if include_sme : #TODO
-            #     sme_term = sme_cft * np.power(E_val, sme_n)
-            #     if sme_term_negative :
-            #         H -= sme_term
-            #     else :
-            #         H += sme_term
+            if include_sme : 
+                if sme_is_directional :
+                    H_eff = get_sme_hamiltonian_directional(
+                        ra=ra_rad,
+                        dec=dec_rad,
+                        a_eV_x=sme_a_x,
+                        a_eV_y=sme_a_y,
+                        a_eV_z=sme_a_z,
+                        c_tx=sme_c_tx,
+                        c_ty=sme_c_ty,
+                        c_tz=sme_c_tz,
+                        # e_m_x=sme_e_m_x,
+                        # e_m_y=sme_e_m_y,
+                        # e_m_z=sme_e_m_z,
+                        E=E_val,
+                    )
+                else :
+                    H_eff = get_sme_hamiltonian_isotropic(
+                        a_eV=sme_a,
+                        c=sme_c,
+                        E=E_val,
+                    )
+                if sme_basis_is_flavor :
+                    H_eff = rho_flav_to_mass_basis(H_eff, PMNS) # Rotate to mass basis
+                H += H_eff
 
             # Handle decoherence gamma param (or D matrix) energy-depenedence
             # Using the `gamma` function, but actually applying to the whole matrix rather than the individual elements (which is equivalent)
             if include_decoherence :
                 from deimos.models.decoherence.nuVBH_model import get_gamma
                 decoh_D_matrix = get_gamma(gamma0_eV=decoh_D_matrix0, E_eV=E_val, E0_eV=decoh_E0, n=decoh_n)
-
 
 
             #

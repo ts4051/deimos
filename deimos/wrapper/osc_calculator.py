@@ -107,7 +107,7 @@ class OscCalculator(object) :
         # self.set_decoherence_D_matrix_basis(DEFAULT_DECOHERENCE_GAMMA_BASIS)
 
         # Init some variables related to astrohysical coordinates   #TODO are thes DEIMOS-specific? If so, init in _init_deimos()
-        self.detector_coordinates = None
+        self.detector_coords = None
         self._neutrino_source_kw = None
 
 
@@ -467,7 +467,6 @@ class OscCalculator(object) :
             self._lightcone_model_kw = None
             self._sme_model_kw = None
             self._neutrino_source_kw = None
-            self.detector_coordinates = None
 
 
     def set_calc_basis(self, basis) :
@@ -763,9 +762,11 @@ class OscCalculator(object) :
     #
 
     def set_sme(self,
+        directional, # bool
+        basis,
         a_eV,
         c,
-        e,
+        e=None,
     ) :
         '''
         TODO
@@ -775,10 +776,19 @@ class OscCalculator(object) :
         # Check inputs
         #
 
-        assert isinstance(a_eV, np.ndarray), "a_eV should be an array"
-        assert isinstance(c, np.ndarray), "c should be an array"
-        assert isinstance(e, np.ndarray), "c should be an array"
+        assert basis in ["flavor", "mass"]
 
+        if directional :
+            operator_shape = (3, self.num_neutrinos, self.num_neutrinos) # shape is (num spatial dims, N, N), where N is num neutrino states
+            assert isinstance(a_eV, np.ndarray) and (a_eV.shape == operator_shape)
+            assert isinstance(c, np.ndarray) and (c.shape == operator_shape) 
+            assert e is not None
+            assert isinstance(e, np.ndarray) and (e.shape == operator_shape) 
+        else :
+            operator_shape = (self.num_neutrinos, self.num_neutrinos) # shape is (N, N), where N is num neutrino states
+            assert isinstance(a_eV, np.ndarray) and (a_eV.shape == operator_shape)
+            assert isinstance(c, np.ndarray) and (c.shape == operator_shape) 
+            assert e is None
 
 
         #
@@ -791,63 +801,107 @@ class OscCalculator(object) :
             # self.nusquids.Set_LIVEnergyDependence(n)
 
         elif self.tool == "deimos" :
-            self._sme_model_kw = {
-                "a_eV" : a_eV,
-                "c" : c,
-                "e": e
-            }
+            if directional :
+                self._sme_model_kw = {
+                    "directional" : True,
+                    "basis" : basis,
+                    "a_eV" : a_eV,
+                    "c" : c,
+                    "e": e,
+                }
+            else :
+                self._sme_model_kw = {
+                    "directional" : False,
+                    "basis" : basis,
+                    "a_eV" : a_eV,
+                    "c" : c,
+                    # "e": e,
+                }
 
         else :
             raise NotImplemented("SME not yet wrapped for %s" % self.tool) #TODO this is already supported by prob3, just need to wrap it
 
-    def set_detector_location(self,
-                              # Detector location in deg
-                              lat, 
-                              long, 
-                              height_m,
-                              ) :
-        # Set detector location
-        self.detector_coordinates = CoordTransform(
-            detector_lat = lat, 
-            detector_long = long, 
-            detector_height_m = height_m
-            )
+
+    def set_detector_location(
+        self,
+        lat_deg,
+        long_deg, 
+        height_m,
+    ) :
+        '''
+        Define detector position
+        '''
+
+        self.detector_coords = DetectorCoords(
+            detector_lat=lat_deg, 
+            detector_long=long_deg, 
+            detector_height_m=height_m,  #TODO consistency with detector depth in the L<->coszen calculation
+        )
         
-    
-    def set_neutrino_source(self,
-                            # Date, Time and Timezone
-                            date_str,
-                            # Location on the sky
-                            ra_deg=None, 
-                            dec_deg=None,
-                            ):
 
-        if self.tool == "nusquids" :
-            raise NotImplementedError()
+    def set_detector(
+        self,
+        name,
+    ) :
+        '''
+        Set detector (position, etc), choosing from known detectors
+        '''
 
-        elif self.tool == "deimos" :
-            #Set date, time and location of neutrino source
-            coszen_neutrino_source, altitude_neutrino_source, azimuth_neutrino_source = self.detector_coordinates.get_coszen_altitude_and_azimuth(
-                ra_deg = ra_deg, 
-                dec_deg = dec_deg,
-                date_str = date_str
-                )
-            
-            self._neutrino_source_kw = {
-                # Horizontal Coordinate System
-                "coszen" : coszen_neutrino_source,
-                "altitude" : altitude_neutrino_source,
-                "azimuth" : azimuth_neutrino_source,
-                # Equatorial Coordinate System
-                "ra" : ra_deg,
-                "dec" : dec_deg,
-                # Store date_str for skymap
-                "date_str" : date_str,
-                "sidereal_time" : self.detector_coordinates.get_local_sidereal_time(date_str)
-            }
-         
+        if name.lower() == "icecube" :
+            self.set_detector_location(
+                lat_deg="89°59′24″S",
+                long_deg="63°27′11″W",
+                height_m=1400.,
+            )
+
+        elif name.lower() == "dune" :
+            self.set_detector_location(
+                lat_deg=44.3517,
+                long_deg=-103.7513,
+                height_m=-1.5e3,
+            )
+
         else :
-            raise NotImplemented()
+            raise NotImplemented("Unknown detector : %s" % name)
+
+
+
+
+    
+    # def set_neutrino_source(self,
+    #                         # Date, Time and Timezone
+    #                         date_str,
+    #                         # Location on the sky
+    #                         ra_deg=None, 
+    #                         dec_deg=None,
+    #                         ):
+
+    #     if self.tool == "nusquids" :
+    #         raise NotImplementedError()
+
+    #     elif self.tool == "deimos" :
+    #         #Set date, time and location of neutrino source
+    #         coszen_neutrino_source, altitude_neutrino_source, azimuth_neutrino_source = self.detector_coords.get_coszen_altitude_and_azimuth(
+    #             ra_deg = ra_deg, 
+    #             dec_deg = dec_deg,
+    #             date_str = date_str
+    #             )
+            
+    #         self._neutrino_source_kw = {
+    #             # Horizontal Coordinate System
+    #             "coszen" : coszen_neutrino_source,
+    #             "altitude" : altitude_neutrino_source,
+    #             "azimuth" : azimuth_neutrino_source,
+    #             # Equatorial Coordinate System
+    #             "ra" : ra_deg,
+    #             "dec" : dec_deg,
+    #             # Store date_str for skymap
+    #             "date_str" : date_str,
+    #             "sidereal_time" : self.detector_coords.get_local_sidereal_time(date_str)
+    #         }
+         
+    #     else :
+    #         raise NotImplemented()
 
 
     def calc_osc_prob(self,
@@ -857,6 +911,7 @@ class OscCalculator(object) :
         distance_km=None,
         coszen=None,
         nubar=False,
+        **kw
     ) :
 
         #TODO caching
@@ -865,32 +920,16 @@ class OscCalculator(object) :
         #
         # Check inputs
         # 
-        
-        # Check whether SME parameters were set
-        if self._sme_model_kw:
-            # If SME parameters are set, assert that neutrino source was defined
-            assert ( (self._neutrino_source_kw["ra"] is not None) 
-                    and (self._neutrino_source_kw["dec"] is not None)), ValueError("Right ascension, declination and time stamp of neutrino must be provided when SME parameters are set.")
-            
-            # Check whether both coszen and ra, dec were set
-            if self.atmospheric :
-                assert distance_km is None, "Must not provide `distance_km` in atmospheric mode"
-                if coszen is not None:
-                    # Issue a warning about ignoring the coszen argument
-                    warnings.warn("The coszen argument was ignored. Zenith angle was calculated from RA and declination.")
-                    coszen = self._neutrino_source_kw["coszen"]
-                    
-            if initial_flavor is not None :
-                initial_flavor = self._get_flavor_index(initial_flavor)
-        
-        else:
-            if self.atmospheric :
-                assert ( (coszen is not None) and (distance_km is None) ), "Must provide `coszen` (and not `distance_km`) in atmospheric mode"
-            else :
-                assert ( (distance_km is not None) and (coszen is None) ), "Must provide `distance_km` (and not `coszen`) in non-atmospheric mode" 
-    
-            if initial_flavor is not None :
-                initial_flavor = self._get_flavor_index(initial_flavor)
+ 
+        # Handle coszen vs baseline (want one or the other)
+        if self.atmospheric :
+            assert ( (coszen is not None) and (distance_km is None) ), "Must provide `coszen` (and not `distance_km`) in atmospheric mode"
+        else :
+            assert ( (distance_km is not None) and (coszen is None) ), "Must provide `distance_km` (and not `coszen`) in non-atmospheric mode" 
+
+        # Indexing
+        if initial_flavor is not None :
+            initial_flavor = self._get_flavor_index(initial_flavor)
 
         
         # If skymap is being plotted with healpix
@@ -904,14 +943,14 @@ class OscCalculator(object) :
 
         # Call sub-function for relevent solver
         if self.tool == "nusquids" :
-            osc_probs = self._calc_osc_prob_nusquids( initial_flavor=initial_flavor, initial_state=initial_state, energy_GeV=energy_GeV, distance_km=distance_km, coszen=coszen, nubar=nubar )
+            osc_probs = self._calc_osc_prob_nusquids( initial_flavor=initial_flavor, initial_state=initial_state, energy_GeV=energy_GeV, distance_km=distance_km, coszen=coszen, nubar=nubar, **kw )
 
         elif self.tool == "deimos" :
             assert initial_flavor is not None, "must provide `initial_flavor` (`initial_state` not currently supported for %s" % self.tool
-            osc_probs = self._calc_osc_prob_deimos( initial_flavor=initial_flavor, nubar=nubar, energy_GeV=energy_GeV, distance_km=distance_km, coszen=coszen)
+            osc_probs = self._calc_osc_prob_deimos( initial_flavor=initial_flavor, nubar=nubar, energy_GeV=energy_GeV, distance_km=distance_km, coszen=coszen, **kw )
        
         elif self.tool == "prob3" :
-            osc_probs = self._calc_osc_prob_prob3( initial_flavor=initial_flavor, energy_GeV=energy_GeV, distance_km=distance_km, coszen=coszen, nubar=nubar )
+            osc_probs = self._calc_osc_prob_prob3( initial_flavor=initial_flavor, energy_GeV=energy_GeV, distance_km=distance_km, coszen=coszen, nubar=nubar, **kw )
 
         # Checks
         assert np.all( np.isfinite(osc_probs) ), "Found non-finite osc probs"
@@ -1065,7 +1104,6 @@ class OscCalculator(object) :
             return results
 
 
-
     def _calc_osc_prob_prob3(self,
         initial_flavor,
         energy_GeV,
@@ -1193,11 +1231,18 @@ class OscCalculator(object) :
 
 
     def _calc_osc_prob_deimos(self,
+
+        # Neutrino definition
         initial_flavor,
         energy_GeV,
         distance_km=None,
         coszen=None,
         nubar=False,
+
+        # Neutrino direction in celestial coords - only required for certain models (such as the SME)
+        ra_rad=None,
+        dec_rad=None,
+
     ) :
 
         #
@@ -1229,7 +1274,7 @@ class OscCalculator(object) :
         # coszen -> L conversion (for atmospheric case)
         if self.atmospheric :
             production_height_km = DEFAULT_ATMO_PROD_HEIGHT_km #TODO steerable, randomizable
-            detector_depth_km = DEFAULT_ATMO_DETECTOR_DEPTH_km #TODO steerable
+            detector_depth_km = DEFAULT_ATMO_DETECTOR_DEPTH_km if self.detector_coords is None else self.detector_coords.detector_depth_m*1e-3 # Use detector position, if available    #TODO should we really be defining this as height?
             distance_km = calc_path_length_from_coszen(cz=coszen, h=production_height_km, d=detector_depth_km)
 
         # DensityMatrixOscSolver doesn't like decending distance values in the input arrays,
@@ -1255,8 +1300,10 @@ class OscCalculator(object) :
             decoh_opts=self._decoh_model_kw,
             lightcone_opts=self._lightcone_model_kw,
             sme_opts=self._sme_model_kw,
-            detector_opts=self.detector_coordinates,
-            neutrino_source_opts=self._neutrino_source_kw,
+            detector_opts=self.detector_coords,
+            # neutrino_source_opts=self._neutrino_source_kw, #TODO REMOVE?
+            ra_rad=ra_rad,
+            dec_rad=dec_rad,
             verbose=False
         )
 
@@ -2416,7 +2463,7 @@ class OscCalculator(object) :
         sme_dict = self._sme_model_kw
         
         # Evaluate which pixels are above the horizon 
-        _, alt, _ = self.detector_coordinates.get_coszen_altitude_and_azimuth(date_str = date_str, ra_deg = right_ascension_flat, dec_deg = declination_flat)
+        _, alt, _ = self.detector_coords.get_coszen_altitude_and_azimuth(date_str = date_str, ra_deg = right_ascension_flat, dec_deg = declination_flat)
         # Create a mask for altitudes between 0 and 90 degrees
         mask = (alt >= 0) # & (alt <= 90)
         # Create an array of zeros with the same shape as alt
