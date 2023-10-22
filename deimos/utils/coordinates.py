@@ -6,11 +6,15 @@ CoordTransform: A class for coordinate transformations and path length calculati
 Created on Tue Jul 18 13:35:29 2023
 Author: janni
 """
+
 import datetime
 import numpy as np
 import astropy.units as u
 from astropy.coordinates import SkyCoord, EarthLocation, AltAz, Angle, ICRS, get_sun
 from astropy.time import Time
+
+from deimos.utils.oscillations import calc_path_length_from_coszen
+from deimos.utils.constants import DEFAULT_ATMO_PROD_HEIGHT_km
 
 class DetectorCoords(object):
     """
@@ -166,34 +170,29 @@ class DetectorCoords(object):
         return right_ascension, declination
 
 
-    # def path_length(self, coszen, prodHeight, detectorDepth):
-    #     """
-    #     Calculate the path length of neutrinos from the production height to the detector.
+    def calc_path_length_from_coszen(self, coszen, production_height_km=DEFAULT_ATMO_PROD_HEIGHT_km) :
+        '''
+        Calculate the path length (baseline) in [km] for an atmospheric neutrino from a given coszen, for this detector depth
+        '''
+        detector_depth_km = self.detector_depth_m.value * 1e3 #TODO use proper unit handling methods
+        L_km = calc_path_length_from_coszen(cz=coszen, h=production_height_km, d=detector_depth_km)
+        return L_km
 
-    #     Parameters:
-    #         coszen (array-like): Cosine of the zenith angle(s) of the neutrinos.
-    #         prodHeight (float): Height at which the neutrinos are produced above the Earth's surface (in km).
-    #         detectorDepth (float): Depth at which the detector lies below the Earth's surface (in km).
 
-    #     Returns:
-    #         numpy.ndarray: An array containing the path lengths of neutrinos in the same shape as coszen. Units: km       
-    #     """
+def get_neutrino_direction_vector(ra_rad, dec_rad) :
+    '''
+    Get neutrino direction vector in equatorial coordinate system, given its RA/declination
+    '''
 
-    #     #TODO merge with calc_path_length_from_coszen
-        
-    #     # Approximate Earth's radius in km
-    #     rEarth = 6371
-        
-    #     #Create array of the same form as coszen variable to store pathlengths
-    #     path_lengths = np.zeros_like(coszen)
-        
-    #     #Calculate pathlength
-    #     expression = (rEarth - detectorDepth)**2 * (-1 + coszen**2) + (rEarth + prodHeight)**2
-    #     # Check for non-negative values
-    #     mask = expression >= 0  
-    #     path_lengths = -rEarth * coszen + np.sqrt(expression[mask])
-        
-    #     return path_lengths
+    # Get unit vector
+    c = SkyCoord(ra=ra_rad*u.rad, dec=dec_rad*u.rad)
+    ux, uy, uz = c.cartesian.x, c.cartesian.y, c.cartesian.z  #TODO is this the oppiste direction? e.g. nu travel dir vs point of origin?
+
+    # Test it
+    assert np.isclose( np.sqrt( ux**2. + uy**2. + uz**2. ), 1. ), "Direction is not unit vector?"
+
+    return np.array([ux, uy, uz])
+
 
 
 
