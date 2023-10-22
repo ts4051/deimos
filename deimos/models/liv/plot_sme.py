@@ -32,7 +32,7 @@ if __name__ == "__main__" :
     #
 
     # Choose solver
-    solver = "nusquids" # deimos nusquids
+    solver = "deimos" # deimos nusquids
 
     # For nuSQuIDS case, need to specify energy nodes covering full space
     kw = {}
@@ -52,15 +52,23 @@ if __name__ == "__main__" :
 
 
     #
+    # Define physics cases
+    #
+
+    sme_basis = "mass"
+
+    null_operator = np.zeros((calculator.num_neutrinos, calculator.num_neutrinos))
+
+    cases = collections.OrderedDict()
+    cases[r"$a^{(3)}$ [eV]"] = ( np.diag([0., 0., 1e-14]), null_operator) # (a, c) 
+    cases[r"$c^{(4)}$"] = (null_operator, np.diag([0., 0., 1e-26]) )
+
+
+    #
     # Loop over cases
     #
 
-    # Define some physics cases to test
-    cases = collections.OrderedDict()
-    cases[r"$a^{(3)}$ [eV]"] = (1e-14, 0) # (coefficient value, energy index n) 
-    cases[r"$c^{(4)}$"] = (1e-26, 1)
-
-    for case_label, (cft, n) in cases.items() :
+    for case_label, (a_eV, c) in cases.items() :
 
         # Report
         print("")
@@ -76,8 +84,8 @@ if __name__ == "__main__" :
         fig, ax, _, = calculator.plot_osc_prob_vs_energy(initial_flavor=initial_flavor, energy_GeV=E_GeV, distance_km=EARTH_DIAMETER_km, xscale="log", color="black", label="Standard osc", title=r"coszen = %0.3g"%coszen)
 
         # Calc osc probs and plot, with SME
-        calculator.set_sme(cft=cft, n=n)
-        calculator.plot_osc_prob_vs_energy(initial_flavor=initial_flavor, energy_GeV=E_GeV, distance_km=EARTH_DIAMETER_km, xscale="log", color="orange", label=r"SME : %s = %0.3g"%(case_label, cft), linestyle="--", fig=fig, ax=ax)
+        calculator.set_sme(directional=False, a_eV=a_eV, c=c)
+        calculator.plot_osc_prob_vs_energy(initial_flavor=initial_flavor, energy_GeV=E_GeV, distance_km=EARTH_DIAMETER_km, xscale="log", color="orange", label=r"SME : %s"%(case_label), linestyle="--", fig=fig, ax=ax)
 
 
     #

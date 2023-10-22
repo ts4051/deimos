@@ -12,37 +12,35 @@ Tom Stuttard
 
 #TODO Would a class be better here?
 
-import sys, numbers
 import numpy as np
-# from scipy.integrate import odeint
-from scipy.constants import hbar, c
+from scipy.integrate import solve_ivp
+import warnings
+try :
+    from odeintw import odeintw
+except :
+    raise Exception("ERROR : Could not import `odeintw`, ensure it is installed and visible in your `PATH`/`PYTHONPATH` ")
+
 
 from deimos.utils.constants import *
 from deimos.utils.matrix_algebra import *
 from deimos.models.decoherence.decoherence_operators import get_complete_sun_matrix, get_decoherence_operator_nxn_basis, get_model_D_matrix
+from deimos.utils.coordinates import *
 
-
-# Using odeintw from https://github.com/WarrenWeckesser/odeintw
-# This is a wrapper around scipy `odeintw` to handle complex numbers and matrices
-# TODO Maybe rewrite this myself here (with credit) to remove dependencies
-try :
-    from odeintw import odeintw
-except :
-    raise Exception("ERROR : Could not import `odeintw`, ensure it is installed and visible in your `PATH`/`PYTHONPATH`")
-
+# Import new physics models
+from deimos.models.decoherence.decoherence_operators import get_complete_sun_matrix, get_decoherence_operator_nxn_basis, get_model_D_matrix
+from deimos.models.liv.sme import get_sme_hamiltonian_isotropic, get_sme_hamiltonian_directional
 
 #TODO Write some tests for these functions that can be run with an arg or whatever...
-
-
 
 #
 # Globals
 #
 
 # Unit conversions
-#TOD Use my natural_units.py modules
+#TODO Use my natural_units.py modules
 km_to_eV = 5.06773093741e9 # [km] -> [1/eV]
 GeV_to_eV = 1.e9 # [GeV] -> [eV]
+hbar = 6.5821195691e-16 # [eV s]
 
 
 #
@@ -57,8 +55,9 @@ Neutrino-specific stuff like the PMNS matrix and mass <-> flavor basis transform
 
 Have kept these outside of the actual calculator class below since they are very general and can be imported 
 easily and used elsewhere.
-TODO Move to common.py?
 '''
+
+#TODO move these somewhere common
 
 def get_rho(psi) :
     """Get denisty matrix, rho, given a state (ket), psi: rho = |psi><psi| (outer product) """
@@ -294,7 +293,7 @@ def get_rho_dot(H, rho, calc_basis, D_matrix=None, D_matrix_basis=None) :
         M_H = np.zeros_like(M_D)
         if True :
             # See 2001.09250 eq 2.7
-            assert rho.shape[0] == 3, "Only implemented for 3 neutrino flvors currently"
+            assert rho.shape[0] == 3, "Only implemented for 3 neutrino flavors currently"
             Delta_21 = H[1,1]
             Delta_31 = H[2,2]
             Delta_32 = Delta_31 - Delta_21
@@ -338,18 +337,26 @@ class DensityMatrixOscSolver(object) :
     Class for calculating the time-dependence of a neutrino oscillation system,
     expressed in the density matrix formalism.
 
-    Solution is obtained numerically, using `odetintw`
+    Solution is obtained numerically, by default using `odetintw` but other options are implemented
 
-    Includes support for matter effects, decoherence.
+    Includes support for:
+     - Matter effects
+     - Decoherence
+     - Lightcone fluctuations
+     - Standard Model Extension (SME)
     '''
 
     def __init__(self,
+        # Define physics
         num_states=NUM_STATES,
         dm2_eV2=None, # Mass spittings
         theta_rad=None, # Mixing angles
-        rtol=1.e-8,
-        atol=1.e-8,
-        mxstep=1000000, # Crank this up if get "Solver failed : Excess work done on this call (perhaps wrong Dfun type)" errors
+        # Solver options
+        rtol=1.e-12,
+        atol=1.e-12,
+        mxstep=10000000, # Crank this up if get "Solver failed : Excess work done on this call (perhaps wrong Dfun type)" errors
+        solver_name=None,
+        solver_method=None,
     ) :
 
         # Store args
@@ -357,7 +364,20 @@ class DensityMatrixOscSolver(object) :
         self.rtol = rtol
         self.atol = atol
         self.mxstep = mxstep
-
+        self.solver_name = solver_name
+        self.solver_method = solver_method
+        
+        # Init and check solver definition
+        if self.solver_name is None :
+            self.solver_name = "odeintw"
+        assert self.solver_name in ["solve_ivp", "odeintw"], "solver not implemented. Use either 'solve_ivp' or 'odeintw'. "
+            
+        if self.solver_name == "solve_ivp" :
+            if self.solver_method is None :
+                self.solver_method = 'RK45'
+        else :
+            assert self.solver_method is None, "`solver_method` arg not valid for %s" %Cself.solver_name
+            
         # Init some internal states
         self.matter_potential_flav_eV = None
         if theta_rad is None :
@@ -397,15 +417,140 @@ class DensityMatrixOscSolver(object) :
         Set the matter potential, in the flavor basis
         '''
         self.matter_potential_flav_eV = matter_potential_flav_eV
+    
+    
+    def time_evolution_operator(self, H, L):
+        return np.exp(-1j*H*L)
+    
+
+
+    def _solve(self, initial_rho_mass, E, L, H, calc_basis) :
+        '''
+        Solve the density matrix time evolution to get the final state for this system
+        '''
+
+        #TODO decoh terms
+        #TODO decoh terms
+        #TODO decoh terms
+        #TODO decoh terms
+        decoh_D_matrix_basis = None
+        decoh_D_matrix = None
+        include_lightcone_fluctuations = False
+        #TODO decoh terms
+        #TODO decoh terms
+        #TODO decoh terms
+        #TODO decoh terms
+
+        #
+        # Derive function
+        #
+
+        # Define the time derivative of the density matrix: d(rho)/dt = -i[H,rho] (-D[rho])
+        # The additional -D[rho] term if for the case of decoherence: D[rho]_ij = rho_ij * Gamma_ij
+        # We will use this to numerically solve for rho and integrate
+        # Anything depending on `rho` or `L` must be done in here
+
+        def derive(L, rho, decoh_D_matrix_basis=None, decoh_D_matrix=None, flatten=False): #TODO DO the decoh D martrix things actually need to be args?
+
+            # Handle lightcone fluctuations here (since depends on L, not just E)
+            if include_lightcone_fluctuations :
+                from deimos.utils.model.lightcone_fluctuations.lightcone_fluctuation_model import get_lightcone_decoherence_D_matrix
+                decoh_D_matrix_basis, decoh_D_matrix = get_lightcone_decoherence_D_matrix(num_states=self.num_states, H=H, E=E_val, L=L, m=lightcone_m, n=lightcone_n, dL0=lightcone_dL0, L0=lightcone_L0, E0=lightcone_E0) 
+
+            # Handle cases where the solver can only pss 1D arrays
+            if flatten :
+                rho = rho.reshape(self.num_states, self.num_states)
+
+            # Compute rho derivative
+            rho_dot = get_rho_dot(H=H, rho=rho, calc_basis=calc_basis, D_matrix=decoh_D_matrix, D_matrix_basis=decoh_D_matrix_basis)
+            
+            # Handle cases where the solver can only pss 1D arrays
+            if flatten :
+                rho_dot = rho_dot.flatten()
+
+            return rho_dot
+
+
+        #
+        # Solve ODE to get rho (mass basis) for each L (e.g. time evolution of system)
+        #
+
+        # This depends a little on the solver in question
+        if self.solver_name == "odeintw" :
+
+            #
+            # odeintw
+            #
+
+            # Solve
+            solved_rho_mass, infodict = odeintw(
+                derive, # d(rho)/dL
+                initial_rho_mass, # rho(0)
+                L, # L
+                args=(decoh_D_matrix_basis, decoh_D_matrix, False),  # Args to pass to `derive` (other than `L, rho`). Note that `False` here means "don't flatten arrays"
+                full_output=True,
+                rtol=self.rtol,
+                atol=self.atol,
+                mxstep=self.mxstep,
+                tfirst=True, # This means `derive` is derive(L,rho), not derive(rho,L). Doing this for consistency with solve_ivp
+            )
+
+            # Check
+            assert infodict["message"] == "Integration successful.", "Solver failed : %s" % infodict["message"]
+
+
+        elif self.solver_name == "solve_ivp" :
+
+            #
+            # solve ivp
+            #
+
+            # Get the span of L values for the solver
+            L_range = (np.nanmin(L), np.nanmax(L)) #TODO once only for speed?    #TODO get 0'tn and -1'th elements instead for speed?
+            if L_range[0] == L_range[1] :
+                L_range = (0., L_range[1])  #TODO better way of doing this?
+
+            # Solve
+            # Note that we are having to flatten rho matrices into 1D arrays here
+            solved_rho_mass = solve_ivp(
+                derive, # d(rho)/dL
+                L_range, # range for which to solve ODE
+                initial_rho_mass.flatten(), # rho(0) - shape is (L_size,), where N is number of L values    #TODO is the N correct?
+                t_eval=L, # Define values of L for which want specific solutions
+                method=self.solver_method,
+                args=(decoh_D_matrix_basis, decoh_D_matrix, True), # Args to pass to `derive` (other than `L, rho`). Note that `True` here means "flatten arrays"
+                rtol=self.rtol,
+                atol=self.atol,  # atol + rtol * abs(y)
+                # mxstep=self.mxstep,
+            )
+
+            # Check solved successfully
+            assert solved_rho_mass.success == True, "Solved failed : %s" % solved_rho_mass.message
+
+            # Get the actual result, unflatten the rho matrices, and re-order to same dimensions as odeintw produces for consistency
+            solved_rho_mass = np.transpose(solved_rho_mass.y).reshape(L.size, self.num_states, self.num_states)
+
+        else :
+            raise Exception("Unknown solver : %s" % self.solver_name)
+
+        # Track the entropy of the system
+        #TODO
+
+        return solved_rho_mass # Shape is (L.size, N, N)
+
 
 
     def calc_osc_probs(self,
+        # Neutrino properties
         E_GeV,
         L_km,
         initial_state,
         initial_basis="flavor", # Optionally can set initial state in mass basis
         nubar=False,
-        calc_basis="nxn", # Optionally can choose which basis to perform calculation in (nxn, sun)
+
+        # Neutrino direction in celestial coords - only required for certain models (such as the SME)
+        ra_rad=None,
+        dec_rad=None,
 
         # Options to be passed to the decoherence calculator
         decoh_opts=None,
@@ -413,8 +558,11 @@ class DensityMatrixOscSolver(object) :
 
         # Options to be passed to the SME calculator
         sme_opts=None,
-
+        detector_opts= None,
+        neutrino_source_opts=None,
+        
         # Misc
+        calc_basis="nxn", # Optionally can choose which basis to perform calculation in (nxn, sun)
         verbose=False,
         plot_density_matrix_evolution=False, # Flag for plotting the solved density matrix vs distance/energy
     ) :
@@ -452,8 +600,11 @@ class DensityMatrixOscSolver(object) :
         L_km = np.asarray(L_km)
         assert L_km.ndim == 1
 
-        # Check L array is ascending (get problems if it isn't, not sure why, perhaps odeintw is requires sorted arrays?)
-        assert np.all(np.diff(L_km) >= 0), "`L_km` must be ascending"
+        # If L array is not ascending run odeintw on each node separately 
+        #(get problems if it isn't, not sure why, perhaps odeintw is requires sorted arrays?)
+        calc_L_nodes_separately = False
+        if np.all(np.diff(L_km) >= 0) == False:
+            calc_L_nodes_separately = True
 
         # Will need to pass some kwargs to `derive` later, populate as I go
         rhodot_kw = {}
@@ -529,29 +680,71 @@ class DensityMatrixOscSolver(object) :
         # SME (LIV) parameters
         #
 
-        # Get the SME coefficient and energy index
-        # This is equation 1 from https://arxiv.org/pdf/2111.04654.pdf, but ony considering one term at a time
-        # 'cft' here means the term's coefficient, e.g. a(i) or c(i) depending on the terms dimension e.g. from E^n
-        sme_cft = None
-        sme_n = None
+        sme_a = None
+        sme_c = None
+        ra = None
+        dec = None
+
         include_sme = False
 
         if sme_opts is not None :
-
+            
+            # To include SME parameters in calculation of the hamiltonian
             include_sme = True
 
-            # User provides a a(3) and c(4) coefficients
-            assert "cft" in sme_opts
-            assert "n" in sme_opts
+            # Handle isotropic vs directional
+            assert "directional" in sme_opts
+            sme_is_directional = sme_opts.pop("directional")
 
-            # Grab the vars, handling units
+            # Handle basis in which flavor/mass structure is defined
+            assert "basis" in sme_opts
+            sme_basis = sme_opts.pop("basis")
+            assert sme_basis in ["mass", "flavor"]
+            sme_basis_is_flavor = sme_basis == "flavor" # Bool fast checking during solving
+
+            # User provides a(3) and c(4) coefficients, plus a possible mass-dependent non-renomalizable term
             sme_opts = copy.deepcopy(sme_opts)
-            sme_cft = sme_opts.pop("cft") # Unit depends on term's dimension (e.g. n)
-            sme_n = sme_opts.pop("n")
-            assert len(sme_opts) == 0, "Unused SME arguments!?!"
+            assert "a_eV" in sme_opts
+            sme_a = sme_opts.pop("a_eV")
+            assert "c" in sme_opts
+            sme_c = sme_opts.pop("c") # dimensionless
+            if sme_is_directional : # e term only implemented for direction SME currently
+                assert "e" in sme_opts
+                sme_e = sme_opts.pop("e") # dimensionless
 
-            # Determine if the term in SME is +ve or -ve
-            sme_term_negative = ( sme_n % 2 != 0 )
+            # Check shapes
+            if sme_is_directional :
+                for operator in [sme_a, sme_c, sme_e] :
+                    assert isinstance(operator, np.ndarray)
+                    assert operator.shape == (3, self.num_states, self.num_states) # First dimension is directional coordinate (x,y,z), next two are flavor/mass basis structure
+            else :
+                for operator in [sme_a, sme_c] :
+                    assert operator.shape == (self.num_states, self.num_states) # Flavor/mass basis structure
+            
+            # Handle antineutrinos
+            if nubar:
+                sme_a = - sme_a
+                if sme_is_directional :
+                    sme_e = - sme_e
+                warnings.warn("Solver assumes that the CPT-odd parameters are specified for neutrinos and changes sign.")
+                
+            # Unpack parameters into directional components
+            if sme_is_directional :
+                sme_a_x, sme_a_y, sme_a_z = sme_a
+                sme_c_tx, sme_c_ty, sme_c_tz = sme_c
+                sme_e_m_x, sme_e_m_y, sme_e_m_z = sme_e
+
+            # Get neutrino direction in celestial coords
+            if sme_is_directional :
+                assert ra_rad is not None
+                assert dec_rad is not None
+                assert np.isscalar(ra_rad)
+                assert np.isscalar(dec_rad)
+                assert (ra_rad >= 0) and (ra_rad <= 2 * np.pi)
+                assert (dec_rad >= -np.pi / 2) and (dec_rad <= np.pi / 2)
+            
+            # Check for additional SME arguments
+            assert len(sme_opts) == 0, "Unused SME arguments!?!"
 
 
         #
@@ -567,19 +760,38 @@ class DensityMatrixOscSolver(object) :
         #
         # Handle nuances of solver
         #
-
+        
         # `odeintw` needs a number of `t` values (in this case `L`) to solve
         # These also need not to be bunched up too closely
         # Add nodes either side of the given L value to ensure good solution
         #TODO Can this be done better? what about if user defines a list of closely bnched values????
         #TODO Could I just solve for energy rather than distance in this case?
-        pad_L = L.size == 1
-        if pad_L :
-            L_val = L[0]
-            L_nodes = np.array( [L_val, 2.*L_val] ) #TODO was usinf one node either side, by this seems to be failing. This new system with a single larger padded node seems to work foer now,m but needs investigating...
-        else :
-            L_nodes = L
+        L_nodes = L
+        pad_L = False
+        if self.solver_name == 'odeintw':
+            pad_L = L.size == 1
+            if pad_L :
+                L_nodes = np.array( [0., L[0]] )
+            else :
+                L_nodes = L
 
+
+        #
+        # Earth rotation
+        #
+
+        #TODO
+
+        # max_L = np.max(L)
+
+        # # The sidereal frequency is ~ 1e-20 eV. Therefore for L<1e19 the rotation of the earth during
+        # # the propagation of the neutrinos can be neglected
+        # include_earth_rotation_during_neutrino_prop = False
+        # if include_sme:
+        #     if max_L >= 1e19:
+        #         print("Note: Taking Earth's rotation into account during neutrino propagation")
+        #         include_earth_rotation_during_neutrino_prop = True
+        
 
         #
         # Define physics
@@ -597,8 +809,7 @@ class DensityMatrixOscSolver(object) :
 
         # Define the mass component of the vacuum Hamiltonian
         # Do not consider the energy depenednce yet
-        M = dm2
-
+        M = dm2.astype(np.complex128)
         if verbose :
             print("\nDelta mass matrix :")
             print(M)
@@ -662,9 +873,9 @@ class DensityMatrixOscSolver(object) :
 
 
         #
-        # Loop over energies
+        # Solve for each energy
         #
-
+        
         osc_prob_results = []
 
         # Loop over each energy value
@@ -683,12 +894,31 @@ class DensityMatrixOscSolver(object) :
                 H = H - V if nubar else H + V
 
             # Add/subtract SME term to Hamiltonian     #TODO what about antineutrinos?
-            if include_sme :
-                sme_term = sme_cft * np.power(E_val, sme_n)
-                if sme_term_negative :
-                    H -= sme_term
+            if include_sme : 
+                if sme_is_directional :
+                    H_eff = get_sme_hamiltonian_directional(
+                        ra=ra_rad,
+                        dec=dec_rad,
+                        a_eV_x=sme_a_x,
+                        a_eV_y=sme_a_y,
+                        a_eV_z=sme_a_z,
+                        c_tx=sme_c_tx,
+                        c_ty=sme_c_ty,
+                        c_tz=sme_c_tz,
+                        # e_m_x=sme_e_m_x,
+                        # e_m_y=sme_e_m_y,
+                        # e_m_z=sme_e_m_z,
+                        E=E_val,
+                    )
                 else :
-                    H += sme_term
+                    H_eff = get_sme_hamiltonian_isotropic(
+                        a_eV=sme_a,
+                        c=sme_c,
+                        E=E_val,
+                    )
+                if sme_basis_is_flavor :
+                    H_eff = rho_flav_to_mass_basis(H_eff, PMNS) # Rotate to mass basis
+                H += H_eff
 
             # Handle decoherence gamma param (or D matrix) energy-depenedence
             # Using the `gamma` function, but actually applying to the whole matrix rather than the individual elements (which is equivalent)
@@ -698,53 +928,21 @@ class DensityMatrixOscSolver(object) :
 
 
             #
-            # Define function to solve
+            # Run solver
             #
 
-            # Define the time derivative of the density matrix: d(rho)/dt = -i[H,rho] (-D[rho])
-            # The additional -D[rho] term if for the case of decoherence: D[rho]_ij = rho_ij * Gamma_ij
-            # We will use this to numerically solve for rho and integrate
-            # Anything depending on `rho` or `L` must be done in here
-
-            def derive(rho, L, decoh_D_matrix_basis=None, decoh_D_matrix=None):
-
-                # Handle lightcone fluctuations here (since depends on L)
-                if include_lightcone_fluctuations :
-                    from deimos.utils.model.lightcone_fluctuations.lightcone_fluctuation_model import get_lightcone_decoherence_D_matrix
-                    decoh_D_matrix_basis, decoh_D_matrix = get_lightcone_decoherence_D_matrix(num_states=self.num_states, H=H, E=E_val, L=L, m=lightcone_m, n=lightcone_n, dL0=lightcone_dL0, L0=lightcone_L0, E0=lightcone_E0) 
-
-                # Compute the time derivative of the system
-                return get_rho_dot(H=H, rho=rho, calc_basis=calc_basis, D_matrix=decoh_D_matrix, D_matrix_basis=decoh_D_matrix_basis)
-
-
-            #
-            # Calculate oscillation probabilities
-            #
-
-            #TOD Can I solve directly for E if have range of E values but only a single L value, rathe than the hacks in place now?
-
-            # Solve matrix ODE to get rho (mass basis) for each L
-            #print("\nSolving...")
-            solved_rho_mass, infodict = odeintw(
-                derive, # d(rho)/dL
-                initial_rho_mass, # rho(0)
-                L_nodes, # L
-                args=(decoh_D_matrix_basis, decoh_D_matrix),
-                # args=(),
-                full_output=True,
-                rtol=self.rtol,
-                atol=self.atol,
-                mxstep=self.mxstep,
+            # Call the solver function
+            solved_rho_mass = self._solve(
+                initial_rho_mass=initial_rho_mass, 
+                E=E_val, 
+                L=L_nodes, 
+                H=H, 
+                calc_basis=calc_basis,
             )
-            assert infodict["message"] == "Integration successful.", "Solver failed : %s" % infodict["message"]
-            #print("Solver completed successfully")
-
-            # Track the entropy of the system
-            #TODO
 
             # Remove the extra nodes added for solver stability
             if pad_L :
-                mask = np.array( [False, True], dtype=bool ) #TODO I expect I need the zero'th element to get the "unpadded" version, but actually need the other? And having big problems with 3 nodes? Not sure what is going on here...
+                mask = np.array( [False, True], dtype=bool )
                 solved_rho_mass = solved_rho_mass[mask]
 
             # Convert solutions to flavor basis
@@ -763,7 +961,7 @@ class DensityMatrixOscSolver(object) :
                 for i_f,final_flav in enumerate(states) :
                     osc_probs[i_L,i_f] = rho_flavor_prob(solved_rho_flav[i_L,...],final_flav)
 
-            # Store the results for each energy
+            # Store the results for this energy value
             osc_prob_results.append(osc_probs)
 
 
@@ -771,63 +969,71 @@ class DensityMatrixOscSolver(object) :
             # Plot density matrix evolution
             #
 
+            # Here can optionally plot the density matrix evolution for debugging/understanding purposes
             if plot_density_matrix_evolution :
-
                 assert np.isscalar(E) or (len(E) == 1)
-                assert len(L_km) > 1
-
-                rho_mass_fig = Figure(nx=self.num_states, ny=self.num_states, title=r"$\rho_{\rm{mass}}$", sharex=True, sharey=True, figsize=(9,7), row_headings=True, col_headings=True) 
-                rho_flav_fig = Figure(nx=self.num_states, ny=self.num_states, title=r"$\rho_{\rm{flavor}}$", sharex=True, sharey=True, figsize=(9,7), row_headings=True, col_headings=True) 
-                figs = [rho_mass_fig, rho_flav_fig]
-                for i in range(self.num_states) :
-
-                    for fig in figs :
-                        fig.set_row_heading(i, str(i) )
-
-                    for j in range(self.num_states) :
-
-                        if i == 0 :
-                            for fig in figs :
-                                fig.set_col_heading(j, str(j) )
-
-                        num_L = solved_rho_mass.shape[0]
-
-                        rho_mass_ij = np.array([ solved_rho_mass[k,i,j] for k in range(num_L) ], dtype=np.complex128)
-                        rho_flav_ij = np.array([ solved_rho_flav[k,i,j] for k in range(num_L) ], dtype=np.complex128)
-
-                        rho_mass_ax = rho_mass_fig.get_ax(x=i, y=j)
-                        rho_flav_ax = rho_flav_fig.get_ax(x=i, y=j)
-
-                        rho_mass_ax.plot(L_km, rho_mass_ij.real, color="red", linestyle="-", zorder=5)
-                        rho_mass_ax.plot(L_km, rho_mass_ij.imag, color="orange", linestyle="--", zorder=6)
-
-                        rho_flav_ax.plot(L_km, rho_flav_ij.real, color="blue", linestyle="-", zorder=5)
-                        rho_flav_ax.plot(L_km, rho_flav_ij.imag, color="lightblue", linestyle="--", zorder=6)
-
-                        for ax in [rho_mass_ax, rho_flav_ax] :
-                            ax.axhline(0., color="black", linestyle="--", linewidth=1, zorder=4)
-                            ax.axhline(1./float(self.num_states), color="black", linestyle="-.", linewidth=1, zorder=4)
-
-                for fig in figs :
-                    fig.quick_format( ylim=(-1., +1.), xlim=(L_km[0],L_km[-1]) )
-                rho_mass_fig.save("rho_mass.png")
-                rho_flav_fig.save("rho_flav.png")
+                self._plot_density_matrix_evolution(self, L_km, solved_rho_mass, solved_rho_flav)
 
 
         #
         # Done
         #
           
-
         # Numpy-ify
         osc_prob_results = np.asarray(osc_prob_results) # Indexing [E value, L value, final state flavor]
 
-  
         if verbose :
             print("\nOscillation probabilities calculated")
-
+            
         return osc_prob_results
 
+
+    def _plot_density_matrix_evolution(self, L_km, solved_rho_mass, solved_rho_flav) :
+        '''
+        Can optionally plot the evolution of the density matrix elements
+        '''
+
+        # Check inputs
+        assert L_km.size > 1
+        assert solved_rho_mass.shape == (L_km.size, self.num_states, self.num_states)
+        assert solved_rho_flavs.shape == (L_km.size, self.num_states, self.num_states)
+
+        rho_mass_fig = Figure(nx=self.num_states, ny=self.num_states, title=r"$\rho_{\rm{mass}}$", sharex=True, sharey=True, figsize=(9,7), row_headings=True, col_headings=True) 
+        rho_flav_fig = Figure(nx=self.num_states, ny=self.num_states, title=r"$\rho_{\rm{flavor}}$", sharex=True, sharey=True, figsize=(9,7), row_headings=True, col_headings=True) 
+        figs = [rho_mass_fig, rho_flav_fig]
+        for i in range(self.num_states) :
+
+            for fig in figs :
+                fig.set_row_heading(i, str(i) )
+
+            for j in range(self.num_states) :
+
+                if i == 0 :
+                    for fig in figs :
+                        fig.set_col_heading(j, str(j) )
+
+                num_L = solved_rho_mass.shape[0]
+
+                rho_mass_ij = np.array([ solved_rho_mass[k,i,j] for k in range(num_L) ], dtype=np.complex128)
+                rho_flav_ij = np.array([ solved_rho_flav[k,i,j] for k in range(num_L) ], dtype=np.complex128)
+
+                rho_mass_ax = rho_mass_fig.get_ax(x=i, y=j)
+                rho_flav_ax = rho_flav_fig.get_ax(x=i, y=j)
+
+                rho_mass_ax.plot(L_km, rho_mass_ij.real, color="red", linestyle="-", zorder=5)
+                rho_mass_ax.plot(L_km, rho_mass_ij.imag, color="orange", linestyle="--", zorder=6)
+
+                rho_flav_ax.plot(L_km, rho_flav_ij.real, color="blue", linestyle="-", zorder=5)
+                rho_flav_ax.plot(L_km, rho_flav_ij.imag, color="lightblue", linestyle="--", zorder=6)
+
+                for ax in [rho_mass_ax, rho_flav_ax] :
+                    ax.axhline(0., color="black", linestyle="--", linewidth=1, zorder=4)
+                    ax.axhline(1./float(self.num_states), color="black", linestyle="-.", linewidth=1, zorder=4)
+
+        for fig in figs :
+            fig.quick_format( ylim=(-1., +1.), xlim=(L_km[0],L_km[-1]) )
+        rho_mass_fig.save("rho_mass.png")
+        rho_flav_fig.save("rho_flav.png")
 
 
 #

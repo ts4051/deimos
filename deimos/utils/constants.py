@@ -19,6 +19,7 @@ BASES = ["mass","flavor"]
 
 # Some useful distances
 EARTH_DIAMETER_km = 12742.
+EARTH_RADIUS_km = EARTH_DIAMETER_km / 2.
 EARTH_SUN_DISTANCE_m = 148.92e9
 MILKY_WAY_DIAMETER_m = 1e21
 EARTH_TXS_RED_SHIFT = 0.3365 # From arXiv 1802.01939
@@ -41,6 +42,10 @@ DELTACP_rad =  0. #  Default to no CP violation
 PLANCK_MASS_eV = 1.22e28
 PLANCK_LENGTH_m = 1.62e-35 #TODO 1/M_Planck
 PLANCK_TIME_s = 5.39e-44 #TODO calc from M_Planck
+
+# Atmospheric L<->coszen conversion defaults
+DEFAULT_ATMO_PROD_HEIGHT_km = 22. # Value used in nuSQuIDS
+DEFAULT_ATMO_DETECTOR_DEPTH_km = 1. # Value used in nuSQuIDS
 
 
 #

@@ -6,7 +6,7 @@ Tom Stuttard
 
 import numpy as np
 
-from deimos.utils.constants import EARTH_DIAMETER_km
+from deimos.utils.constants import EARTH_RADIUS_km, DEFAULT_ATMO_PROD_HEIGHT_km, DEFAULT_ATMO_DETECTOR_DEPTH_km
 
 from deimos.utils.matrix_algebra import *
 
@@ -24,14 +24,7 @@ OSC_FREQUENCY_UNIT_CONVERSION = 1.267 #TODO More precise
 # Functions
 #
 
-def calc_disappearance_prob_2flav_vacuum(E_GeV, L_km, mass_splitting_eV2, theta_rad) :
-    '''
-    Simple analytic 2-flavor oscillation disappearance probability calculation
-    '''
-    return np.sin(2.*theta_rad)**2 * np.square(np.sin(1.27*mass_splitting_eV2*L_km/E_GeV))
-
-
-def calc_path_length_from_coszen(cz, r=(EARTH_DIAMETER_km/2.), h=15., d=1.) :
+def calc_path_length_from_coszen(cz, r=EARTH_RADIUS_km, h=DEFAULT_ATMO_PROD_HEIGHT_km, d=DEFAULT_ATMO_DETECTOR_DEPTH_km) :
     '''
     Get the path length (baseline) for an atmospheric neutrino,
     given some cos(zenith angle).
@@ -39,10 +32,20 @@ def calc_path_length_from_coszen(cz, r=(EARTH_DIAMETER_km/2.), h=15., d=1.) :
     cz = cos(zenith) in radians, to be converted to path length in km
     r = Radius of Earth, in km
     h = Production height in atmosphere, in km
-    d = Depth of detector, in km
+    d = Depth of detector (w.r.t. Earth's radius), in km
     '''
     return -r*cz +  np.sqrt( (r*cz)**2 - r**2 + (r+h+d)**2 )
 
+
+def get_coszen_from_path_length(L,r=EARTH_RADIUS_km, h=DEFAULT_ATMO_PROD_HEIGHT_km, d=DEFAULT_ATMO_DETECTOR_DEPTH_km) :
+    return (d**2+2*d*(h+r)+h**2+2*h*r-L**2)/(2*L*r)
+
+
+def calc_disappearance_prob_2flav_vacuum(E_GeV, L_km, mass_splitting_eV2, theta_rad) :
+    '''
+    Simple analytic 2-flavor oscillation disappearance probability calculation
+    '''
+    return np.sin(2.*theta_rad)**2 * np.square(np.sin(1.27*mass_splitting_eV2*L_km/E_GeV))
 
 
 def oscillation_averaged_transition_probability( pmns, initial_flavor, final_flavor ) :
@@ -56,7 +59,6 @@ def oscillation_averaged_transition_probability( pmns, initial_flavor, final_fla
     for i in range(pmns.shape[0]) :
         prob += ( pmns[initial_flavor,i] * np.conj(pmns[initial_flavor,i]) ) * ( pmns[final_flavor,i] * np.conj(pmns[final_flavor,i]) )
     return prob.real
-
 
 
 def calc_osc_wavelength_km_from_mass_splitting(E_GeV, mass_splitting_eV2) :
@@ -73,7 +75,7 @@ def calc_osc_wavelength_km_from_mass_splitting(E_GeV, mass_splitting_eV2) :
     return np.pi / ( OSC_FREQUENCY_UNIT_CONVERSION * mass_splitting_eV2 / E_GeV ) 
 
 
-def diagonalize_hamiltonian(H):
+def diagonalize_hamiltonian(H): #TODO move to a file with the other matrix algebra functions
 
     E_ij, v_ij = np.linalg.eigh(H)
 
