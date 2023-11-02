@@ -685,6 +685,29 @@ class OscCalculator(object) :
         '''
 
         from deimos.models.decoherence.nuVBH_model import get_randomize_phase_decoherence_D_matrix, get_randomize_state_decoherence_D_matrix, get_neutrino_loss_decoherence_D_matrix
+        from deimos.models.decoherence.generic_models import get_generic_model_decoherence_D_matrix
+
+        #
+        # Unpack args
+        #
+
+        kw = copy.deepcopy(kw)
+
+        assert "gamma0_eV" in kw
+        gamma0_eV = kw.pop("gamma0_eV")
+
+        assert "n" in kw
+        n = kw.pop("n")
+
+        assert "E0_eV" in kw
+        E0_eV = kw.pop("E0_eV")
+
+        assert len(kw) == 0
+
+
+        #
+        # nu-VBH interaction models
+        #
 
         get_D_matrix_func = None
 
@@ -698,21 +721,25 @@ class OscCalculator(object) :
         elif model_name == "neutrino_loss" :
             get_D_matrix_func = get_neutrino_loss_decoherence_D_matrix
 
+        # Check if found a match
+        if get_D_matrix_func is not None :
+            D_matrix_basis, D_matrix0_eV = get_D_matrix_func(num_states=self.num_neutrinos, gamma=gamma0_eV)
+
+
+        #
+        # Generic models
+        #
+
+        # Otherwise, try the generic models
         else :
-            raise Exception("Unknown decoherence model : %s" % model_name) 
+            D_matrix0_eV = get_generic_model_decoherence_D_matrix(name=model_name, gamma=gamma0_eV)
+            # D_matrix_basis = "mass" #TODO
 
-        # Check kwarks
-        kw = copy.deepcopy(kw)
-        assert "gamma0_eV" in kw
-        gamma0_eV = kw.pop("gamma0_eV")
-        assert "n" in kw
-        n = kw.pop("n")
-        assert "E0_eV" in kw
-        E0_eV = kw.pop("E0_eV")
-        assert len(kw) == 0
 
-        # Get the correct D matrix and pass to the solver
-        D_matrix_basis, D_matrix0_eV =  get_D_matrix_func(num_states=self.num_neutrinos, gamma=gamma0_eV)
+        #
+        # Pass to the solver
+        #
+
         self.set_decoherence_D_matrix( D_matrix_eV=D_matrix0_eV, n=n, E0_eV=E0_eV ) #TODO what about the basis?
 
 

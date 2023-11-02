@@ -998,6 +998,7 @@ if __name__ == "__main__" :
     parser.add_argument('-id','--install-dir', type=str, required=False, default=None, help='Installation directory' )
     parser.add_argument('-en','--env-name', type=str, required=False, default=None, help='Conda env name' )
     parser.add_argument('-ow','--overwrite', action="store_true", required=False, help='Overwrite any existing installation' )
+    parser.add_argument('-gp','--git-protocol', type=str, default="ssh", choices=("ssh", "https"), required=False, help='Choose which protocol to use when cloning git repositories' )
     parser.add_argument('--mceq', action="store_true", required=False, help='Install MCEq' )
     parser.add_argument('--nusquids', action="store_true", required=False, help='Install nuSQuIDS' )
     parser.add_argument('--pisa', action="store_true", required=False, help='Install PISA' )
@@ -1084,6 +1085,7 @@ if __name__ == "__main__" :
         env_name=args.env_name,
         conda_env_kw=conda_env_kw,
         overwrite=args.overwrite,
+        git_protocol=args.git_protocol,
         pisa=args.pisa,
         pisa_kw=pisa_kw,
         mceq=args.mceq,

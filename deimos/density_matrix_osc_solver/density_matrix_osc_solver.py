@@ -424,22 +424,20 @@ class DensityMatrixOscSolver(object) :
     
 
 
-    def _solve(self, initial_rho_mass, E, L, H, calc_basis) :
+    def _solve(self,
+        # Standard neutrino solver 
+        initial_rho_mass, 
+        E, 
+        L, 
+        H, 
+        calc_basis,
+        # Decoherence operator
+        D_matrix=None,
+        D_matrix_basis=None,
+    ) :
         '''
         Solve the density matrix time evolution to get the final state for this system
         '''
-
-        #TODO decoh terms
-        #TODO decoh terms
-        #TODO decoh terms
-        #TODO decoh terms
-        decoh_D_matrix_basis = None
-        decoh_D_matrix = None
-        include_lightcone_fluctuations = False
-        #TODO decoh terms
-        #TODO decoh terms
-        #TODO decoh terms
-        #TODO decoh terms
 
         #
         # Derive function
@@ -453,9 +451,9 @@ class DensityMatrixOscSolver(object) :
         def derive(L, rho, decoh_D_matrix_basis=None, decoh_D_matrix=None, flatten=False): #TODO DO the decoh D martrix things actually need to be args?
 
             # Handle lightcone fluctuations here (since depends on L, not just E)
-            if include_lightcone_fluctuations :
-                from deimos.utils.model.lightcone_fluctuations.lightcone_fluctuation_model import get_lightcone_decoherence_D_matrix
-                decoh_D_matrix_basis, decoh_D_matrix = get_lightcone_decoherence_D_matrix(num_states=self.num_states, H=H, E=E_val, L=L, m=lightcone_m, n=lightcone_n, dL0=lightcone_dL0, L0=lightcone_L0, E0=lightcone_E0) 
+            # if include_lightcone_fluctuations :
+            #     from deimos.utils.model.lightcone_fluctuations.lightcone_fluctuation_model import get_lightcone_decoherence_D_matrix
+            #     decoh_D_matrix_basis, decoh_D_matrix = get_lightcone_decoherence_D_matrix(num_states=self.num_states, H=H, E=E_val, L=L, m=lightcone_m, n=lightcone_n, dL0=lightcone_dL0, L0=lightcone_L0, E0=lightcone_E0) 
 
             # Handle cases where the solver can only pss 1D arrays
             if flatten :
@@ -487,7 +485,7 @@ class DensityMatrixOscSolver(object) :
                 derive, # d(rho)/dL
                 initial_rho_mass, # rho(0)
                 L, # L
-                args=(decoh_D_matrix_basis, decoh_D_matrix, False),  # Args to pass to `derive` (other than `L, rho`). Note that `False` here means "don't flatten arrays"
+                args=(D_matrix_basis, D_matrix, False),  # Args to pass to `derive` (other than `L, rho`). Note that `False` here means "don't flatten arrays"
                 full_output=True,
                 rtol=self.rtol,
                 atol=self.atol,
@@ -518,7 +516,7 @@ class DensityMatrixOscSolver(object) :
                 initial_rho_mass.flatten(), # rho(0) - shape is (L_size,), where N is number of L values    #TODO is the N correct?
                 t_eval=L, # Define values of L for which want specific solutions
                 method=self.solver_method,
-                args=(decoh_D_matrix_basis, decoh_D_matrix, True), # Args to pass to `derive` (other than `L, rho`). Note that `True` here means "flatten arrays"
+                args=(D_matrix_basis, D_matrix, True), # Args to pass to `derive` (other than `L, rho`). Note that `True` here means "flatten arrays"
                 rtol=self.rtol,
                 atol=self.atol,  # atol + rtol * abs(y)
                 # mxstep=self.mxstep,
@@ -654,6 +652,8 @@ class DensityMatrixOscSolver(object) :
 
         # Handle the optional lightcone fluctuation effects
         if lightcone_opts is not None :
+
+            raise NotImplemented("TODO: Need to reintegrated lightcone fluctuations into updated solver code")
 
             include_lightcone_fluctuations = True
 
@@ -938,6 +938,8 @@ class DensityMatrixOscSolver(object) :
                 L=L_nodes, 
                 H=H, 
                 calc_basis=calc_basis,
+                D_matrix=decoh_D_matrix,
+                D_matrix_basis=decoh_D_matrix_basis,
             )
 
             # Remove the extra nodes added for solver stability

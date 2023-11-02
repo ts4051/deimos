@@ -245,7 +245,7 @@ def demonstrate_model(num_events=1000) :
 if __name__ == "__main__" :
 
     # Make plots
-    demonstrate_model(num_events=100)
+    demonstrate_model(num_events=1000)
 
     # Dump figures to PDF
     print("")
