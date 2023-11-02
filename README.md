@@ -13,15 +13,23 @@ cd <path/to/install/location>
 git clone https://github.com/ts4051/deimos.git
 ```
 
-2) Install dependencies as follows. I recommend using a conda env, and if you do this make sure you have activated your conda env before running this command.
+2) Install anaconda3 (see https://www.anaconda.com/download), if not already installed.
+
+3) Install DEIMOS and its dependencies using the installation script in this repository, as follows. Note that this will create a dedicated conda env for this software.
 
 ```
-pip install numpy matplotlib scipy odeintw
+cd <path/to/install/location>/deimos
+python install.py -ad <path/to/anaconda/top/directory> [-ow]
 ```
 
-3) Add `deimos` to your PYTHONPATH
+where:
+* `-ab` is the path to your anaconda installation, e.g. the directory containing the `bin` directory
+* `-ow` can optionally be used to force overwritr on any existing DEMIOS installation and associated conda env
+
+This process will generate a script `setup_deimos.sh` that can be used to active the DEIMOS environment. Do this as foloows (must be done for each new shell session):
 
 ```
-export PYTHONPATH=<path/to/install/location>/deimos:$PYTHONPATH
+source setup_deimos.sh
 ```
-You need to do this for each new terminal session, or add it to an env scetup script such as `~/.bashrc`.
+
+Note that this installation process only supports unix-based systems (linux, OSX).
