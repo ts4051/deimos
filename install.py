@@ -1068,9 +1068,13 @@ if __name__ == "__main__" :
     mceq_kw = None # Can optionally steer e.g. branch, fork, etc
 
     # Steer nuSQuIDS installation
+    
     nusquids_kw = { # Can optionally steer e.g. branch, fork, etc
         "make" : True,
         "test" : False,
+        # to access Toms liv branch, use the following:
+        "nusquids_repo_path" : "git@github.com:ts4051/nuSQuIDS.git",
+        "nusquids_branch" : "liv",
     }
 
     # Steer prob3 installation
@@ -1092,4 +1096,6 @@ if __name__ == "__main__" :
         nusquids_kw=nusquids_kw,
         prob3=args.prob3,
         prob3_kw=prob3_kw,
+        git_protocol="https",
     )
+

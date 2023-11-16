@@ -97,7 +97,7 @@ class OscCalculator(object) :
             raise Exception("Unrecognised tool : %s" % self.tool)
 
         # Set some default values for parameters
-        self.set_matter("vacuum")
+        # self.set_matter("vacuum")
         mass_splitting_eV2, mixing_angles_rad, deltacp, mass_tex, _, flavors_tex, _, nu_colors = get_default_neutrino_definitions(self.num_neutrinos)
         self.set_mixing_angles(*mixing_angles_rad, deltacp=deltacp)
         self.set_mass_splittings(*mass_splitting_eV2)
@@ -172,15 +172,17 @@ class OscCalculator(object) :
             if NUSQUIDS_DECOH_AVAIL :
                 self.nusquids = nuSQUIDSDecohAtm(*args)
             else :
-                self.nusquids = nsq.nuSQUIDSAtm(*args)
+                # self.nusquids = nsq.nuSQUIDSLIV(*args)
+                # self.nusquids = nsq.nuSQUIDSAtm(*args)
+                self.nusquids = nsq.nuSQUIDSLIVAtm(*args)
 
             # Add tau regeneration
-            # if interactions :
-            #     self.nusquids.Set_TauRegeneration(True) #TODO results look wrong, disable for now and investigate
+            if interactions :
+                self.nusquids.Set_TauRegeneration(True) #TODO results look wrong, disable for now and investigate
 
         else :
 
-            print(self.energy_nodes_GeV)
+            # print(self.energy_nodes_GeV)
 
             # Instantiate nuSQuIDS regular calculator
             args = [
@@ -204,6 +206,8 @@ class OscCalculator(object) :
         self.nusquids.Set_abs_error(error)
 
         self.nusquids.Set_ProgressBar(False)
+
+
 
 
     def _init_deimos(self,
@@ -253,6 +257,10 @@ class OscCalculator(object) :
         if (matter == "vacuum") or (matter is None) :
 
             if self.tool == "nusquids" :
+                # vacuum = nsq.Vacuum()
+                # print(type(vacuum))
+                # self.nusquids.Set_Body(vacuum)
+
                 self.nusquids.Set_Body(nsq.Vacuum())
 
             elif self.tool == "deimos" :
@@ -428,7 +436,7 @@ class OscCalculator(object) :
 
     def set_std_osc(self) :
         '''
-        Use standard oscillations (e.g. disable decoherence)
+        Use standard oscillations (e.g. disable decoherence and SME)
         '''
 
         if self.tool == "nusquids" :
@@ -461,7 +469,10 @@ class OscCalculator(object) :
             #TODO REPLACE
             #TODO REPLACE
 
-            self.set_sme(cft=0., n=0)
+            # SME parameters are NxN matrices where N=num_neutrinos_states
+            nullMatrix = np.zeros((3,self.num_neutrinos,self.num_neutrinos))
+        
+            self.set_sme(directional=True, basis="mass", a_eV=nullMatrix, c=nullMatrix,e=nullMatrix)
         else :
             self._decoh_model_kw = None
             self._lightcone_model_kw = None
@@ -763,14 +774,18 @@ class OscCalculator(object) :
 
     def set_sme(self,
         directional, # bool
-        basis,
-        a_eV,
-        c,
-        e=None,
+        basis,       # string: "mass" or "flavor"
+        a_eV,        # 3 x Num_Nu x Num_nu
+        c,           # 3 x Num_Nu x Num_nu
+        e,           # 3 x Num_Nu x Num_nu
+        ra_rad=None,
+        dec_rad=None,
     ) :
         '''
         TODO
         '''
+
+
 
         #
         # Check inputs
@@ -788,7 +803,8 @@ class OscCalculator(object) :
             operator_shape = (self.num_neutrinos, self.num_neutrinos) # shape is (N, N), where N is num neutrino states
             assert isinstance(a_eV, np.ndarray) and (a_eV.shape == operator_shape)
             assert isinstance(c, np.ndarray) and (c.shape == operator_shape) 
-            assert e is None
+            # if e is not None: e=None #TODO remove this line once e is implemented
+            # assert e is None
 
 
         #
@@ -796,9 +812,26 @@ class OscCalculator(object) :
         #
 
         if self.tool == "nusquids" :
-            raise NotImplementedError()
-            # self.nusquids.Set_LIVCoefficient(cft)
-            # self.nusquids.Set_LIVEnergyDependence(n)
+
+            if directional :
+                self.sme_opts = {
+                    "directional" : True,
+                    "basis" : basis,
+                    "a_eV" : a_eV,
+                    "c" : c,
+                    "e": e,
+                }
+            else :
+                self.sme_opts = {
+                    "directional" : False,
+                    "basis" : basis,
+                    "a_eV" : a_eV,
+                    "c" : c,
+                    "e": e,
+                }
+
+                
+
 
         elif self.tool == "deimos" :
             if directional :
@@ -851,7 +884,7 @@ class OscCalculator(object) :
             self.set_detector_location(
                 lat_deg="89°59′24″S",
                 long_deg="63°27′11″W",
-                height_m=1400.,
+                height_m=-1400.,
             )
 
         elif name.lower() == "dune" :
@@ -933,6 +966,7 @@ class OscCalculator(object) :
 
         
         # If skymap is being plotted with healpix
+        self.skymap_use = False
         # Set coszen values to the values corresponding to the different pixels of the healpix map
         if self.skymap_use:
             coszen = self._neutrino_source_kw["coszen"]
@@ -965,6 +999,10 @@ class OscCalculator(object) :
         nubar=False,
         distance_km=None,
         coszen=None,
+
+        # Neutrino direction in celestial coords - only required for certain models (such as the SME)
+        ra_rad=None,
+        dec_rad=None,
     ) :
         '''
         Calculate oscillation probability for the model
@@ -1008,6 +1046,77 @@ class OscCalculator(object) :
         #         rho = 1
         #     else :
         #         rho = 0
+
+
+        #
+        #  SME Case
+        #
+
+        if self.sme_opts is not None :
+            
+            # To include SME parameters in calculation of the hamiltonian
+            include_sme = True
+
+            # Handle isotropic vs directional
+            assert "directional" in self.sme_opts
+            sme_is_directional = self.sme_opts.pop("directional")
+
+            # Handle basis in which flavor/mass structure is defined
+            assert "basis" in self.sme_opts
+            sme_basis = self.sme_opts.pop("basis")
+            assert sme_basis in ["mass", "flavor"]
+            sme_basis_is_flavor = sme_basis == "flavor" # Bool fast checking during solving
+
+            # User provides a(3) and c(4) coefficients, plus a possible mass-dependent non-renomalizable term
+            self.sme_opts = copy.deepcopy(self.sme_opts)
+            assert "a_eV" in self.sme_opts
+            sme_a = self.sme_opts.pop("a_eV")
+            assert "c" in self.sme_opts
+            sme_c = self.sme_opts.pop("c") # dimensionless
+            # if sme_is_directional : # e term only implemented for direction SME currently
+            assert "e" in self.sme_opts
+            sme_e = self.sme_opts.pop("e") # dimensionless
+
+            # Check shapes
+            # if sme_is_directional :
+            #     for operator in [sme_a, sme_c, sme_e] :
+            #         assert isinstance(operator, np.ndarray)
+            #         assert operator.shape == (3, self.num_states, self.num_states) # First dimension is directional coordinate (x,y,z), next two are flavor/mass basis structure
+            # else :
+            #     for operator in [sme_a, sme_c] :
+            #         assert operator.shape == (self.num_states, self.num_states) # Flavor/mass basis structure
+            
+            # Handle antineutrinos
+            # if nubar:
+            #     sme_a = - sme_a
+            #     if sme_is_directional :
+            #         sme_e = - sme_e
+            #     warnings.warn("Solver assumes that the CPT-odd parameters are specified for neutrinos and changes sign.")
+                
+
+            # Get neutrino direction in celestial coords
+            if sme_is_directional :
+                assert ra_rad is not None
+                assert dec_rad is not None
+                assert np.isscalar(ra_rad)
+                assert np.isscalar(dec_rad)
+                assert (ra_rad >= 0) and (ra_rad <= 2 * np.pi)
+                assert (dec_rad >= -np.pi / 2) and (dec_rad <= np.pi / 2)
+
+            
+            
+            # Check for additional SME arguments
+            assert len(self.sme_opts) == 0, "Unused SME arguments!?!"
+
+
+            # Set SME parameters in nusquids #TODO e_term not yet implemented
+            self.nusquids.Set_LIVCoefficient(sme_a,sme_c,sme_e,ra_rad, dec_rad)
+            
+                
+           
+
+
+
 
 
         #
@@ -1102,6 +1211,12 @@ class OscCalculator(object) :
             #TODO squeeze unused dimensions?
 
             return results
+
+
+
+
+
+
 
 
     def _calc_osc_prob_prob3(self,
@@ -1281,7 +1396,10 @@ class OscCalculator(object) :
         # and this is what you get from coszen arrays often
         flip = False
         if self._sme_model_kw:
-            pass
+            # pass
+            if distance_km[-1] < distance_km[0] : 
+                flip = True
+                distance_km = np.flip(distance_km)
         else:
             if distance_km[-1] < distance_km[0] : 
                 flip = True
@@ -2410,6 +2528,7 @@ class OscCalculator(object) :
         initial_flavor,
         energy_GeV,
         distance_km=None, coszen=None,
+        date_str = None,
         nubar=False,
         final_flavor=None,
         #Plotting
@@ -2449,21 +2568,24 @@ class OscCalculator(object) :
         
         # Convert pixel to polar coordinates (in deg)
         right_ascension_flat, declination_flat = hp.pix2ang(nside=resolution, ipix=np.arange(npix), lonlat=True)
-        date_str = self._neutrino_source_kw["date_str"]
-        self._neutrino_source_kw = None
-        self.set_neutrino_source(# Date, Time and Timezone
-                                date_str = date_str,
-                                # Location on the sky
-                                ra_deg = right_ascension_flat, 
-                                dec_deg = declination_flat,
-                                )
+        ra_rad, dec_rad = np.deg2rad(right_ascension_flat), np.deg2rad(declination_flat)
+
+        # NEUTRINO SOURCE NO LONGER IMPLEMENTED
+        # date_str = self._neutrino_source_kw["date_str"]
+        # self._neutrino_source_kw = None
+        # self.set_neutrino_source(# Date, Time and Timezone
+        #                         date_str = date_str,
+        #                         # Location on the sky
+        #                         ra_deg = right_ascension_flat, 
+        #                         dec_deg = declination_flat,
+        #                         )
         
         #Store dictionaries for later use
-        neutrinos_dict = self._neutrino_source_kw
+        # neutrinos_dict = self._neutrino_source_kw
         sme_dict = self._sme_model_kw
         
         # Evaluate which pixels are above the horizon 
-        _, alt, _ = self.detector_coords.get_coszen_altitude_and_azimuth(date_str = date_str, ra_deg = right_ascension_flat, dec_deg = declination_flat)
+        _, alt, _ = self.detector_coords.get_coszen_altitude_and_azimuth(time = date_str, ra_deg = right_ascension_flat, dec_deg = declination_flat)
         # Create a mask for altitudes between 0 and 90 degrees
         mask = (alt >= 0) # & (alt <= 90)
         # Create an array of zeros with the same shape as alt
@@ -2478,6 +2600,8 @@ class OscCalculator(object) :
         sme_probabilities2d = self.calc_osc_prob(
             initial_flavor=initial_flavor,
             energy_GeV=energy_GeV,
+            ra_rad = ra_rad,
+            dec_rad = dec_rad,
             **dist_kw
         )
        
@@ -2600,7 +2724,7 @@ class OscCalculator(object) :
         sme_dict = self._sme_model_kw
         
         # Set coszen values to the values corresponding to the different pixels of the healpix map
-        self.skymap_use = True
+        self.skymap_use = False
         
         # Calculate probabilities with SME model
         sme_probabilities2d = self.calc_osc_prob(
