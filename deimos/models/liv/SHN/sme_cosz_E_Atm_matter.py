@@ -35,7 +35,7 @@ if __name__ == "__main__" :
 
     sme_on = True
     directional=True     #TODO Reimplement directional=False
-    atmospheric=True
+    atmospheric=False
     interactions=False
     matter_model="vacuum" # "earth", "constant", "vacuum"
 

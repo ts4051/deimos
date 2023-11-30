@@ -777,7 +777,7 @@ class OscCalculator(object) :
         basis,       # string: "mass" or "flavor"
         a_eV,        # 3 x Num_Nu x Num_nu
         c,           # 3 x Num_Nu x Num_nu
-        e,           # 3 x Num_Nu x Num_nu
+        e=None,           # 3 x Num_Nu x Num_nu
         ra_rad=None,
         dec_rad=None,
     ) :
@@ -797,7 +797,9 @@ class OscCalculator(object) :
             operator_shape = (3, self.num_neutrinos, self.num_neutrinos) # shape is (num spatial dims, N, N), where N is num neutrino states
             assert isinstance(a_eV, np.ndarray) and (a_eV.shape == operator_shape)
             assert isinstance(c, np.ndarray) and (c.shape == operator_shape) 
-            assert e is not None
+            # assert e is not None
+            if e is None :
+                e = np.zeros(operator_shape)
             assert isinstance(e, np.ndarray) and (e.shape == operator_shape) 
         else :
             operator_shape = (self.num_neutrinos, self.num_neutrinos) # shape is (N, N), where N is num neutrino states
@@ -892,6 +894,13 @@ class OscCalculator(object) :
                 lat_deg=44.3517,
                 long_deg=-103.7513,
                 height_m=-1.5e3,
+            )
+
+        elif name.lower() == "km3net" :
+            self.set_detector_location(
+                lat_deg="39°59′24″N",
+                long_deg="05°55′50″E",
+                height_m=-1500.,
             )
 
         else :
@@ -1087,8 +1096,8 @@ class OscCalculator(object) :
             #         assert operator.shape == (self.num_states, self.num_states) # Flavor/mass basis structure
             
             # Handle antineutrinos
-            # if nubar:
-            #     sme_a = - sme_a
+            if nubar:
+                sme_a = - sme_a
             #     if sme_is_directional :
             #         sme_e = - sme_e
             #     warnings.warn("Solver assumes that the CPT-odd parameters are specified for neutrinos and changes sign.")
@@ -1128,7 +1137,8 @@ class OscCalculator(object) :
             randomize_atmo_prod_height = False #TODO support
 
             # Init results container
-            results = np.full( (energy_GeV.size, coszen.size, final_flavors.size, 2 ), np.NaN )
+            # results = np.full( (energy_GeV.size, coszen.size, final_flavors.size, 2 ), np.NaN )
+            results = np.full( (energy_GeV.size, coszen.size, final_flavors.size), np.NaN )  #removed dimension 2 (don't know what it is for)
 
             # Determine shape of initial state vector
             state_shape = [ self.nusquids.GetNumCos(), self.nusquids.GetNumE() ]
