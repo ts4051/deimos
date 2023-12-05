@@ -461,40 +461,20 @@ class OscCalculator(object) :
 
     def set_std_osc(self) :
         '''
-        Use standard oscillations (e.g. disable decoherence)
+        Use standard oscillations (e.g. disable any BSM effects)
         '''
 
         if self.tool == "nusquids" :
             self.set_calc_basis(DEFAULT_CALC_BASIS)
-            # self.set_decoherence_D_matrix_basis(DEFAULT_CALC_BASIS)
 
+            if self._nusquids_variant == "nuSQUIDSDecoh" :
+                # self.set_decoherence_D_matrix_basis(DEFAULT_CALC_BASIS)
+                self.set_decoherence_D_matrix(D_matrix_eV=np.zeros((self.num_sun_basis_vectors,self.num_sun_basis_vectors)), n=0, E0_eV=1.)
 
-            #TODO REPLACE
-            #TODO REPLACE
-            #TODO REPLACE
-            #TODO REPLACE
-            #TODO REPLACE
-            #TODO REPLACE
-            #TODO REPLACE
-            #TODO REPLACE
-            #TODO REPLACE
-            #TODO REPLACE
-            #TODO REPLACE
-            #TODO REPLACE
-            # self.set_decoherence_D_matrix(D_matrix_eV=np.zeros((self.num_sun_basis_vectors,self.num_sun_basis_vectors)), n=0, E0_eV=1.)
-            #TODO REPLACE
-            #TODO REPLACE
-            #TODO REPLACE
-            #TODO REPLACE
-            #TODO REPLACE
-            #TODO REPLACE
-            #TODO REPLACE
-            #TODO REPLACE
-            #TODO REPLACE
-            #TODO REPLACE
-            #TODO REPLACE
-
-            self.set_sme(cft=0., n=0)
+            elif self._nusquids_variant == "nuSQUIDSLIV" :
+                null_matrix = np.zeros((3,self.num_neutrinos,self.num_neutrinos))
+                self.set_sme(directional=True, basis="mass", a_eV=null_matrix, c=null_matrix, e=null_matrix)
+        
         else :
             self._decoh_model_kw = None
             self._lightcone_model_kw = None
@@ -505,7 +485,7 @@ class OscCalculator(object) :
     def set_calc_basis(self, basis) :
 
         if self.tool == "nusquids" :
-            assert basis == "nxn" #TOO is this correct?
+            assert basis == "nxn" #TODO is this correct?
 
         elif self.tool == "deimos" :
             self._calc_basis = basis # Store for use later
@@ -527,7 +507,6 @@ class OscCalculator(object) :
 
     #     else :
     #         raise Exception("`%s` does not support setting decoherence gamma matrix basis" % self.tool)
-
 
 
 
@@ -823,10 +802,10 @@ class OscCalculator(object) :
 
     def set_sme(self,
         directional, # bool
-        basis,
-        a_eV,
-        c,
-        e=None,
+        basis,       # string: "mass" or "flavor"
+        a_eV=None,        # 3 x Num_Nu x Num_nu
+        c=None,           # 3 x Num_Nu x Num_nu
+        e=None,           # 3 x Num_Nu x Num_nu
         ra_rad=None,
         dec_rad=None,
     ) :
@@ -840,19 +819,28 @@ class OscCalculator(object) :
 
         assert basis in ["flavor", "mass"]
 
-        if directional :
+        if directional :   #TODO Maybe not relevant anymore? (Non-directional does currently not work in nuSQuIDS)
             operator_shape = (3, self.num_neutrinos, self.num_neutrinos) # shape is (num spatial dims, N, N), where N is num neutrino states
+            if a_eV is None: 
+                a_eV = np.zeros(operator_shape)
+            if c is None:
+                c = np.zeros(operator_shape)
+            if e is None :
+                e = np.zeros(operator_shape)
+
             assert isinstance(a_eV, np.ndarray) and (a_eV.shape == operator_shape)
             assert isinstance(c, np.ndarray) and (c.shape == operator_shape) 
-            assert e is not None
             assert isinstance(e, np.ndarray) and (e.shape == operator_shape) 
-            assert ra_rad is not None
-            assert dec_rad is not None
+
+            assert (ra_rad is not None) and (dec_rad is not None), "Must provide ra and dec when using directional SME"
+
         else :
             operator_shape = (self.num_neutrinos, self.num_neutrinos) # shape is (N, N), where N is num neutrino states
             assert isinstance(a_eV, np.ndarray) and (a_eV.shape == operator_shape)
             assert isinstance(c, np.ndarray) and (c.shape == operator_shape) 
-            assert e is None
+            assert e is None, "e not implemented yet for isotropic SME"
+
+            assert (ra_rad is None) and (dec_rad is None), "ra and dec not relevent for isotropic SME"
 
 
         #
@@ -860,6 +848,8 @@ class OscCalculator(object) :
         #
 
         if self.tool == "nusquids" :
+            assert directional, "Istropic SME not implemented in nuSQuIDS yet"
+            assert basis == "mass", "Only mass basis SME implemented in nuSQuIDS currently"
             self.nusquids.Set_LIVCoefficient(a_eV, c, e, ra_rad, dec_rad)
 
         elif self.tool == "deimos" :
@@ -913,7 +903,7 @@ class OscCalculator(object) :
             self.set_detector_location(
                 lat_deg="89°59′24″S",
                 long_deg="63°27′11″W",
-                height_m=1400.,
+                height_m=-1400.,
             )
 
         elif name.lower() == "dune" :
@@ -921,6 +911,13 @@ class OscCalculator(object) :
                 lat_deg=44.3517,
                 long_deg=-103.7513,
                 height_m=-1.5e3,
+            )
+
+        elif name.lower() == "arca" :
+            self.set_detector_location(
+                lat_deg="36°15′36″N",
+                long_deg="16°06′00″E",
+                height_m=-1500.,
             )
 
         else :
