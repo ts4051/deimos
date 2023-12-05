@@ -78,7 +78,7 @@ def get_sme_hamiltonian_directional(
     # r vector
     NX = np.sin(theta) * np.cos(phi)
     NY = np.sin(theta) * np.sin(phi)
-    NZ = np.cos(theta)
+    NZ = - np.cos(theta)
     
     # theta vector
     ThetaX = np.cos(theta)*np.cos(phi)

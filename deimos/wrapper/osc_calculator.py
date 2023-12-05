@@ -248,7 +248,7 @@ class OscCalculator(object) :
 
 
 
-    def set_matter(self, matter, **kw) :
+    def set_matter(self, matter, kw) :
 
         #
         # Vacuum
@@ -257,10 +257,6 @@ class OscCalculator(object) :
         if (matter == "vacuum") or (matter is None) :
 
             if self.tool == "nusquids" :
-                # vacuum = nsq.Vacuum()
-                # print(type(vacuum))
-                # self.nusquids.Set_Body(vacuum)
-
                 self.nusquids.Set_Body(nsq.Vacuum())
 
             elif self.tool == "deimos" :
@@ -483,7 +479,7 @@ class OscCalculator(object) :
     def set_calc_basis(self, basis) :
 
         if self.tool == "nusquids" :
-            assert basis == "nxn" #TOO is this correct?
+            assert basis == "nxn" #TODO is this correct?
 
         elif self.tool == "deimos" :
             self._calc_basis = basis # Store for use later
@@ -775,8 +771,8 @@ class OscCalculator(object) :
     def set_sme(self,
         directional, # bool
         basis,       # string: "mass" or "flavor"
-        a_eV,        # 3 x Num_Nu x Num_nu
-        c,           # 3 x Num_Nu x Num_nu
+        a_eV=None,        # 3 x Num_Nu x Num_nu
+        c=None,           # 3 x Num_Nu x Num_nu
         e=None,           # 3 x Num_Nu x Num_nu
         ra_rad=None,
         dec_rad=None,
@@ -793,14 +789,19 @@ class OscCalculator(object) :
 
         assert basis in ["flavor", "mass"]
 
-        if directional :
+        if directional :   #TODO Maybe not relevant anymore? (Non-directional does currently not work in nuSQuIDS)
             operator_shape = (3, self.num_neutrinos, self.num_neutrinos) # shape is (num spatial dims, N, N), where N is num neutrino states
-            assert isinstance(a_eV, np.ndarray) and (a_eV.shape == operator_shape)
-            assert isinstance(c, np.ndarray) and (c.shape == operator_shape) 
-            # assert e is not None
+            if a_eV is None: 
+                a_eV=np.zeros(operator_shape)
+            if c is None:
+                c=np.zeros(operator_shape)
             if e is None :
                 e = np.zeros(operator_shape)
+
+            assert isinstance(a_eV, np.ndarray) and (a_eV.shape == operator_shape)
+            assert isinstance(c, np.ndarray) and (c.shape == operator_shape) 
             assert isinstance(e, np.ndarray) and (e.shape == operator_shape) 
+
         else :
             operator_shape = (self.num_neutrinos, self.num_neutrinos) # shape is (N, N), where N is num neutrino states
             assert isinstance(a_eV, np.ndarray) and (a_eV.shape == operator_shape)
@@ -896,10 +897,10 @@ class OscCalculator(object) :
                 height_m=-1.5e3,
             )
 
-        elif name.lower() == "km3net" :
+        elif name.lower() == "arca" :
             self.set_detector_location(
-                lat_deg="39°59′24″N",
-                long_deg="05°55′50″E",
+                lat_deg="36°15′36″N",
+                long_deg="16°06′00″E",
                 height_m=-1500.,
             )
 
