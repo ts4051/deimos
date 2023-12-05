@@ -5,9 +5,12 @@ both from this project and external.
 Tom Stuttard
 '''
 
+# Import plotting tools
+# Do this before anything else, as want the matplotlib backend handling dealt with before any other packages called
+from deimos.utils.plotting import *
+
 import sys, os, collections, numbers, copy, re
 import numpy as np
-import matplotlib.pyplot as plt
 import warnings
 import healpy as hp
 
@@ -25,13 +28,11 @@ except ImportError as e:
 
 # Import nuSQuIDS decoherence implementation
 NUSQUIDS_DECOH_AVAIL = False
-# try:
-#     print("+++ OW 5")
-#     from nuSQUIDSDecohPy import nuSQUIDSDecoh, nuSQUIDSDecohAtm  #TODO this is hanging, why? for no have commented this out
-#     print("+++ OW 6")
-#     NUSQUIDS_DECOH_AVAIL = True
-# except ImportError as e:
-#     pass
+try:
+    from nuSQUIDSDecohPy import nuSQUIDSDecoh, nuSQUIDSDecohAtm
+    NUSQUIDS_DECOH_AVAIL = True
+except ImportError as e:
+    pass
 
 # Import prob3
 PROB3_AVAIL = False
@@ -124,10 +125,26 @@ class OscCalculator(object) :
         energy_nodes_GeV=None,
         coszen_nodes=None,
         interactions=False,
+        nusquids_variant=None, # Specify nuSQuIDS variants (nuSQuIDSDecoh, nuSQUIDSLIV, etc)
         error=1.e-6,
     ) :
 
         assert NUSQUIDS_AVAIL, "Cannot use nuSQuIDS, not installed"
+
+
+        #
+        # Handle nuSQuIDS variants
+        #
+
+        # Store arg
+        self._nusquids_variant = nusquids_variant
+
+        # Aliases
+        if self._nusquids_variant in ["decoh", "decoherence" ] :
+            self._nusquids_variant = "nuSQUIDSDecoh"
+        if self._nusquids_variant in ["liv", "LIV", "sme", "SME" ] :
+            self._nusquids_variant = "nuSQUIDSLIV"
+
 
         #
         # Calculation nodes
@@ -169,18 +186,26 @@ class OscCalculator(object) :
                 nu_type,
                 interactions,
             ]
-            if NUSQUIDS_DECOH_AVAIL :
-                self.nusquids = nuSQUIDSDecohAtm(*args)
-            else :
+
+            if self._nusquids_variant is None :
                 self.nusquids = nsq.nuSQUIDSAtm(*args)
 
+            elif self._nusquids_variant == "nuSQUIDSDecoh" :
+                assert NUSQUIDS_DECOH_AVAIL, "Could not find nuSQuIDS decoherence implementation"
+                self.nusquids = nuSQUIDSDecohAtm(*args) #TODO Needs updating to modern nuSQuIDS pybindings format
+
+            elif self._nusquids_variant == "nuSQUIDSLIV" :
+                assert hasattr(nsq, "nuSQUIDSLIVAtm"), "Could not find nuSQuIDS LIV implementation"
+                self.nusquids = nsq.nuSQUIDSLIVAtm(*args)
+
+            else :
+                raise Exception("Unknown nusquids varint : %s" % self._nusquids_variant)
+            
             # Add tau regeneration
             # if interactions :
-            #     self.nusquids.Set_TauRegeneration(True) #TODO results look wrong, disable for now and investigate
+            #     self.nusquids.Set_TauRegeneration(True) #TODO results look wrong, disable for now and investigate #TODO what about NC regeneration?
 
         else :
-
-            print(self.energy_nodes_GeV)
 
             # Instantiate nuSQuIDS regular calculator
             args = [
@@ -189,12 +214,20 @@ class OscCalculator(object) :
                 nu_type,
                 interactions,
             ]
-            if NUSQUIDS_DECOH_AVAIL :
-                self.nusquids = nuSQUIDSDecoh(*args)
-            else :
-                # self.nusquids = nsq.nuSQUIDS(*args)
+
+            if self._nusquids_variant is None :
+                self.nusquids = nsq.nuSQUIDS(*args)
+
+            elif self._nusquids_variant == "nuSQUIDSDecoh" :
+                assert NUSQUIDS_DECOH_AVAIL, "Could not find nuSQuIDS decoherence implementation"
+                self.nusquids = nuSQUIDSDecoh(*args) #TODO Needs updating to modern nuSQuIDS pybindings format
+
+            elif self._nusquids_variant == "nuSQUIDSLIV" :
+                assert hasattr(nsq, "nuSQUIDSLIV"), "Could not find nuSQuIDS LIV implementation"
                 self.nusquids = nsq.nuSQUIDSLIV(*args)
-            
+
+            else :
+                raise Exception("Unknown nusquids varint : %s" % self._nusquids_variant)
 
         #
         # Various settings
@@ -531,7 +564,7 @@ class OscCalculator(object) :
         #
 
         if self.tool == "nusquids" :
-            assert NUSQUIDS_DECOH_AVAIL
+            assert self._nusquids_variant == "nuSQUIDSDecoh"
             assert np.allclose(D_matrix_eV.imag, 0.), "nuSQuIDS decoherence implementation currently does not support imaginary gamma matrix"
             self.nusquids.Set_DecoherenceGammaMatrix(D_matrix_eV.real * self.units.eV)
             self.nusquids.Set_DecoherenceGammaEnergyDependence(n)
@@ -794,6 +827,8 @@ class OscCalculator(object) :
         a_eV,
         c,
         e=None,
+        ra_rad=None,
+        dec_rad=None,
     ) :
         '''
         TODO
@@ -811,6 +846,8 @@ class OscCalculator(object) :
             assert isinstance(c, np.ndarray) and (c.shape == operator_shape) 
             assert e is not None
             assert isinstance(e, np.ndarray) and (e.shape == operator_shape) 
+            assert ra_rad is not None
+            assert dec_rad is not None
         else :
             operator_shape = (self.num_neutrinos, self.num_neutrinos) # shape is (N, N), where N is num neutrino states
             assert isinstance(a_eV, np.ndarray) and (a_eV.shape == operator_shape)
@@ -823,9 +860,7 @@ class OscCalculator(object) :
         #
 
         if self.tool == "nusquids" :
-            raise NotImplementedError()
-            # self.nusquids.Set_LIVCoefficient(cft)
-            # self.nusquids.Set_LIVEnergyDependence(n)
+            self.nusquids.Set_LIVCoefficient(a_eV, c, e, ra_rad, dec_rad)
 
         elif self.tool == "deimos" :
             if directional :
@@ -961,8 +996,8 @@ class OscCalculator(object) :
         
         # If skymap is being plotted with healpix
         # Set coszen values to the values corresponding to the different pixels of the healpix map
-        if self.skymap_use:
-            coszen = self._neutrino_source_kw["coszen"]
+        # if self.skymap_use:
+        #     coszen = self._neutrino_source_kw["coszen"]
         
         #
         # Calculate
@@ -1453,8 +1488,6 @@ class OscCalculator(object) :
         Compute and plot the oscillation probability, vs propagation distance
         '''
 
-        import matplotlib.pyplot as plt
-
         # Handle distance vs coszen
         if self.atmospheric :
             assert coszen is not None
@@ -1553,8 +1586,6 @@ class OscCalculator(object) :
         Compute and plot the oscillation probability, vs neutrino energy
         '''
 
-        import matplotlib.pyplot as plt
-
         # Handle distance vs coszen
         if self.atmospheric :
             assert coszen is not None
@@ -1643,8 +1674,6 @@ class OscCalculator(object) :
         Plot the CP(T) asymmetry
         '''
 
-        import matplotlib.pyplot as plt
-
         raise NotImplemented("TODO")
 
 
@@ -1660,8 +1689,6 @@ class OscCalculator(object) :
         '''
         Helper function for plotting an atmospheric neutrino oscillogram
         '''
-
-        import matplotlib.pyplot as plt
         from deimos.utils.plotting import plot_colormap, value_spacing_is_linear
 
         assert self.atmospheric, "`plot_oscillogram` can only be called in atmospheric mode"
