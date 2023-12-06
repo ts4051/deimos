@@ -177,7 +177,7 @@ class OscCalculator(object) :
 
         # Toggle between atmo. vs regular modes
         if self.atmospheric :
-
+            
             # Instantiate nuSQuIDS atmospheric calculator
             args = [
                 self.coszen_nodes,
@@ -473,7 +473,7 @@ class OscCalculator(object) :
 
             elif self._nusquids_variant == "nuSQUIDSLIV" :
                 null_matrix = np.zeros((3,self.num_neutrinos,self.num_neutrinos))
-                self.set_sme(directional=True, basis="mass", a_eV=null_matrix, c=null_matrix, e=null_matrix)
+                self.set_sme(directional=True, basis="mass", a_eV=null_matrix, c=null_matrix, e=null_matrix, ra_rad=0., dec_rad=0.)
         
         else :
             self._decoh_model_kw = None
@@ -802,7 +802,7 @@ class OscCalculator(object) :
 
     def set_sme(self,
         directional, # bool
-        basis,       # string: "mass" or "flavor"
+        basis=None,       # string: "mass" or "flavor"
         a_eV=None,        # 3 x Num_Nu x Num_nu
         c=None,           # 3 x Num_Nu x Num_nu
         e=None,           # 3 x Num_Nu x Num_nu
@@ -817,6 +817,8 @@ class OscCalculator(object) :
         # Check inputs
         #
 
+        if basis is None :
+            basis = "mass"
         assert basis in ["flavor", "mass"]
 
         if directional :   #TODO Maybe not relevant anymore? (Non-directional does currently not work in nuSQuIDS)
@@ -860,6 +862,8 @@ class OscCalculator(object) :
                     "a_eV" : a_eV,
                     "c" : c,
                     "e": e,
+                    "ra_rad" : ra_rad,
+                    "dec_rad" : dec_rad,
                 }
             else :
                 self._sme_model_kw = {
@@ -972,6 +976,9 @@ class OscCalculator(object) :
         nubar=False,
         **kw
     ) :
+        '''
+        For the given model state, calcukate oscillation probabilities for neutrinos as specified in the inputs
+        '''
 
         #TODO caching
         #TODO Option for different final rho to allow nu->nubar transitions
@@ -980,29 +987,57 @@ class OscCalculator(object) :
         # Check inputs
         # 
  
-        # Handle coszen vs baseline (want one or the other)
-        if self.atmospheric :
-            assert ( (coszen is not None) and (distance_km is None) ), "Must provide `coszen` (and not `distance_km`) in atmospheric mode"
+         # Handle arrays vs single values for energy
+        if isinstance(energy_GeV, (list, np.ndarray)) :
+            single_energy, energy_size = False, len(energy_GeV)
         else :
-            assert ( (distance_km is not None) and (coszen is None) ), "Must provide `distance_km` (and not `coszen`) in non-atmospheric mode" 
+            assert isinstance(energy_GeV, numbers.Number)
+            single_energy, energy_size = True, 1
 
         # Indexing
         if initial_flavor is not None :
             initial_flavor = self._get_flavor_index(initial_flavor)
 
+        #
+        # Handle atmospheric mode
+        #
         
-        # If skymap is being plotted with healpix
-        # Set coszen values to the values corresponding to the different pixels of the healpix map
-        # if self.skymap_use:
-        #     coszen = self._neutrino_source_kw["coszen"]
-        
+        if self.atmospheric :
+
+            # Want coszen, not distance
+            assert ( (coszen is not None) and (distance_km is None) ), "Must provide `coszen` (and not `distance_km`) in atmospheric mode"  #TODO option to provide distance still in atmo mode
+
+            # Handle single vs array of distances
+            if isinstance(coszen, (list, np.ndarray)) :
+                coszen = np.array(coszen)
+                assert coszen.ndim == 1
+                single_dist, dist_size = False, len(coszen)
+            else :
+                assert isinstance(coszen, numbers.Number)
+                coszen = [coszen]
+                single_dist, dist_size = True, 1
+
+        else :
+
+            # Want distance, not coszen
+            assert ( (distance_km is not None) and (coszen is None) ), "Must provide `distance_km` (and not `coszen`) in non-atmospheric mode" 
+
+            # Handle single vs array of distances
+            if isinstance(distance_km, (list, np.ndarray)) :
+                single_dist, dist_size = False, len(distance_km)
+            else :
+                assert isinstance(distance_km, numbers.Number)
+                single_dist, dist_size = True, 1
+
+
+
         #
         # Calculate
         #
 
         # Call sub-function for relevent solver
         if self.tool == "nusquids" :
-            osc_probs = self._calc_osc_prob_nusquids( initial_flavor=initial_flavor, initial_state=initial_state, energy_GeV=energy_GeV, distance_km=distance_km, coszen=coszen, nubar=nubar, **kw )
+            osc_probs = self._calc_osc_prob_nusquids( initial_flavor=initial_flavor, initial_state=initial_state, energy_GeV=energy_GeV, distance_km=distance_km, coszen=coszen, nubar=nubar, **kw ) #TODO use single E value for single E mode
 
         elif self.tool == "deimos" :
             assert initial_flavor is not None, "must provide `initial_flavor` (`initial_state` not currently supported for %s" % self.tool
@@ -1011,10 +1046,217 @@ class OscCalculator(object) :
         elif self.tool == "prob3" :
             osc_probs = self._calc_osc_prob_prob3( initial_flavor=initial_flavor, energy_GeV=energy_GeV, distance_km=distance_km, coszen=coszen, nubar=nubar, **kw )
 
+
+
+        #
+        # Done
+        #
+
+        # Check shape of output array
+        expected_shape = ( energy_size, dist_size, self.num_neutrinos )
+        assert osc_probs.shape == expected_shape
+
+        # Remove single-valued dimensions, and check shape again
+        # osc_probs = np.squeeze(osc_probs)
+        # expected_shape = []
+        # if not single_energy :
+        #     expected_shape.append(energy_size)
+        # if not single_dist :
+        #     expected_shape.append(dist_size)
+        # expected_shape.append(self.num_neutrinos)
+        # expected_shape = tuple(expected_shape)
+        # assert osc_probs.shape = expected_shape
+        if single_energy and single_dist :
+            osc_probs = osc_probs[0,0,:]
+        elif single_energy :
+            osc_probs = osc_probs[0,:,:]
+        elif single_dist :
+            osc_probs = osc_probs[:,0,:]
+
         # Checks
         assert np.all( np.isfinite(osc_probs) ), "Found non-finite osc probs"
 
         return osc_probs
+
+
+
+    def calc_osc_prob_sme(self,
+        # Neutrino properties
+        energy_GeV,
+        ra_rad,
+        dec_rad,
+        time,
+        initial_flavor,
+        nubar=False,
+        # SME properties
+        std_osc=False, # Can toggle standard oscillations (rather than SME)
+        basis=None,
+        a_eV=None,
+        c=None,
+        e=None,
+        # Args to pass down to the standard osc prob calc
+        **kw
+    ) :
+        '''
+        Similar to calc_osc_prob, but for the specific case of the SME where there is also a RA/declination/time dependence 
+
+        Aswell as osc probs, also return the computed direction information
+        '''
+
+        #TODO option to provide detector coord info (coszen, azimuth) instead of ra/dec
+
+
+        #
+        # Check inputs
+        #
+
+        # Handle arrays vs single values for RA/dec     #TODO option to pass one of RA/dec as single valued and one as array
+        if isinstance(ra_rad, (list, np.ndarray)) :
+            assert isinstance(dec_rad, (list, np.ndarray)), "ra_rad and dec_rad must either both be array-like or both scalars"
+            ra_rad_values = np.array(ra_rad)
+            dec_rad_values = np.array(dec_rad)
+            assert ra_rad_values.ndim == 1
+            assert dec_rad_values.ndim == 1
+            assert ra_rad_values.size == dec_rad_values.size
+            single_dir = False
+        else :
+            assert isinstance(ra_rad, numbers.Number)
+            assert isinstance(dec_rad, numbers.Number)
+            ra_rad_values = [ra_rad]
+            dec_rad_values = [dec_rad]
+            single_dir = True
+
+        # Handle arrays vs single values for time
+        if isinstance(time, (list, np.ndarray)) :
+            time_values = time
+            assert np.ndim(time_values) == 1
+            single_time = False
+        else :
+            time_values = [time]
+            single_time = True
+
+        # Handle SME vs standard osc
+        if std_osc :
+            assert basis is None
+            assert a_eV is None
+            assert c is None
+            assert e is None
+
+
+        #
+        # Loop over direction and time
+        #
+
+        osc_probs = []
+        coszen_values, azimuth_values = [], []
+
+        for ra_rad, dec_rad in zip(ra_rad_values, dec_rad_values) :
+
+            osc_probs_vs_time = []
+            coszen_values_vs_time, azimuth_values_vs_time = [], []
+
+            for time in time_values :
+
+
+                #
+                # Set SME model params 
+                #
+
+                # Cannot do this before calling this function as for most oscillation models, due to the RA/declination/time dependence of the Hamiltonian
+                # Also might use standard oscillations here, depending on what user requestes
+
+                if std_osc :
+                    self.set_std_osc()
+
+                else :
+                    self.set_sme(
+                        directional=True,
+                        basis=basis,
+                        a_eV=a_eV,
+                        c=c,
+                        e=e,
+                        ra_rad=ra_rad,
+                        dec_rad=dec_rad,
+                    )
+
+
+                #
+                # Handle atmospheric vs regular case
+                #
+
+                if self.atmospheric :
+
+                    #
+                    # Atmospheric case
+                    #
+
+                    # Need to know the detector location to get coszen/azimuth from RA/dec
+                    assert self.detector_coords is not None, "Must set detector position"
+
+                    # Get local direction coords
+                    coszen, altitude, azimuth = self.detector_coords.get_coszen_altitude_and_azimuth(ra_deg=np.rad2deg(ra_rad), dec_deg=np.rad2deg(dec_rad), time=time)
+
+                    # Standard osc prob calc, so this particular direction/time
+                    _osc_probs = self.calc_osc_prob(
+                        initial_flavor=initial_flavor,
+                        nubar=nubar,
+                        energy_GeV=energy_GeV,
+                        coszen=coszen,
+                        **kw # Pass down kwargs
+                    )
+
+
+
+                else :
+
+                    #
+                    # Regular (1D) case
+                    #
+
+                    raise NotImplemented("Non-atmospheric case not yet implemented for celestial coords")
+
+
+                # Merge into the overall output array
+                if single_time :
+                    osc_probs_vs_time = _osc_probs
+                    coszen_values_vs_time = coszen
+                    azimuth_values_vs_time = azimuth
+                else :
+                    osc_probs_vs_time.append( _osc_probs )
+                    coszen_values_vs_time.append( coszen )
+                    azimuth_values_vs_time.append( azimuth )
+
+            # Merge into the overall output array
+            if single_dir :
+                osc_probs = osc_probs_vs_time
+                coszen_values = coszen_values_vs_time
+                azimuth_values = azimuth_values_vs_time
+            else :
+                osc_probs.append( osc_probs_vs_time )
+                coszen_values.append( coszen_values_vs_time )
+                azimuth_values.append( azimuth_values_vs_time )
+
+        #
+        # Done
+        #
+
+        # Array-ify
+        osc_probs = np.array(osc_probs)
+        coszen_values = np.array(coszen_values)
+        azimuth_values = np.array(azimuth_values)
+
+        # Check size
+        #TODO
+
+        # Checks
+        assert np.all( np.isfinite(osc_probs) ), "Found non-finite osc probs"
+
+        # Return
+        return_values = [osc_probs]
+        if self.atmospheric :
+            return_values.extend([ coszen_values, azimuth_values ])
+        return tuple(return_values)
+
 
 
     def _calc_osc_prob_nusquids(self,
@@ -1078,7 +1320,8 @@ class OscCalculator(object) :
             randomize_atmo_prod_height = False #TODO support
 
             # Init results container
-            results = np.full( (energy_GeV.size, coszen.size, final_flavors.size, 2 ), np.NaN )
+            # results = np.full( (energy_GeV.size, coszen.size, final_flavors.size, 2 ), np.NaN )
+            results = np.full( (energy_GeV.size, coszen.size, final_flavors.size ), np.NaN )
 
             # Determine shape of initial state vector
             state_shape = [ self.nusquids.GetNumCos(), self.nusquids.GetNumE() ]
@@ -1104,7 +1347,7 @@ class OscCalculator(object) :
                 for i_cz,cz in enumerate(coszen) :
                     for i_f,final_flavor in enumerate(final_flavors) :
                         # results[i_E,i_cz,i_f] = self.nusquids.EvalFlavor( final_flavor, cz, E*self.units.GeV )#, rho ) #TODO Add randomize prod height arg
-                        results[i_E,i_cz,i_f] = self.nusquids.EvalFlavor( int(final_flavor), cz, E*self.units.GeV, rho, randomize_atmo_prod_height) #TODO add nubar
+                        results[i_E,i_cz,i_f] = self.nusquids.EvalFlavor( int(final_flavor), cz, E*self.units.GeV, int(rho), randomize_atmo_prod_height) #TODO add nubar
 
             return results
 
@@ -1160,6 +1403,7 @@ class OscCalculator(object) :
 
             #TODO squeeze unused dimensions?
 
+            print("B")
             return results
 
 
@@ -1339,12 +1583,9 @@ class OscCalculator(object) :
         # DensityMatrixOscSolver doesn't like decending distance values in the input arrays,
         # and this is what you get from coszen arrays often
         flip = False
-        if self._sme_model_kw:
-            pass
-        else:
-            if distance_km[-1] < distance_km[0] : 
-                flip = True
-                distance_km = np.flip(distance_km)
+        if distance_km[-1] < distance_km[0] : 
+            flip = True
+            distance_km = np.flip(distance_km)
 
         # Run solver
         # 'results' has shape [N energy, N distance, N flavor]
@@ -1361,8 +1602,6 @@ class OscCalculator(object) :
             sme_opts=self._sme_model_kw,
             detector_opts=self.detector_coords,
             # neutrino_source_opts=self._neutrino_source_kw, #TODO REMOVE?
-            ra_rad=ra_rad,
-            dec_rad=dec_rad,
             verbose=False
         )
 

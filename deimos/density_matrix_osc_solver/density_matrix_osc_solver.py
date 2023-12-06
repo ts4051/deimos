@@ -546,18 +546,12 @@ class DensityMatrixOscSolver(object) :
         initial_basis="flavor", # Optionally can set initial state in mass basis
         nubar=False,
 
-        # Neutrino direction in celestial coords - only required for certain models (such as the SME)
-        ra_rad=None,
-        dec_rad=None,
-
         # Options to be passed to the decoherence calculator
         decoh_opts=None,
         lightcone_opts=None,
 
         # Options to be passed to the SME calculator
         sme_opts=None,
-        detector_opts= None,
-        neutrino_source_opts=None,
         
         # Misc
         calc_basis="nxn", # Optionally can choose which basis to perform calculation in (nxn, sun)
@@ -711,6 +705,10 @@ class DensityMatrixOscSolver(object) :
             if sme_is_directional : # e term only implemented for direction SME currently
                 assert "e" in sme_opts
                 sme_e = sme_opts.pop("e") # dimensionless
+                assert "ra_rad" in sme_opts
+                ra_rad = sme_opts.pop("ra_rad")
+                assert "dec_rad" in sme_opts
+                dec_rad = sme_opts.pop("dec_rad")
 
             # Check shapes
             if sme_is_directional :
@@ -736,8 +734,6 @@ class DensityMatrixOscSolver(object) :
 
             # Get neutrino direction in celestial coords
             if sme_is_directional :
-                assert ra_rad is not None
-                assert dec_rad is not None
                 assert np.isscalar(ra_rad)
                 assert np.isscalar(dec_rad)
                 assert (ra_rad >= 0) and (ra_rad <= 2 * np.pi)
