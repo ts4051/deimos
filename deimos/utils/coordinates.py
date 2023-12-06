@@ -202,29 +202,16 @@ def get_neutrino_direction_vector(ra_rad, dec_rad) :
 
 if __name__ == "__main__" :
 
-
-    #TODO round trip test fails
-    #TODO round trip test fails
-    #TODO round trip test fails
-    #TODO round trip test fails
-    #TODO round trip test fails
-    #TODO round trip test fails
-    #TODO round trip test fails
-    #TODO round trip test fails
-    #TODO round trip test fails
-    #TODO round trip test fails
-    #TODO round trip test fails
-
-
+    #TODO round trip test fails, investigate...
 
     # Init
     det_coords = DetectorCoords(
         detector_lat="89°59′24″S", # IceCube
         detector_long="63°27′11″W",
-        detector_height_m=1400,
+        detector_height_m=-1400,
     )
         
-    # Round trip test
+    # Round trip test: Start from RA/dec and convert to zenith/azimuth, then back again to check we recover the original inputs
     time =  "July 15, 2023, 14:30"
     ra_deg, dec_deg = 13., 47.
     coszen, altitude, azimuth = det_coords.get_coszen_altitude_and_azimuth(ra_deg=ra_deg, dec_deg=dec_deg, time=time)
