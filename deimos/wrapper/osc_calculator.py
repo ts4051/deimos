@@ -248,7 +248,8 @@ class OscCalculator(object) :
 
 
 
-    def set_matter(self, matter, kw) :
+    def set_matter(self, matter,
+                   **kw) :
 
         #
         # Vacuum
@@ -306,6 +307,48 @@ class OscCalculator(object) :
                 print("WARNING : electron fraction not currently handled by prob3 wrapper")
                 self._prob3_settings["matter"] = "constant"
                 self._prob3_settings["matter_density_g_per_cm3"] = kw["matter_density_g_per_cm3"]
+
+            
+        elif matter == "variable" :
+
+            assert "radius_fraction_array" in kw     # Array of radii, in units of Earth radius, i.e. 0 at centre and 1 at surface
+            assert "matter_density_array_g_per_cm3" in kw
+            assert "electron_fraction_array" in kw
+
+            if self.tool == "nusquids" :
+                # print(kw["radius_fraction_array"], kw["matter_density_array_g_per_cm3"], kw["electron_fraction_array"])
+
+                self.nusquids.Set_Body(nsq.VariableDensity(kw["radius_fraction_array"], kw["matter_density_array_g_per_cm3"], kw["electron_fraction_array"]))
+            
+            elif self.tool == "deimos" :
+                raise Exception("`%s` does not have a variable density matter model implemented" % self.tool)
+
+            elif self.tool == "prob3" :
+                raise Exception("`%s` does not have a variable density matter model implemented" % self.tool)
+            
+
+
+        elif matter == "three layer" :
+    
+                assert "matter_density_1" in kw
+                assert "matter_density_2" in kw
+                assert "matter_density_3" in kw
+                assert "electron_fraction_1" in kw
+                assert "electron_fraction_2" in kw
+                assert "electron_fraction_3" in kw
+                
+                self.matter_opts = {
+                    "matter_density_1" : kw["matter_density_1"],
+                    "matter_density_2" : kw["matter_density_2"],
+                    "matter_density_3" : kw["matter_density_3"],
+                    "electron_fraction_1" : kw["electron_fraction_1"],
+                    "electron_fraction_2" : kw["electron_fraction_2"],
+                    "electron_fraction_3" : kw["electron_fraction_3"],
+                }
+
+                
+                
+
 
 
         #
@@ -1087,22 +1130,11 @@ class OscCalculator(object) :
             assert "e" in self.sme_opts
             sme_e = self.sme_opts.pop("e") # dimensionless
 
-            # Check shapes
-            # if sme_is_directional :
-            #     for operator in [sme_a, sme_c, sme_e] :
-            #         assert isinstance(operator, np.ndarray)
-            #         assert operator.shape == (3, self.num_states, self.num_states) # First dimension is directional coordinate (x,y,z), next two are flavor/mass basis structure
-            # else :
-            #     for operator in [sme_a, sme_c] :
-            #         assert operator.shape == (self.num_states, self.num_states) # Flavor/mass basis structure
-            
+
             # Handle antineutrinos
             if nubar:
                 sme_a = - sme_a
-            #     if sme_is_directional :
-            #         sme_e = - sme_e
-            #     warnings.warn("Solver assumes that the CPT-odd parameters are specified for neutrinos and changes sign.")
-                
+
 
             # Get neutrino direction in celestial coords
             if sme_is_directional :
@@ -1125,6 +1157,61 @@ class OscCalculator(object) :
                 
            
 
+         #
+        # Three density layer case 
+        #
+
+        if (self.matter_opts is not None) and (self.atmospheric):
+
+            randomize_atmo_prod_height = False #TODO support
+
+            # Init results container
+            # results = np.full( (energy_GeV.size, coszen.size, final_flavors.size, 2 ), np.NaN )
+            results = np.full( (energy_GeV.size, coszen.size, final_flavors.size), np.NaN )  #removed dimension 2 (don't know what it is for)
+
+            # Determine shape of initial state vector
+            state_shape = [ self.nusquids.GetNumCos(), self.nusquids.GetNumE() ]
+            state_shape.append( 2 )
+            state_shape.append( final_flavors.size )
+            state_shape = tuple(state_shape)
+
+            # Define initial state if not provided, otherwise verify the one provided
+            if initial_state is None :
+                initial_state = np.full( state_shape, 0. )
+                initial_state[ :, :, rho, initial_flavor ] = 1. # dims = [ cz node, E node, nu(bar), flavor ]
+            else :
+                assert initial_state.shape == state_shape, "Incompatible shape for initial state : Expected %s, found %s" % (state_shape, initial_state.shape)
+
+            # Set the intial state
+            self.nusquids.Set_initial_state(initial_state, nsq.Basis.flavor)
+
+            # define the three layers
+            matter_density_1 = self.matter_opts.pop("matter_density_1")
+            matter_density_2 = self.matter_opts.pop("matter_density_2")
+            matter_density_3 = self.matter_opts.pop("matter_density_3")
+            electron_fraction_1 = self.matter_opts.pop("electron_fraction_1")
+            electron_fraction_2 = self.matter_opts.pop("electron_fraction_2")
+            electron_fraction_3 = self.matter_opts.pop("electron_fraction_3")
+
+            # Evolve the state in three layers
+            self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_1, electron_fraction_1))
+            # self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_1, electron_fraction_1).Track(3000.0*self.nusquids.Const().km))
+            self.nusquids.EvolveState()
+            self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_2, electron_fraction_2))
+            self.nusquids.EvolveState()
+            self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_3, electron_fraction_3))
+            self.nusquids.EvolveState()
+
+
+            # Evaluate the flavor at each grid point to get oscillation probabilities
+            for i_E,E in enumerate(energy_GeV) :
+                for i_cz,cz in enumerate(coszen) :
+                    for i_f,final_flavor in enumerate(final_flavors) :
+                        # results[i_E,i_cz,i_f] = self.nusquids.EvalFlavor( final_flavor, cz, E*self.units.GeV )#, rho ) #TODO Add randomize prod height arg
+                        results[i_E,i_cz,i_f] = self.nusquids.EvalFlavor( int(final_flavor), cz, E*self.units.GeV, rho, randomize_atmo_prod_height) #TODO add nubar
+
+
+            return results
 
 
 
@@ -1133,7 +1220,7 @@ class OscCalculator(object) :
         # Atmospheric case
         #
 
-        if self.atmospheric :
+        elif self.atmospheric :
 
             randomize_atmo_prod_height = False #TODO support
 
@@ -1167,7 +1254,17 @@ class OscCalculator(object) :
                         # results[i_E,i_cz,i_f] = self.nusquids.EvalFlavor( final_flavor, cz, E*self.units.GeV )#, rho ) #TODO Add randomize prod height arg
                         results[i_E,i_cz,i_f] = self.nusquids.EvalFlavor( int(final_flavor), cz, E*self.units.GeV, rho, randomize_atmo_prod_height) #TODO add nubar
 
+
             return results
+        
+       
+
+
+
+         
+
+
+
 
 
         #
