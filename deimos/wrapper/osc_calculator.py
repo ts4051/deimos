@@ -345,7 +345,6 @@ class OscCalculator(object) :
                     "electron_fraction_2" : kw["electron_fraction_2"],
                     "electron_fraction_3" : kw["electron_fraction_3"],
                 }
-
                 
                 
 
@@ -1011,7 +1010,10 @@ class OscCalculator(object) :
         if self.atmospheric :
             assert ( (coszen is not None) and (distance_km is None) ), "Must provide `coszen` (and not `distance_km`) in atmospheric mode"
         else :
-            assert ( (distance_km is not None) and (coszen is None) ), "Must provide `distance_km` (and not `coszen`) in non-atmospheric mode" 
+            if distance_km is None and coszen is not None :
+                distance_km = calc_path_length_from_coszen(coszen)
+                print("WARNING : `distance_km` is calculated from `coszen` in non-atmospheric mode")
+            # assert ( (distance_km is not None) and (coszen is None) ), "Must provide `distance_km` (and not `coszen`) in non-atmospheric mode" 
 
         # Indexing
         if initial_flavor is not None :
@@ -1157,70 +1159,13 @@ class OscCalculator(object) :
                 
            
 
-         #
-        # Three density layer case 
-        #
-
-        if (self.matter_opts is not None) and (self.atmospheric):
-
-            randomize_atmo_prod_height = False #TODO support
-
-            # Init results container
-            # results = np.full( (energy_GeV.size, coszen.size, final_flavors.size, 2 ), np.NaN )
-            results = np.full( (energy_GeV.size, coszen.size, final_flavors.size), np.NaN )  #removed dimension 2 (don't know what it is for)
-
-            # Determine shape of initial state vector
-            state_shape = [ self.nusquids.GetNumCos(), self.nusquids.GetNumE() ]
-            state_shape.append( 2 )
-            state_shape.append( final_flavors.size )
-            state_shape = tuple(state_shape)
-
-            # Define initial state if not provided, otherwise verify the one provided
-            if initial_state is None :
-                initial_state = np.full( state_shape, 0. )
-                initial_state[ :, :, rho, initial_flavor ] = 1. # dims = [ cz node, E node, nu(bar), flavor ]
-            else :
-                assert initial_state.shape == state_shape, "Incompatible shape for initial state : Expected %s, found %s" % (state_shape, initial_state.shape)
-
-            # Set the intial state
-            self.nusquids.Set_initial_state(initial_state, nsq.Basis.flavor)
-
-            # define the three layers
-            matter_density_1 = self.matter_opts.pop("matter_density_1")
-            matter_density_2 = self.matter_opts.pop("matter_density_2")
-            matter_density_3 = self.matter_opts.pop("matter_density_3")
-            electron_fraction_1 = self.matter_opts.pop("electron_fraction_1")
-            electron_fraction_2 = self.matter_opts.pop("electron_fraction_2")
-            electron_fraction_3 = self.matter_opts.pop("electron_fraction_3")
-
-            # Evolve the state in three layers
-            self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_1, electron_fraction_1))
-            # self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_1, electron_fraction_1).Track(3000.0*self.nusquids.Const().km))
-            self.nusquids.EvolveState()
-            self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_2, electron_fraction_2))
-            self.nusquids.EvolveState()
-            self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_3, electron_fraction_3))
-            self.nusquids.EvolveState()
-
-
-            # Evaluate the flavor at each grid point to get oscillation probabilities
-            for i_E,E in enumerate(energy_GeV) :
-                for i_cz,cz in enumerate(coszen) :
-                    for i_f,final_flavor in enumerate(final_flavors) :
-                        # results[i_E,i_cz,i_f] = self.nusquids.EvalFlavor( final_flavor, cz, E*self.units.GeV )#, rho ) #TODO Add randomize prod height arg
-                        results[i_E,i_cz,i_f] = self.nusquids.EvalFlavor( int(final_flavor), cz, E*self.units.GeV, rho, randomize_atmo_prod_height) #TODO add nubar
-
-
-            return results
-
-
-
 
         #
         # Atmospheric case
         #
 
-        elif self.atmospheric :
+        if self.atmospheric :
+            
 
             randomize_atmo_prod_height = False #TODO support
 
@@ -1261,9 +1206,6 @@ class OscCalculator(object) :
 
 
 
-         
-
-
 
 
 
@@ -1273,6 +1215,7 @@ class OscCalculator(object) :
 
         else :
 
+            
             # Init results container
             results = np.full( (energy_GeV.size, distance_km.size, final_flavors.size), np.NaN )
             # results = np.full( (energy_GeV.size, distance_km.size, final_flavors.size, 2), np.NaN )
@@ -1294,18 +1237,78 @@ class OscCalculator(object) :
             for i_L,L in enumerate(distance_km) :
 
                 # Set then track, taking medium into account
+                
+                
+
                 if self._matter == "vacuum" :
-                    self.nusquids.Set_Track(nsq.Vacuum.Track(L*self.units.km))
+                    self.nusquids.Set_Track(nsq.Vacuum.Track(L*self.units.km))                  # Set track distance and medium
+                    self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )          # Set initial flavor
+                    self.nusquids.EvolveState()                                                 # Evolve for the track distance
+
+
                 elif self._matter == "constant" :
-                    self.nusquids.Set_Track(nsq.ConstantDensity.Track(L*self.units.km))
+                    self.nusquids.Set_Track(nsq.ConstantDensity.Track(L*self.units.km))         # Set track distance and medium
+                    self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )          # Set initial flavor
+                    self.nusquids.EvolveState()                                                 # Evolve for the track distance
+
+
+
+                elif (self._matter == "three layer") and (self.matter_opts is not None):
+
+                    # define the three layers
+                    
+                    matter_density_1 = self.matter_opts["matter_density_1"]
+                    matter_density_2 = self.matter_opts["matter_density_2"]
+                    matter_density_3 = self.matter_opts["matter_density_3"]
+                    electron_fraction_1 = self.matter_opts["electron_fraction_1"]
+                    electron_fraction_2 = self.matter_opts["electron_fraction_2"]
+                    electron_fraction_3 = self.matter_opts["electron_fraction_3"]
+
+
+                    # Evolve the state in three layers
+                    # In first if-statement: use body1 until 1/3 of the distance
+                    # In second if-statement: fist use body1 until 1/3 of the distance and then use body2 for the remaining distance (L-(1/3)*totalt_distance)
+                    # In third if-statement: fist use body1 until 1/3 of the total distance, then use body2 until 1/3 of the total distance and then use body3 for the remaining distance (L-(2/3)*totalt_distance)
+                    # Evolve the state between each layer but only set initial state once
+                    
+                    # LAYER 1:
+                    if i_L < (1/3)*len(distance_km) :
+                        self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_1, electron_fraction_1))
+                        self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_1, electron_fraction_1).Track(L*self.units.km))
+                        self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )
+                        self.nusquids.EvolveState()
+
+                    # LAYER 2:
+                    elif (i_L < (2/3)*len(distance_km)) and (i_L >= (1/3)*len(distance_km)):
+                        self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_1, electron_fraction_1))
+                        self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_1, electron_fraction_1).Track((1/3)*distance_km[-1]*self.units.km))
+                        self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )
+                        self.nusquids.EvolveState()
+
+                        self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_2, electron_fraction_2))
+                        self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_2, electron_fraction_2).Track((L-(1/3)*distance_km[-1])*self.units.km))
+                        self.nusquids.EvolveState()
+
+                    # LAYER 3:
+                    else :
+                        self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_1, electron_fraction_1))
+                        self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_1, electron_fraction_1).Track((1/3)*distance_km[-1]*self.units.km))
+                        self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )
+                        self.nusquids.EvolveState()
+
+                        self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_2, electron_fraction_2))
+                        self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_2, electron_fraction_2).Track(((1/3)*distance_km[-1])*self.units.km))
+                        self.nusquids.EvolveState()
+
+                        self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_3, electron_fraction_3))
+                        self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_3, electron_fraction_3).Track((L-(2/3)*distance_km[-1])*self.units.km))
+                        self.nusquids.EvolveState()
+
+
+
                 else :
                     raise Exception("Unknown body : %s" % body) 
-
-                # Set initial flavor
-                self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor ) 
-
-                # Evolve for the track distance
-                self.nusquids.EvolveState()
+                
 
                 # Loop over energies
                 for i_e,E in enumerate(energy_GeV) :
