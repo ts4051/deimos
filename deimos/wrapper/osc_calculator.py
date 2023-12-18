@@ -46,7 +46,6 @@ except ImportError as e:
 from deimos.utils.constants import *
 from deimos.models.decoherence.decoherence_operators import get_model_D_matrix
 from deimos.density_matrix_osc_solver.density_matrix_osc_solver import DensityMatrixOscSolver, get_pmns_matrix, get_matter_potential_flav
-# from deimos.density_matrix_osc_solver.density_matrix_osc_solver_janni import DensityMatrixOscSolver, get_pmns_matrix, get_matter_potential_flav
 from deimos.utils.oscillations import calc_path_length_from_coszen
 from deimos.utils.coordinates import *
 
@@ -177,7 +176,7 @@ class OscCalculator(object) :
 
         # Toggle between atmo. vs regular modes
         if self.atmospheric :
-            
+
             # Instantiate nuSQuIDS atmospheric calculator
             args = [
                 self.coszen_nodes,
@@ -1104,6 +1103,7 @@ class OscCalculator(object) :
         '''
 
         #TODO option to provide detector coord info (coszen, azimuth) instead of ra/dec
+        #TODO anything required to support skymaps?
 
 
         #
@@ -1144,40 +1144,46 @@ class OscCalculator(object) :
 
 
         #
-        # Loop over direction and time
+        # Loop over directions
         #
 
         osc_probs = []
         coszen_values, azimuth_values = [], []
 
+        # Loop over directions
         for ra_rad, dec_rad in zip(ra_rad_values, dec_rad_values) :
 
             osc_probs_vs_time = []
             coszen_values_vs_time, azimuth_values_vs_time = [], []
 
+
+            #
+            # Set SME model params 
+            #
+
+            # Cannot do this before calling this function as for most oscillation models, due to the RA/declination/time dependence of the Hamiltonian
+            # Also might use standard oscillations here, depending on what user requestes
+
+            if std_osc :
+                self.set_std_osc()
+
+            else :
+                self.set_sme(
+                    directional=True,
+                    basis=basis,
+                    a_eV=a_eV,
+                    c=c,
+                    e=e,
+                    ra_rad=ra_rad,
+                    dec_rad=dec_rad,
+                )
+
+
+            # 
+            # Loop over times
+            #
+
             for time in time_values :
-
-
-                #
-                # Set SME model params 
-                #
-
-                # Cannot do this before calling this function as for most oscillation models, due to the RA/declination/time dependence of the Hamiltonian
-                # Also might use standard oscillations here, depending on what user requestes
-
-                if std_osc :
-                    self.set_std_osc()
-
-                else :
-                    self.set_sme(
-                        directional=True,
-                        basis=basis,
-                        a_eV=a_eV,
-                        c=c,
-                        e=e,
-                        ra_rad=ra_rad,
-                        dec_rad=dec_rad,
-                    )
 
 
                 #
@@ -1600,8 +1606,6 @@ class OscCalculator(object) :
             decoh_opts=self._decoh_model_kw,
             lightcone_opts=self._lightcone_model_kw,
             sme_opts=self._sme_model_kw,
-            detector_opts=self.detector_coords,
-            # neutrino_source_opts=self._neutrino_source_kw, #TODO REMOVE?
             verbose=False
         )
 
