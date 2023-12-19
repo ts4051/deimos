@@ -153,7 +153,7 @@ class DetectorCoords(object):
         time = self.get_time(time)
 
         # Create neutrino direction in AltAz frame
-        nu_dir_alt_az = AltAz(az=azimuth*u.deg, alt=(np.arccos(coszen)-np.pi/2)*u.rad, obstime=time, location=self.detector_location)
+        nu_dir_alt_az = AltAz(az=azimuth*u.deg, alt=-(np.arccos(coszen)-np.pi/2)*u.rad, obstime=time, location=self.detector_location)
         
         # Transform back to ICRS frame (right ascension, declination)
         icrs_frame_observed = ICRS()

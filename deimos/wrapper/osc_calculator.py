@@ -346,7 +346,9 @@ class OscCalculator(object) :
                     "electron_fraction_3" : kw["electron_fraction_3"],
                 }
                 
-                
+        elif matter == "simple earth" :
+            print("Simple earth")
+
 
 
 
@@ -1303,6 +1305,162 @@ class OscCalculator(object) :
                         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_3, electron_fraction_3))
                         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_3, electron_fraction_3).Track((L-(2/3)*distance_km[-1])*self.units.km))
                         self.nusquids.EvolveState()
+
+
+                
+
+
+
+
+                elif (self._matter == "simple earth"):
+                    # assert self.matter_opts is not None, "matter_opts are preset for simple earth model"
+                    assert np.isclose(distance_km[-1], 12742.0, atol=1.), "distance_km[-1] must be equal to the radius of the earth (12742 km)" 
+
+                    # Simple Earth goes through 3 layers: mantle, outer core and inner core
+
+                    # Reference to layer data:
+                    # Preliminary reference Earth model - Adam M. Dziewonski and Don L. Anderson
+
+                    # define propagation distances through each of the earts layers 
+                    inner_core_thickness_km = 1221.5*2          #x2 because 1221 is the radius
+                    outer_core_thicknes_km = 3480.0-1221.5      #3480 is the outer core radius
+                    mantle_thickness_km = 5701.0-3480.0         #5701 is the mantle radius
+                    transition_and_crust_thickness_km = 6371.0-5701.0 #6371 is the earth radius
+
+                    #for simplicity is the transition and crust layer treated as part of the mantle (quite thin layers) #TODO maybe implement layers for both transition and crust, as densities vary a lot
+                    mantle_thickness_km = mantle_thickness_km + transition_and_crust_thickness_km
+
+                    
+
+                    # define the matter densities (g/cm3) and electron fractions for each of the earths layers
+                    electron_fraction = 0.5
+                    matter_density_mantle = 7.957
+                    matter_density_outer_core = 12.58
+                    matter_density_inner_core = 13.08
+
+                    # Evolve the state through the layers: mantle, outer core, inner core, outer core, mantle
+
+                    D_earth = distance_km[-1]
+                    N_L = len(distance_km)
+
+
+                    # layer index boundaries for if-statements
+                    mantle_index_boundary = (mantle_thickness_km/D_earth)*N_L 
+                    outer_core_index_boundary = ((mantle_thickness_km+outer_core_thicknes_km)/D_earth)*N_L
+                    inner_core_index_boundary = ((mantle_thickness_km+outer_core_thicknes_km+inner_core_thickness_km)/D_earth)*N_L
+                    second_outer_core_index_boundary = ((mantle_thickness_km+outer_core_thicknes_km+inner_core_thickness_km+outer_core_thicknes_km)/D_earth)*N_L
+
+
+                     # LAYER 1: MANTLE
+                    
+                    if i_L < mantle_index_boundary :
+                        prop_dist = L*self.units.km
+                        self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_mantle, electron_fraction))
+                        self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_mantle, electron_fraction).Track(prop_dist))
+                        self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )
+                        self.nusquids.EvolveState()
+                    
+
+
+                    # LAYER 2: OUTER CORE
+                    
+                    elif (i_L < outer_core_index_boundary) and (i_L >= mantle_index_boundary):
+                    
+                        prop_dist_mantle = mantle_thickness_km*self.units.km
+                        prop_dist_outer_core = (L-mantle_thickness_km)*self.units.km
+
+                        self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_mantle, electron_fraction))
+                        self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_mantle, electron_fraction).Track(prop_dist_mantle))
+                        self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )
+                        self.nusquids.EvolveState()
+
+                        self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_outer_core, electron_fraction))
+                        self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_outer_core, electron_fraction).Track(prop_dist_outer_core))
+                        self.nusquids.EvolveState()
+
+
+                    # LAYER 3: INNER CORE
+
+                    elif (i_L < inner_core_index_boundary) and (i_L >= outer_core_index_boundary):
+                    
+                        prop_dist_mantle = mantle_thickness_km*self.units.km
+                        prop_dist_outer_core = outer_core_thicknes_km*self.units.km
+                        prop_dist_inner_core = (L-(mantle_thickness_km+outer_core_thicknes_km))*self.units.km
+
+                        self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_mantle, electron_fraction))
+                        self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_mantle, electron_fraction).Track(prop_dist_mantle))
+                        self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )
+                        self.nusquids.EvolveState()
+
+                        self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_outer_core, electron_fraction))
+                        self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_outer_core, electron_fraction).Track(prop_dist_outer_core))
+                        self.nusquids.EvolveState()
+
+                        self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_inner_core, electron_fraction))
+                        self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_inner_core, electron_fraction).Track(prop_dist_inner_core))
+                        self.nusquids.EvolveState()
+                    
+
+                    # LAYER 4: SECOND OUTER CORE
+
+                    elif (i_L < second_outer_core_index_boundary) and (i_L >= inner_core_index_boundary):
+                    
+                        prop_dist_mantle = mantle_thickness_km*self.units.km
+                        prop_dist_outer_core = outer_core_thicknes_km*self.units.km
+                        prop_dist_inner_core = inner_core_thickness_km*self.units.km
+                        prop_dist_second_outer_core = (L-(mantle_thickness_km+outer_core_thicknes_km+inner_core_thickness_km))*self.units.km
+
+                        self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_mantle, electron_fraction))
+                        self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_mantle, electron_fraction).Track(prop_dist_mantle))
+                        self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )
+                        self.nusquids.EvolveState()
+
+                        self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_outer_core, electron_fraction))
+                        self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_outer_core, electron_fraction).Track(prop_dist_outer_core))
+                        self.nusquids.EvolveState()
+
+                        self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_inner_core, electron_fraction))
+                        self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_inner_core, electron_fraction).Track(prop_dist_inner_core))
+                        self.nusquids.EvolveState()
+
+                        self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_outer_core, electron_fraction))
+                        self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_outer_core, electron_fraction).Track(prop_dist_second_outer_core))
+                        self.nusquids.EvolveState()
+
+
+                    # LAYER 5: SECOND MANTLE
+                    elif i_L >= second_outer_core_index_boundary:
+                    
+                        prop_dist_mantle = mantle_thickness_km*self.units.km
+                        prop_dist_outer_core = outer_core_thicknes_km*self.units.km
+                        prop_dist_inner_core = inner_core_thickness_km*self.units.km
+                        prop_dist_second_outer_core = outer_core_thicknes_km*self.units.km
+                        prop_dist_second_mantle = (L-(mantle_thickness_km+outer_core_thicknes_km+inner_core_thickness_km+outer_core_thicknes_km))*self.units.km
+
+                        
+
+                        self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_mantle, electron_fraction))
+                        self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_mantle, electron_fraction).Track(prop_dist_mantle))
+                        self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )
+                        self.nusquids.EvolveState()
+
+                        self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_outer_core, electron_fraction))
+                        self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_outer_core, electron_fraction).Track(prop_dist_outer_core))
+                        self.nusquids.EvolveState()
+
+                        self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_inner_core, electron_fraction))
+                        self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_inner_core, electron_fraction).Track(prop_dist_inner_core))
+                        self.nusquids.EvolveState()
+
+                        self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_outer_core, electron_fraction))
+                        self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_outer_core, electron_fraction).Track(prop_dist_second_outer_core))
+                        self.nusquids.EvolveState()
+
+                        self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_mantle, electron_fraction))
+                        self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_mantle, electron_fraction).Track(prop_dist_second_mantle))
+                        self.nusquids.EvolveState()
+
+
 
 
 
