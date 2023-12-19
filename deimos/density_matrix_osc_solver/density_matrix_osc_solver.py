@@ -699,6 +699,9 @@ class DensityMatrixOscSolver(object) :
             # To include SME parameters in calculation of the hamiltonian
             include_sme = True
 
+            # Copy the opts to avoid modifying
+            sme_opts = copy.deepcopy(sme_opts)
+
             # Handle isotropic vs directional
             assert "directional" in sme_opts
             sme_is_directional = sme_opts.pop("directional")
@@ -710,7 +713,6 @@ class DensityMatrixOscSolver(object) :
             sme_basis_is_flavor = sme_basis == "flavor" # Bool fast checking during solving
 
             # User provides a(3) and c(4) coefficients, plus a possible mass-dependent non-renomalizable term
-            sme_opts = copy.deepcopy(sme_opts)
             assert "a_eV" in sme_opts
             sme_a = sme_opts.pop("a_eV")
             assert "c" in sme_opts
