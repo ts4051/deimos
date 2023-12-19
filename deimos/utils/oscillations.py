@@ -129,7 +129,7 @@ def calc_effective_osc_params_in_matter_2flav(E_eV, mixing_angle_rad, mass_split
 
     This is for a 2-flavor system, where e is the 0th flavor
 
-    Following [3] eqns (35-37)
+    Following https://cds.cern.ch/record/1114392/files/p159.pdf eqns (35-37)
     '''
 
     from deimos.density_matrix_osc_solver.density_matrix_osc_solver import get_electron_density_per_m3
