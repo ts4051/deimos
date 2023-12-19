@@ -271,6 +271,142 @@ def compare_matter_effects_between_solvers() :
 
 
 
+def verify_matter_layers_implementation() :
+    '''
+    Perform checks that the "layers" mode for matter is working
+    '''
+
+    #
+    # Define neutrino
+    #
+
+    # Neutrino
+    initial_flavor = 1
+    final_flavor_values = [0, 1, 2]
+    nubar_values = [False, True] 
+    E_GeV = 1.
+    L_km = np.linspace(0., 1000., num=100)
+
+
+    #
+    # Define test cases
+    #
+
+    cases = collections.OrderedDict()
+
+    cases["Vacuum vs const"] = ( {"matter":"vacuum"}, {"matter":"constant",  "matter_density_g_per_cm3":0., "electron_fraction":0. } )
+
+    layer_endpoints = np.linspace(0., L_km[-1], num=11)[1:]
+    cases["Vacuum vs layers"] = ( 
+        {"matter":"vacuum"},
+        {"matter":"layers", "layer_endpoint_km":layer_endpoints, "matter_density_g_per_cm3":np.zeros_like(layer_endpoints), "electron_fraction":np.zeros_like(layer_endpoints) },
+    )
+
+    matter_density_g_per_cm3, electron_fraction = 10., 0.5
+    cases["Const vs layers"] = ( 
+        {"matter":"constant", "matter_density_g_per_cm3":matter_density_g_per_cm3, "electron_fraction":electron_fraction },
+        {"matter":"layers", "layer_endpoint_km":layer_endpoints, "matter_density_g_per_cm3":np.full_like(layer_endpoints, matter_density_g_per_cm3), "electron_fraction":np.full_like(layer_endpoints, electron_fraction)}, 
+     )
+
+    layer_endpoint_too_long = np.linspace(0., L_km[-1]*5., num=100)[1:]
+    cases["Layers extending past L"] = ( 
+        {"matter":"layers", "layer_endpoint_km":layer_endpoints, "matter_density_g_per_cm3":np.zeros_like(layer_endpoints), "electron_fraction":np.zeros_like(layer_endpoints) },
+        {"matter":"layers", "layer_endpoint_km":layer_endpoint_too_long, "matter_density_g_per_cm3":np.zeros_like(layer_endpoint_too_long), "electron_fraction":np.zeros_like(layer_endpoint_too_long) },
+    )
+
+    cases["Differing layers but same profile"] = ( 
+        {"matter":"layers", "layer_endpoint_km":np.array([500., 750., 1000.]), "matter_density_g_per_cm3":np.array([5., 10., 20.]), "electron_fraction":np.array([0.5, 0.5, 0.5]) },
+        {"matter":"layers", "layer_endpoint_km":np.array([250., 500., 750., 770., 950., 1000., 1200.]), "matter_density_g_per_cm3":np.array([5., 5., 10., 20., 20., 20., 30.]), "electron_fraction":np.array([0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]) },
+    )
+
+
+    #
+    # Loop over test cases
+    #
+
+    for i_case, ( case_label, (ref_case_kw, test_case_kw) ) in enumerate( cases.items() ) :
+
+
+        #
+        # Init figure
+        #
+
+        nx, ny = len(nubar_values), len(final_flavor_values)
+        fig, ax = plt.subplots( ncols=nx, nrows=ny, figsize=(6*nx, 3*ny) )
+
+        fig.suptitle(case_label)
+
+
+        #
+        # Create model
+        #
+
+        solver = "nusquids" # 
+        
+        # Tool specific configuration
+        kw = {}
+        if solver == "nusquids" :
+            kw["energy_nodes_GeV"] = np.array([ 0.5*E_GeV, E_GeV, 2.*E_GeV ]) # Approximating single energy mode since having issues with the real one
+            kw["interactions"] = False # Not allowed in single energy mode
+
+        # Create calculator
+        calculator = OscCalculator(
+            tool=solver,
+            atmospheric=False,
+            **kw
+        )
+
+        # Loop over nu/nubar
+        for x, nubar in enumerate(nubar_values) :
+
+            # Loop over ref/test cases
+            for case_kw, color, linestyle in zip([ref_case_kw, test_case_kw], ["red", "blue"], ["-", ":"]) :
+
+                # Set matter
+                calculator.set_matter(**case_kw)
+
+                # Calc osc probs
+                osc_probs = calculator.calc_osc_prob(
+                    initial_flavor=initial_flavor, 
+                    nubar=nubar,
+                    energy_GeV=E_GeV,
+                    distance_km=L_km,
+                )
+
+                # Loop over final flavors
+                for y, final_flavor in enumerate(final_flavor_values) :
+
+                    # Draw layers
+                    if case_kw["matter"] == "layers" :
+                        for l in case_kw["layer_endpoint_km"] :
+                            ax[y,x].axvline(l, color=color, linestyle=linestyle, lw=2, alpha=0.7, zorder=5)
+
+                    # Plot osc probs
+                    ax[y,x].plot(
+                        L_km, 
+                        osc_probs[:,final_flavor], 
+                        linestyle=linestyle,   
+                        color=color,
+                        lw=4,
+                        zorder=6,
+                    )
+
+                    # Format ax
+                    ax[y,x].set_xlim(L_km[0], L_km[-1])
+                    if final_flavor == 0 :
+                        ax[y,x].set_ylim(0., 0.2)
+                    else :
+                        ax[y,x].set_ylim(0., 1.)
+                    ax[y,x].set_xlabel(DISTANCE_LABEL)
+                    ax[y,x].set_ylabel( r"$%s$"%calculator.get_transition_prob_tex(initial_flavor, final_flavor, nubar) )
+                    ax[y,x].grid(True)
+
+        # Format figure
+        fig.tight_layout()
+
+
+
+
 #
 # Main
 #
@@ -281,18 +417,9 @@ if __name__ == "__main__" :
 
     compare_matter_effects_between_solvers()
 
-
-
-    #TODO plot resonance condition
-    #TODO plot resonance condition
-    #TODO plot resonance condition
-    #TODO plot resonance condition
-    #TODO plot resonance condition
-    #TODO plot resonance condition
     #TODO plot resonance condition
 
-
-
+    verify_matter_layers_implementation()
 
     print("")
     dump_figures_to_pdf( __file__.replace(".py",".pdf") )

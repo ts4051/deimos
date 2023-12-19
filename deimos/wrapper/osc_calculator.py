@@ -321,6 +321,10 @@ class OscCalculator(object) :
 
     def set_matter(self, matter, **kw) :
 
+        # Re-initalise any persistent matter-related setting
+        # Mostly don't use this, only for "layers" mode currently 
+        self._matter_settings = { "matter":matter }
+
         #
         # Vacuum
         #
@@ -378,6 +382,40 @@ class OscCalculator(object) :
                 self._prob3_settings["matter_density_g_per_cm3"] = kw["matter_density_g_per_cm3"]
 
 
+
+        #
+        # Matter layers (of constant density)
+        #
+
+        elif matter == "layers" :
+
+            # Check required kwargs present
+            assert "layer_endpoint_km" in kw # The endpoint of each layer. The startpoint is either L=0 (first layer) or the end of the previous layer
+            assert "matter_density_g_per_cm3" in kw # Density in each layer
+            assert "electron_fraction" in kw # Electron fraction in each layer
+
+            # Check their format (e.g. one value per layer)
+            assert isinstance(kw["matter_density_g_per_cm3"], np.ndarray) and (kw["matter_density_g_per_cm3"].ndim == 1), "'matter_density_g_per_cm3' should be an array of float values in 'layers' mode"
+            assert isinstance(kw["electron_fraction"], np.ndarray) and (kw["electron_fraction"].ndim == 1), "'electron_fraction' should be an array of float values in 'layers' mode"
+            assert kw["layer_endpoint_km"].size == kw["electron_fraction"].size, "'layer_endpoint_km', 'matter_density_g_per_cm3' and 'electron_fraction' do not have the same length (should be one per layer)"
+            assert kw["layer_endpoint_km"].size == kw["matter_density_g_per_cm3"].size, "'layer_endpoint_km', 'matter_density_g_per_cm3' and 'electron_fraction' do not have the same length (should be one per layer)"
+
+            # Check layer endpoints as ascending
+            assert np.all(kw["layer_endpoint_km"][:-1] <= kw["layer_endpoint_km"][1:]), "'layer_endpoint_km' must be ascending"
+
+            if self.tool == "nusquids" :
+                # Store the laters for use during state evolution
+                self._matter_settings["layer_endpoint_km"] = kw["layer_endpoint_km"]
+                self._matter_settings["matter_density_g_per_cm3"] = kw["matter_density_g_per_cm3"]
+                self._matter_settings["electron_fraction"] = kw["electron_fraction"]
+
+            elif self.tool == "deimos" :
+                raise NotImplemented("'layers' mode for matter effects not implemented for deimos")
+
+            elif self.tool == "prob3" :
+                raise NotImplemented("'layers' mode for matter effects not implemented for prob3")
+
+
         #
         # Error handling
         #
@@ -385,8 +423,6 @@ class OscCalculator(object) :
         else :
             raise Exception("Unrecognised `matter` : %s" % matter)
 
-
-        self._matter = matter
 
 
     def set_mixing_angles(self,theta12, theta13=None, theta23=None, deltacp=0.) :
@@ -1424,24 +1460,71 @@ class OscCalculator(object) :
                 assert initial_state.shape == state_shape, "Incompatible shape for initial state : Expected %s, found %s" % (state_shape, initial_state.shape)
 
             # Loop over distance nodes
-            for i_L,L in enumerate(distance_km) :
+            for i_L, L in enumerate(distance_km) :
 
-                # Set then track, taking medium into account
-                if self._matter == "vacuum" :
+
+                #
+                # Propagate the neutrino in 1D
+                #
+
+                #TODO keep evolving from previous (shorter) distance node rather than re-calculating from 0 every time (for efficiency)?
+
+                # Set the track (e.g. neutrino travel path), taking medium into account. Then propagate
+                if self._matter_settings["matter"] == "vacuum" :
+
+                    # Vacuum is easy: Just propagate in vacuum
                     self.nusquids.Set_Track(nsq.Vacuum.Track(L*self.units.km))
-                elif self._matter == "constant" :
+                    self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )
+                    self.nusquids.EvolveState()
+
+                elif self._matter_settings["matter"] == "constant" :
+
+                    # Constant density is easy: Just propagate in constant density medium
                     self.nusquids.Set_Track(nsq.ConstantDensity.Track(L*self.units.km))
+                    self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )
+                    self.nusquids.EvolveState()
+
+                elif self._matter_settings["matter"] == "layers" :
+
+                    # Layers on constant density are a bit more tricky. Step through them, evolving the state though each later, then changing density and continuing the state evolution (wuthout resetting it)
+                    # Take care to cut off when reach the requested propagation distance
+
+                    # Check the layers cover the full path length
+                    assert self._matter_settings["layer_endpoint_km"][-1] >= L, "Matter layers do not cover the full baseline"
+
+                    # Loop through layers
+                    L_so_far = 0.
+                    for endpoint, density, efrac in zip(self._matter_settings["layer_endpoint_km"], self._matter_settings["matter_density_g_per_cm3"], self._matter_settings["electron_fraction"]) :
+
+                        # Bail out if have reached travel distance
+                        if L_so_far > endpoint :
+                            break
+
+                        # Figure out how far we will travel in this layer
+                        if L < endpoint :
+                            endpoint = L # Do not step past endpoint
+                        L_layer = endpoint - L_so_far
+
+                        # Set the body and track, and propagate
+                        self.nusquids.Set_Body(nsq.ConstantDensity(density, efrac))
+                        self.nusquids.Set_Track(nsq.ConstantDensity.Track(L_layer*self.units.km))
+                        if L_so_far == 0 :
+                            self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor ) # Only first step
+                        self.nusquids.EvolveState()
+
+                        # Update distance counter
+                        L_so_far += L_layer
+
                 else :
-                    raise Exception("Unknown body : %s" % body) 
+                    raise Exception("Unknown matter : %s" % self._matter_settings["matter"]) 
 
-                # Set initial flavor
-                self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor ) 
 
-                # Evolve for the track distance
-                self.nusquids.EvolveState()
+                #
+                # Evaluate final state
+                #
 
                 # Loop over energies
-                for i_e,E in enumerate(energy_GeV) :
+                for i_e, E in enumerate(energy_GeV) :
 
                     # Evaluate final state flavor composition
                     for i_f, final_flavor in enumerate(final_flavors) :
