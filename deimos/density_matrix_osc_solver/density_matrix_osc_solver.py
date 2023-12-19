@@ -20,7 +20,7 @@ try :
 except :
     raise Exception("ERROR : Could not import `odeintw`, ensure it is installed and visible in your `PATH`/`PYTHONPATH` ")
 
-
+# DEIMOS basic tools
 from deimos.utils.constants import *
 from deimos.utils.matrix_algebra import *
 from deimos.models.decoherence.decoherence_operators import get_complete_sun_matrix, get_decoherence_operator_nxn_basis, get_model_D_matrix
@@ -41,6 +41,10 @@ from deimos.models.liv.sme import get_sme_hamiltonian_isotropic, get_sme_hamilto
 km_to_eV = 5.06773093741e9 # [km] -> [1/eV]
 GeV_to_eV = 1.e9 # [GeV] -> [eV]
 hbar = 6.5821195691e-16 # [eV s]
+
+# Multiply physical constants used in the calculation of matter potentials once only here
+MATTER_POTENTIAL_PREFRACTOR = np.sqrt(2.) * FERMI_CONSTANT * AVOGADROS_NUMBER
+
 
 
 #
@@ -172,42 +176,55 @@ def get_electron_density_per_m3(matter_density_g_per_cm3, electron_fraction) :
       - the overall matter density (in g/cm^2 as it is usually reported)
       - electron fraction 
     '''
-    return matter_density_g_per_cm3 * np.power(1.e-2,-3) * electron_fraction
+    # return matter_density_g_per_cm3 * np.power(1.e-2,-3) * electron_fraction
+    return matter_density_g_per_cm3 * 7.68351e-15 * electron_fraction #TODO lifted this conversion factor from nuSQuIDS (pow(cm, -3)) but need to verify it and implement properly, think it is for mol -> eV conversion but
 
 
-def get_matter_potential_flav(num_states, matter_density_g_per_cm3, electron_fraction, nsi_matrix=None) :
+def get_matter_potential_flav(flavors, matter_density_g_per_cm3, electron_fraction, nsi_matrix=None) :
     '''
     Calculate the matter potential (in the flavor basis) corresponding to a given matter density and electron fraction
     This assumes constant density matter
-    Includes [cm^-3] -> [m^-3] conversion
-    Includes [eV^-2] -> [GeV^-2] conversion
 
-    #TODO docs
+    Important: NOT flipping sign for antineutrinos (let solver do that)
+
+
+    Matter potentiual due to scattering on quarks and electrons is:
+
+    V = [ CC+NC   0     0   ]
+        [   0     NC    0   ]
+        [   0     0     NC  ]
+
+    where the CC term only affects electron neutrinos (since there are no muons/taus in the Earth).
+
+    For a 2/3 neutrino system (e.g. only active neutrinos), the NC is a global phase and has no impact on oscillations (but matters for steriles) and therefore can be neglected, giving:
+
+    V_e = [  CC   0    0  ]
+          [  0    0    0  ]
+          [  0    0    0  ]
+
+    and the CC term is: sqrt(2) * G_F * n_e        (Fermi constant, and number of electrons)
+
+    Get number of electrons from the matter density as follows:
+
+    n_e = n_A * matter density * electron fraction     (Avogadro's number)    - TODO this is wrong, fix it
     '''
 
-    # Get electron potential
-    #TODO Want to calculate this form first principles but soemthig is going wrong...
-    #TODO Just using a conversion from nuSQuIDS for now, but fix this...
-    if True :
-        HI_constants = 7.63254e-14 #TODO
-        electron_density_to_potential = HI_constants * matter_density_g_per_cm3 * electron_fraction
-    else :
-        fermi_constant = 1.16639e-23 # [eV^-2]
-        avogadro_number = 6.0221415e+23 # [mol^-1]
-        constants = np.sqrt(2) * fermi_constant * avogadro_number # [ 1 / mol eV^2 ]
-        electron_density_per_m3 = get_electron_density_per_m3(matter_density_g_per_cm3,electron_fraction)
-        electron_density_to_potential = electron_density_per_m3 * constants
+    # Calculate the CC term
+    V_CC = MATTER_POTENTIAL_PREFRACTOR * get_electron_density_per_m3(matter_density_g_per_cm3, electron_fraction)
 
-    # Create overall potential matrix in the flavor basis
+    # Create the matter potentiual matrix, marking the [e,e] term as V_CC. This is generally [0,0], but user might choose a 2-nu system with mu-tau only.
+    num_states = len(flavors)
     V = np.zeros( (num_states,num_states), dtype=np.complex128 )
-    V[0,0] = 1.
+    for i, f in enumerate(flavors) :
+        if f == "e" :
+            V[i, i] = 1.
 
-    # Add NSI if requested
+    # Include the NSI matrix, if present
     if nsi_matrix is not None :
         V = V + nsi_matrix
 
-    # Convert to potential
-    V = V * electron_density_to_potential
+    # Now apply the constants
+    V *= V_CC                       #TODO Is this wrong for NSI, since assumes CC rather than NC?
 
     return V
 

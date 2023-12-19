@@ -71,14 +71,26 @@ class OscCalculator(object) :
     def __init__(self,
         tool, # Name of the underlying calculion tool
         atmospheric, # Bool indicating calculating in atmospheric parameter space (e.g. zenith instead of baseline)
-        num_neutrinos=3,
+        flavors=None,
+        # Osc params
+        mixing_angles_rad=None,
+        mass_splittings_eV2=None,
+        deltacp_rad=None,
         **kw
     ) :
 
         # Store args
         self.tool = tool
         self.atmospheric = atmospheric
-        self.num_neutrinos = num_neutrinos
+        self.flavors = flavors
+
+        # User must specify flavors, or take default
+        if self.flavors is None :
+            self.flavors = FLAVORS
+        assert isinstance(self.flavors, list)
+        assert len(self.flavors) == len(set(self.flavors)), "Duplicate flavors provided"
+        assert all([ (f in FLAVORS) for f in self.flavors ]), "Unknown flavors provided"
+        self.num_neutrinos = len(self.flavors)
 
         # Checks
         assert self.num_neutrinos in [2,3]
@@ -98,11 +110,28 @@ class OscCalculator(object) :
 
         # Set some default values for parameters
         self.set_matter("vacuum")
-        mass_splitting_eV2, mixing_angles_rad, deltacp, mass_tex, _, flavors_tex, _, nu_colors = get_default_neutrino_definitions(self.num_neutrinos)
-        self.set_mixing_angles(*mixing_angles_rad, deltacp=deltacp)
-        self.set_mass_splittings(*mass_splitting_eV2)
-        self.set_tex_labels(flavor_tex=flavors_tex, mass_tex=mass_tex)
-        self.set_colors(nu_colors)
+
+        if mass_splittings_eV2 is None :
+            if self.num_neutrinos == 3 :
+                mass_splittings_eV2 = MASS_SPLITTINGS_eV2
+            else :
+                raise Exception("Must specify 'mass_splittings_eV2' when not in 3 flavor mode")
+
+        if mixing_angles_rad is None :
+            if self.num_neutrinos == 3 :
+                mixing_angles_rad = MIXING_ANGLES_rad
+            else :
+                raise Exception("Must specify 'mixing_angles_rad' when not in 3 flavor mode")
+
+        if deltacp_rad is None :
+            if self.num_neutrinos == 3 :
+                deltacp_rad = DELTACP_rad
+            else :
+                raise Exception("Must specify 'deltacp_rad' when not in 3 flavor mode")
+
+        # Update osc params
+        self.set_mixing_angles(*mixing_angles_rad, deltacp=deltacp_rad)
+        self.set_mass_splittings(*mass_splittings_eV2)
         self.set_calc_basis(DEFAULT_CALC_BASIS)
         # self.set_decoherence_D_matrix_basis(DEFAULT_DECOHERENCE_GAMMA_BASIS)
 
@@ -149,16 +178,21 @@ class OscCalculator(object) :
         # Calculation nodes
         #
 
-        # Set some default nodes...
-
-        if energy_nodes_GeV is None :
-            energy_nodes_GeV = np.logspace(0.,3.,num=100)
+        # Energy node definition
         self.energy_nodes_GeV = energy_nodes_GeV
+        if self.energy_nodes_GeV is False :
+            pass # Single-energy mode
+        elif self.energy_nodes_GeV is None :
+            # Provide default nodes if none provided
+            self.energy_nodes_GeV = np.logspace(0.,3.,num=100)
 
+        # cos(zenith) node definition
+        # Only relevant in atmospheric mode
         if self.atmospheric :
-            if coszen_nodes is None :
-                coszen_nodes = np.linspace(-1.,1.,num=100)
             self.coszen_nodes = coszen_nodes
+            if self.coszen_nodes is None :
+                # Provide default nodes if none provided
+                self.coszen_nodes = np.linspace(-1.,1.,num=100)
         else :
             assert coszen_nodes is None, "`coszen_nodes` argument only valid in `atmospheric` mode"
 
@@ -207,12 +241,21 @@ class OscCalculator(object) :
         else :
 
             # Instantiate nuSQuIDS regular calculator
-            args = [
-                self.energy_nodes_GeV * self.units.GeV,
-                self.num_neutrinos,
-                nu_type,
-                interactions,
-            ]
+            if self.energy_nodes_GeV is False :
+                # Single-energy mode
+                assert not interactions, "`interactions` cannot be set in single energy mode"
+                assert nu_type in [nsq.NeutrinoType.neutrino, nsq.NeutrinoType.antineutrino], "Single-energy mode does not support neutrino and anitneutrino calculation simultaneously" 
+                args = [
+                    self.num_neutrinos,
+                    nu_type,
+                ]
+            else :
+                args = [
+                    self.energy_nodes_GeV * self.units.GeV,
+                    self.num_neutrinos,
+                    nu_type,
+                    interactions,
+                ]
 
             if self._nusquids_variant is None :
                 self.nusquids = nsq.nuSQUIDS(*args)
@@ -326,12 +369,11 @@ class OscCalculator(object) :
                 self.nusquids.Set_Body(nsq.ConstantDensity(kw["matter_density_g_per_cm3"], kw["electron_fraction"]))
 
             elif self.tool == "deimos" :
-                V = get_matter_potential_flav(num_states=self.num_neutrinos, matter_density_g_per_cm3=kw["matter_density_g_per_cm3"], electron_fraction=kw["electron_fraction"], nsi_matrix=None)
+                V = get_matter_potential_flav(flavors=self.flavors, matter_density_g_per_cm3=kw["matter_density_g_per_cm3"], electron_fraction=kw["electron_fraction"], nsi_matrix=None)
                 self.solver.set_matter_potential(V)
 
 
             elif self.tool == "prob3" :
-                print("WARNING : electron fraction not currently handled by prob3 wrapper")
                 self._prob3_settings["matter"] = "constant"
                 self._prob3_settings["matter_density_g_per_cm3"] = kw["matter_density_g_per_cm3"]
 
@@ -1407,9 +1449,6 @@ class OscCalculator(object) :
                         #     results[i_e,i_L,i_f,rho] = self.nusquids.EvalFlavor( int(final_flavor), float(E*self.units.GeV), int(rho) )
                         results[i_e,i_L,i_f] = self.nusquids.EvalFlavor( int(final_flavor), float(E*self.units.GeV), int(rho) )
 
-            #TODO squeeze unused dimensions?
-
-            print("B")
             return results
 
 
@@ -1636,12 +1675,6 @@ class OscCalculator(object) :
 
         return index 
 
-    
-    def set_tex_labels(self, flavor_tex, mass_tex) :
-        self.flavor_tex = flavor_tex
-        self.mass_tex = mass_tex
-
-
     def set_colors(self, nu_colors) :
         self.nu_colors = nu_colors
 
@@ -1650,42 +1683,82 @@ class OscCalculator(object) :
     def states(self) :
         return np.array(range(self.num_neutrinos))
 
-    @property
-    def flavors_tex(self) :
-        return [ self.get_flavor_tex(i) for i in self.states ]
+
+    def get_flavor_tex(self, i) :
+        '''
+        Get tex representation of flavor i (e.g. e, mu, tau)
+        '''
+
+        assert i < self.num_neutrinos
+        flavor = self.flavors[i]
+
+        if flavor == "e" :
+            return r"e"
+        elif flavor == "mu" :
+            return r"\mu"
+        elif flavor == "tau" :
+            return r"\tau"
+        else :
+            raise Exception("Unknown flavor : %s" % flavor)
 
 
-    @property
-    def masses_tex(self) :
-        return [ self.get_mass_tex(i) for i in self.states ]
+    def get_nu_flavor_tex(self, i=None, nubar=False) :
+        '''
+        Get tex representation of neutrino flavor i (e.g. nue, numu, nutau)
+        '''
 
-
-    @property
-    def flavors_color(self) :
-        return [ self.get_flavor_color(i) for i in self.states ]
-
-
-    def get_mass_tex(self, state) :
-        return self.mass_tex[state]
-
-
-    def get_flavor_tex(self, flavor, nubar=False) :
         nu_tex = r"\nu"
+
         if nubar :
             nu_tex = r"\bar{" + nu_tex + r"}"
-        if flavor is None :
+
+        if i is None :
             nu_tex += r"_{\rm{all}}"
         else :
-            nu_tex += r"_{" + self.flavor_tex[flavor] + r"}"
+            flavor_tex = self.get_flavor_tex(i)
+            nu_tex += r"_{" + flavor_tex + r"}"
+
         return nu_tex
 
 
-    def get_flavor_color(self, flavor) :
-        return self.nu_colors[flavor]
+    def get_nu_mass_tex(self, i=None, nubar=False) :
+        '''
+        Get tex representation of neutrino mass state i (e.g. nu_1, numu_2, nutau_3)
+        '''
+
+        nu_tex = r"\nu"
+
+        if nubar :
+            nu_tex = r"\bar{" + nu_tex + r"}"
+
+        if i is None :
+            nu_tex += r"_{\rm{all}}"
+        else :
+            nu_tex += r"_{" + (i+1) + r"}"
+
+        return nu_tex
 
 
-    def get_transition_prob_tex(self,initial_flavor, final_flavor, nubar=False) :
-        return r"P(%s \rightarrow %s)" % ( self.get_flavor_tex(initial_flavor, nubar), self.get_flavor_tex(final_flavor, nubar) )
+    # @property
+    # def flavors_tex(self) :
+    #     return [ self.get_flavor_tex(i) for i in self.states ]
+
+
+    # @property
+    # def masses_tex(self) :
+    #     return [ self.get_mass_tex(i) for i in self.states ]
+
+
+    # @property
+    # def flavors_color(self) :
+    #     return [ self.get_flavor_color(i) for i in self.states ]
+
+    # def get_flavor_color(self, flavor) :
+    #     return self.nu_colors[flavor]
+
+
+    def get_transition_prob_tex(self, initial_flavor, final_flavor, nubar=False) :
+        return r"P(%s \rightarrow %s)" % ( self.get_nu_flavor_tex(initial_flavor, nubar), self.get_nu_flavor_tex(final_flavor, nubar) )
 
 
     @property
@@ -1769,9 +1842,6 @@ class OscCalculator(object) :
             energy_GeV=energy_GeV,
             **dist_kw
         )
-
-        # Remove energy dimension, since this is single energy
-        osc_probs = osc_probs[0,...]
 
         # Plot oscillations to all possible final states
         final_flavor_values = self.states if final_flavor is None else [final_flavor]
@@ -1864,9 +1934,6 @@ class OscCalculator(object) :
             energy_GeV=energy_GeV,
             **dist_kw
         )
-
-        # Remove distance dimension, since this is single distance
-        osc_probs = osc_probs[:,0,...]
 
         # Convert to L/E, if requested
         xplot = energy_GeV
@@ -3066,7 +3133,10 @@ def define_matching_perturbation_and_lindblad_calculators(num_neutrinos=3) :
     #
 
     # Get the system definition
-    mass_splittings_eV2, mixing_angles_rad, deltacp, _, _, _, _, _ = get_default_neutrino_definitions(num_neutrinos)
+    flavors = FLAVORS
+    mass_splittings_eV2 = MASS_SPLITTINGS_eV2
+    mixing_angles_rad = MIXING_ANGLES_rad
+    deltacp = DELTACP_rad
 
     #TODO store flavor labels in class, or integrate with OscCalculator
 

@@ -43,7 +43,7 @@ if __name__ == "__main__" :
     calculator = OscCalculator(
         tool=args.solver,
         atmospheric=False,
-        num_neutrinos=3,
+        flavors=["e", "mu", "tau"],
         **kw
     )
 
