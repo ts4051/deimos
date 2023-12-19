@@ -42,10 +42,6 @@ km_to_eV = 5.06773093741e9 # [km] -> [1/eV]
 GeV_to_eV = 1.e9 # [GeV] -> [eV]
 hbar = 6.5821195691e-16 # [eV s]
 
-# Multiply physical constants used in the calculation of matter potentials once only here
-MATTER_POTENTIAL_PREFRACTOR = np.sqrt(2.) * FERMI_CONSTANT * AVOGADROS_NUMBER
-
-
 
 #
 # Basic mathematical operations for density matrices
@@ -170,14 +166,14 @@ def get_mass_projection(rho_mass,mass_index) :
 # Matter effects
 #
 
-def get_electron_density_per_m3(matter_density_g_per_cm3, electron_fraction) :
+def get_electron_density_per_m3(matter_density_g_per_cm3, electron_fraction) : #TODO is this really N_e (e.g. number, not density?) need Avogadro's number in here then
     '''
     Calculate an SI units electron number density from :
       - the overall matter density (in g/cm^2 as it is usually reported)
       - electron fraction 
     '''
     # return matter_density_g_per_cm3 * np.power(1.e-2,-3) * electron_fraction
-    return matter_density_g_per_cm3 * 7.68351e-15 * electron_fraction #TODO lifted this conversion factor from nuSQuIDS (pow(cm, -3)) but need to verify it and implement properly, think it is for mol -> eV conversion but
+    return AVOGADROS_NUMBER * matter_density_g_per_cm3 * 7.68351e-15 * electron_fraction #TODO lifted this conversion factor from nuSQuIDS (pow(cm, -3)) but need to verify it and implement properly, think it is for mol -> eV conversion but
 
 
 def get_matter_potential_flav(flavors, matter_density_g_per_cm3, electron_fraction, nsi_matrix=None) :
@@ -210,7 +206,7 @@ def get_matter_potential_flav(flavors, matter_density_g_per_cm3, electron_fracti
     '''
 
     # Calculate the CC term
-    V_CC = MATTER_POTENTIAL_PREFRACTOR * get_electron_density_per_m3(matter_density_g_per_cm3, electron_fraction)
+    V_CC = np.sqrt(2.) * FERMI_CONSTANT * get_electron_density_per_m3(matter_density_g_per_cm3, electron_fraction)
 
     # Create the matter potentiual matrix, marking the [e,e] term as V_CC. This is generally [0,0], but user might choose a 2-nu system with mu-tau only.
     num_states = len(flavors)
