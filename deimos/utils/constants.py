@@ -11,8 +11,9 @@ import numpy as np
 # Fundamental physics
 #
 
-# Number of neutrino (flavor/mass) states
-NUM_STATES = 3
+# Neutrino (flavor/mass) states
+FLAVORS = [ "e", "mu", "tau" ]
+NUM_STATES = len(FLAVORS)
 
 # Neutrino bases
 BASES = ["mass","flavor"]
@@ -43,6 +44,10 @@ PLANCK_MASS_eV = 1.22e28
 PLANCK_LENGTH_m = 1.62e-35 #TODO 1/M_Planck
 PLANCK_TIME_s = 5.39e-44 #TODO calc from M_Planck
 
+# Other physical constants
+FERMI_CONSTANT = 1.16639e-23 # [eV^-2]
+AVOGADROS_NUMBER = 6.0221415e+23 # [mol^-1]
+
 # Atmospheric L<->coszen conversion defaults
 DEFAULT_ATMO_PROD_HEIGHT_km = 22. # Value used in nuSQuIDS
 DEFAULT_ATMO_DETECTOR_DEPTH_km = 1. # Value used in nuSQuIDS
@@ -51,11 +56,6 @@ DEFAULT_ATMO_DETECTOR_DEPTH_km = 1. # Value used in nuSQuIDS
 #
 # Labels
 #
-
-MASS_TEX = [r"%i"%i for i in [1,2,3]]
-FLAVORS_TEX = [r"e",r"\mu",r"\tau"]
-NU_MASS_TEX = [r"\nu_{%s}"%m for m in MASS_TEX]
-NU_FLAVORS_TEX = [r"\nu_{%s}"%f for f in FLAVORS_TEX]
 
 NU_COLORS = ["blue","red","green"]
 
@@ -115,26 +115,19 @@ REF_E0_eV = 1.e9 # GeV
 # Helper functions
 #
 
-def get_default_neutrino_definitions(num_states) :
+def get_default_neutrino_definitions() :
     '''
     Function to get default suite of mass splittings, mixing angles, etc
-    If only 2 states, choose atmo sector
     '''
 
-    assert num_states in [2,3]
+    flavors = ["e", "mu", "tau"]
 
-    mass_splitting_eV2 = MASS_SPLITTINGS_eV2 if num_states == 3 else [MASS_SPLITTINGS_eV2[-1]]
+    mass_splitting_eV2 = MASS_SPLITTINGS_eV2
 
-    mixing_angles_rad = MIXING_ANGLES_rad if num_states == 3 else [MIXING_ANGLES_rad[-1]] 
+    mixing_angles_rad = MIXING_ANGLES_rad
 
-    deltacp = None if num_states == 2 else DELTACP_rad
+    deltacp = DELTACP_rad
 
-    mass_tex = MASS_TEX if num_states == 3 else MASS_TEX[1:]
-    nu_mass_tex = NU_MASS_TEX if num_states == 3 else NU_MASS_TEX[1:]
-    flavors_tex = FLAVORS_TEX if num_states == 3 else FLAVORS_TEX[1:]
-    nu_flavors_tex = NU_FLAVORS_TEX if num_states == 3 else NU_FLAVORS_TEX[1:]
-    nu_colors = NU_COLORS if num_states == 3 else NU_COLORS[1:]
-
-    return mass_splitting_eV2, mixing_angles_rad, deltacp, mass_tex, nu_mass_tex, flavors_tex, nu_flavors_tex, nu_colors
+    return flavors, mass_splitting_eV2, mixing_angles_rad, deltacp
 
 

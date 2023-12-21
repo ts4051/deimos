@@ -6,11 +6,15 @@ CoordTransform: A class for coordinate transformations and path length calculati
 Created on Tue Jul 18 13:35:29 2023
 Author: janni
 """
+
 import datetime
 import numpy as np
 import astropy.units as u
 from astropy.coordinates import SkyCoord, EarthLocation, AltAz, Angle, ICRS, get_sun
 from astropy.time import Time
+
+from deimos.utils.oscillations import calc_path_length_from_coszen
+from deimos.utils.constants import DEFAULT_ATMO_PROD_HEIGHT_km
 
 class DetectorCoords(object):
     """
@@ -96,26 +100,31 @@ class DetectorCoords(object):
             raise NotImplemented("Unsupported type : %s" % type(time))
         
 
-    def get_coszen_altitude_and_azimuth(self, ra_deg, dec_deg, time):
+    def get_coszen_altitude_and_azimuth(self, ra_deg, dec_deg, time, deg=True):
         """
-        Get the cosine of the zenith angle and the azimuth corresponding to the given 
+        Get the cosine of the zenith angle and the altitude and azimuth (in degrees) corresponding to the given 
         declination and right ascension (at the specified date/time). Depends on the detector location.
 
         Parameters:
             ra_deg (float): Declination in degrees.
             dec_deg (float): Right ascension in degrees.
             time (str): Date string in the format "Month day, Year, Hour:Minute(:Second)" (e.g., "July 15, 2023, 14:30").
-        
+            deg (boolean): Set to False if ra and dec are provided in rad.
+            
         Returns:
-            tuple: Tuple containing coszen (cosine of the zenith angle) and azimuth in degrees.
+            triple: Triple containing coszen (cosine of the zenith angle) and azimuth in degrees.
         """
 
         # Create observation time object
         time = self.get_time(time)
 
         # Create neutrino direction
-        # TODO: should this be the opposite direction (e.g., travel direction vs origin direction?)
-        nu_dir = SkyCoord(ra=ra_deg*u.deg, dec=dec_deg*u.deg, frame='icrs')
+        # The direction of the vector calculated in spherical coordinates using the values of ra and dec will be opposite to the direction of the neutrinos. 
+        # This is taken into account in the calculation of the direction vector in the SME in density_matrix_osc_solver.py. 
+        if deg == True:
+            nu_dir = SkyCoord(ra=ra_deg*u.deg, dec=dec_deg*u.deg, frame='icrs')
+        else:
+            nu_dir = SkyCoord(ra=ra_deg*u.rad, dec=dec_deg*u.rad, frame='icrs')
         # SkyCoord object that is per default in the icrs frame
         
         # Convert to local coordinate system (zenith, azimuth)
@@ -136,9 +145,9 @@ class DetectorCoords(object):
         return coszen, altitude, azimuth
     
     
-    def get_right_ascension_and_declination(self, coszen, azimuth, time):
+    def get_right_ascension_and_declination(self, coszen, azimuth, time, deg=True):
         """
-        Get the right ascension and declination corresponding to the given 
+        Get the right ascension and declination (in degrees)  corresponding to the given 
         cosine of the zenith angle and azimuth (at the specified date/time). Depends on the detector location.
 
         Parameters:
@@ -151,10 +160,19 @@ class DetectorCoords(object):
         """
         # Create observation time object
         time = self.get_time(time)
-
-        # Create neutrino direction in AltAz frame
-        nu_dir_alt_az = AltAz(az=azimuth*u.deg, alt=-(np.arccos(coszen)-np.pi/2)*u.rad, obstime=time, location=self.detector_location)
         
+        
+        # Convert conszen to altitutde
+        zen = np.arccos(coszen)
+        alt = np.pi/2 - zen
+        
+        # Create neutrino direction in AltAz frame
+        if deg == True:
+            nu_dir_alt_az = AltAz(az=azimuth*u.deg, alt=alt*u.rad, obstime=time, location=self.detector_location)
+        else:
+            nu_dir_alt_az = AltAz(az=azimuth*u.rad, alt=alt*u.rad, obstime=time, location=self.detector_location)
+
+            
         # Transform back to ICRS frame (right ascension, declination)
         icrs_frame_observed = ICRS()
         nu_dir_icrs = nu_dir_alt_az.transform_to(icrs_frame_observed)
@@ -166,34 +184,31 @@ class DetectorCoords(object):
         return right_ascension, declination
 
 
-    # def path_length(self, coszen, prodHeight, detectorDepth):
-    #     """
-    #     Calculate the path length of neutrinos from the production height to the detector.
+    def calc_path_length_from_coszen(self, coszen, production_height_km=DEFAULT_ATMO_PROD_HEIGHT_km) :
+        '''
+        Calculate the path length (baseline) in [km] for an atmospheric neutrino from a given coszen, for this detector depth
+        '''
+        detector_depth_km = self.detector_depth_m.value * 1e3 #TODO use proper unit handling methods
+        L_km = calc_path_length_from_coszen(cz=coszen, h=production_height_km, d=detector_depth_km)
+        return L_km
 
-    #     Parameters:
-    #         coszen (array-like): Cosine of the zenith angle(s) of the neutrinos.
-    #         prodHeight (float): Height at which the neutrinos are produced above the Earth's surface (in km).
-    #         detectorDepth (float): Depth at which the detector lies below the Earth's surface (in km).
 
-    #     Returns:
-    #         numpy.ndarray: An array containing the path lengths of neutrinos in the same shape as coszen. Units: km       
-    #     """
+def get_neutrino_direction_vector(ra_deg, dec_deg, deg=True) :
+    '''
+    Get neutrino direction vector in equatorial coordinate system, given its RA/declination
+    '''
 
-    #     #TODO merge with calc_path_length_from_coszen
-        
-    #     # Approximate Earth's radius in km
-    #     rEarth = 6371
-        
-    #     #Create array of the same form as coszen variable to store pathlengths
-    #     path_lengths = np.zeros_like(coszen)
-        
-    #     #Calculate pathlength
-    #     expression = (rEarth - detectorDepth)**2 * (-1 + coszen**2) + (rEarth + prodHeight)**2
-    #     # Check for non-negative values
-    #     mask = expression >= 0  
-    #     path_lengths = -rEarth * coszen + np.sqrt(expression[mask])
-        
-    #     return path_lengths
+    # Get unit vector
+    if deg == True:
+        c = SkyCoord(ra=ra_deg*u.deg, dec=dec_deg*u.deg)
+    else:
+        c = SkyCoord(ra=ra_deg*u.rad, dec=dec_deg*u.rad)
+    ux, uy, uz = -c.cartesian.x, -c.cartesian.y, -c.cartesian.z    
+    # Test it
+    assert np.isclose( np.sqrt( ux**2. + uy**2. + uz**2. ), 1. ), "Direction is not unit vector?"
+
+    return np.array([ux, uy, uz])
+
 
 
 
@@ -203,36 +218,23 @@ class DetectorCoords(object):
 
 if __name__ == "__main__" :
 
-
-    #TODO round trip test fails
-    #TODO round trip test fails
-    #TODO round trip test fails
-    #TODO round trip test fails
-    #TODO round trip test fails
-    #TODO round trip test fails
-    #TODO round trip test fails
-    #TODO round trip test fails
-    #TODO round trip test fails
-    #TODO round trip test fails
-    #TODO round trip test fails
-
-
+    #TODO round trip test fails, investigate...
 
     # Init
     det_coords = DetectorCoords(
         detector_lat="89°59′24″S", # IceCube
         detector_long="63°27′11″W",
-        detector_height_m=1400,
+        detector_height_m=-1400,
     )
         
-    # Round trip test
+    # Round trip test: Start from RA/dec and convert to zenith/azimuth, then back again to check we recover the original inputs
     time =  "July 15, 2023, 14:30"
     ra_deg, dec_deg = 13., 47.
-    coszen, altitude, azimuth = det_coords.get_coszen_altitude_and_azimuth(ra_deg=ra_deg, dec_deg=dec_deg, time=time)
-    ra_deg2, dec_deg2 = det_coords.get_right_ascension_and_declination(coszen=coszen, azimuth=azimuth, time=time)
+    coszen, altitude, azimuth = det_coords.get_coszen_altitude_and_azimuth(ra_deg=ra_deg, dec_deg=dec_deg, time=time, deg=True)
+    ra_deg2, dec_deg2 = det_coords.get_right_ascension_and_declination(coszen=coszen, azimuth=azimuth, time=time, deg=True)
     assert ra_deg == ra_deg2, "%s != %s" % (ra_deg, ra_deg2)
     assert dec_deg == dec_deg2, "%s != %s" % (dec_deg, dec_deg2)
-    coszen2, _, azimuth2 = det_coords.get_coszen_altitude_and_azimuth(ra_deg=ra_deg2, dec_deg=dec_deg2, time=time)
-    assert coszen == coszen2, "%s != %s" % (coszen_deg, coszen_deg2)
+    coszen2, _, azimuth2 = det_coords.get_coszen_altitude_and_azimuth(ra_deg=ra_deg2, dec_deg=dec_deg2, time=time, deg=True)
+    assert coszen == coszen2, "%s != %s" % (coszen, coszen2)
     assert azimuth == azimuth2, "%s != %s" % (azimuth, azimuth2)
 

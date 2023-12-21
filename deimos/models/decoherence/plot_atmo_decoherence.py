@@ -70,7 +70,7 @@ if __name__ == "__main__" :
     #
 
     # Need a grid in atmo. space
-    grid_dim = 100
+    grid_dim = 250
     coszen = np.linspace(-1., +1., num=grid_dim)
     E_GeV = np.geomspace(1., 1e5, num=grid_dim)
     # E_GeV = np.linspace(1., 100., num=grid_dim)

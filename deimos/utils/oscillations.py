@@ -6,7 +6,7 @@ Tom Stuttard
 
 import numpy as np
 
-from deimos.utils.constants import EARTH_RADIUS_km, DEFAULT_ATMO_PROD_HEIGHT_km, DEFAULT_ATMO_DETECTOR_DEPTH_km
+from deimos.utils.constants import EARTH_RADIUS_km, DEFAULT_ATMO_PROD_HEIGHT_km, DEFAULT_ATMO_DETECTOR_DEPTH_km, FERMI_CONSTANT
 
 from deimos.utils.matrix_algebra import *
 
@@ -121,6 +121,33 @@ def calc_osc_wavelength_from_hamiltonian(H) :
 
     return np.array(osc_wavelengths)
 
+
+
+def calc_effective_osc_params_in_matter_2flav(E_eV, mixing_angle_rad, mass_splitting_eV2, matter_density_g_per_cm3, electron_fraction) :
+    '''
+    Convert Vacuum mixing angle and mass splitting into the effective values in constant density matter
+
+    This is for a 2-flavor system, where e is the 0th flavor
+
+    Following https://cds.cern.ch/record/1114392/files/p159.pdf eqns (35-37)
+    '''
+
+    from deimos.density_matrix_osc_solver.density_matrix_osc_solver import get_electron_density_per_m3
+
+    Ne = get_electron_density_per_m3(matter_density_g_per_cm3, electron_fraction)
+
+    A = 2. * np.sqrt(2.) * FERMI_CONSTANT * Ne * E_eV / mass_splitting_eV2
+
+    sin2_2theta = np.square( np.sin( 2. * mixing_angle_rad ) )
+    cos_2theta = np.cos( 2. * mixing_angle_rad )
+
+    matter_mass_splitting_eV2 = mass_splitting_eV2 * np.sqrt( sin2_2theta + np.square(cos_2theta - A) )
+
+    sin2_2theta_m = sin2_2theta / ( sin2_2theta + np.square( cos_2theta - A ) )
+
+    matter_mixing_angle_rad = np.arcsin( np.sqrt(sin2_2theta_m) ) / 2.
+
+    return matter_mixing_angle_rad, matter_mass_splitting_eV2
 
 
 

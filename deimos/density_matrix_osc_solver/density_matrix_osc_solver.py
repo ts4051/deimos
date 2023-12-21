@@ -20,7 +20,7 @@ try :
 except :
     raise Exception("ERROR : Could not import `odeintw`, ensure it is installed and visible in your `PATH`/`PYTHONPATH` ")
 
-
+# DEIMOS basic tools
 from deimos.utils.constants import *
 from deimos.utils.matrix_algebra import *
 from deimos.models.decoherence.decoherence_operators import get_complete_sun_matrix, get_decoherence_operator_nxn_basis, get_model_D_matrix
@@ -166,48 +166,61 @@ def get_mass_projection(rho_mass,mass_index) :
 # Matter effects
 #
 
-def get_electron_density_per_m3(matter_density_g_per_cm3, electron_fraction) :
+def get_electron_density_per_m3(matter_density_g_per_cm3, electron_fraction) : #TODO is this really N_e (e.g. number, not density?) need Avogadro's number in here then
     '''
     Calculate an SI units electron number density from :
       - the overall matter density (in g/cm^2 as it is usually reported)
       - electron fraction 
     '''
-    return matter_density_g_per_cm3 * np.power(1.e-2,-3) * electron_fraction
+    # return matter_density_g_per_cm3 * np.power(1.e-2,-3) * electron_fraction
+    return AVOGADROS_NUMBER * matter_density_g_per_cm3 * 7.68351e-15 * electron_fraction #TODO lifted this conversion factor from nuSQuIDS (pow(cm, -3)) but need to verify it and implement properly, think it is for mol -> eV conversion but
 
 
-def get_matter_potential_flav(num_states, matter_density_g_per_cm3, electron_fraction, nsi_matrix=None) :
+def get_matter_potential_flav(flavors, matter_density_g_per_cm3, electron_fraction, nsi_matrix=None) :
     '''
     Calculate the matter potential (in the flavor basis) corresponding to a given matter density and electron fraction
     This assumes constant density matter
-    Includes [cm^-3] -> [m^-3] conversion
-    Includes [eV^-2] -> [GeV^-2] conversion
 
-    #TODO docs
+    Important: NOT flipping sign for antineutrinos (let solver do that)
+
+
+    Matter potentiual due to scattering on quarks and electrons is:
+
+    V = [ CC+NC   0     0   ]
+        [   0     NC    0   ]
+        [   0     0     NC  ]
+
+    where the CC term only affects electron neutrinos (since there are no muons/taus in the Earth).
+
+    For a 2/3 neutrino system (e.g. only active neutrinos), the NC is a global phase and has no impact on oscillations (but matters for steriles) and therefore can be neglected, giving:
+
+    V_e = [  CC   0    0  ]
+          [  0    0    0  ]
+          [  0    0    0  ]
+
+    and the CC term is: sqrt(2) * G_F * n_e        (Fermi constant, and number of electrons)
+
+    Get number of electrons from the matter density as follows:
+
+    n_e = n_A * matter density * electron fraction     (Avogadro's number)    - TODO this is wrong, fix it
     '''
 
-    # Get electron potential
-    #TODO Want to calculate this form first principles but soemthig is going wrong...
-    #TODO Just using a conversion from nuSQuIDS for now, but fix this...
-    if True :
-        HI_constants = 7.63254e-14 #TODO
-        electron_density_to_potential = HI_constants * matter_density_g_per_cm3 * electron_fraction
-    else :
-        fermi_constant = 1.16639e-23 # [eV^-2]
-        avogadro_number = 6.0221415e+23 # [mol^-1]
-        constants = np.sqrt(2) * fermi_constant * avogadro_number # [ 1 / mol eV^2 ]
-        electron_density_per_m3 = get_electron_density_per_m3(matter_density_g_per_cm3,electron_fraction)
-        electron_density_to_potential = electron_density_per_m3 * constants
+    # Calculate the CC term
+    V_CC = np.sqrt(2.) * FERMI_CONSTANT * get_electron_density_per_m3(matter_density_g_per_cm3, electron_fraction)
 
-    # Create overall potential matrix in the flavor basis
+    # Create the matter potentiual matrix, marking the [e,e] term as V_CC. This is generally [0,0], but user might choose a 2-nu system with mu-tau only.
+    num_states = len(flavors)
     V = np.zeros( (num_states,num_states), dtype=np.complex128 )
-    V[0,0] = 1.
+    for i, f in enumerate(flavors) :
+        if f == "e" :
+            V[i, i] = 1.
 
-    # Add NSI if requested
+    # Include the NSI matrix, if present
     if nsi_matrix is not None :
         V = V + nsi_matrix
 
-    # Convert to potential
-    V = V * electron_density_to_potential
+    # Now apply the constants
+    V *= V_CC                       #TODO Is this wrong for NSI, since assumes CC rather than NC?
 
     return V
 
@@ -424,22 +437,20 @@ class DensityMatrixOscSolver(object) :
     
 
 
-    def _solve(self, initial_rho_mass, E, L, H, calc_basis) :
+    def _solve(self,
+        # Standard neutrino solver 
+        initial_rho_mass, 
+        E, 
+        L, 
+        H, 
+        calc_basis,
+        # Decoherence operator
+        D_matrix=None,
+        D_matrix_basis=None,
+    ) :
         '''
         Solve the density matrix time evolution to get the final state for this system
         '''
-
-        #TODO decoh terms
-        #TODO decoh terms
-        #TODO decoh terms
-        #TODO decoh terms
-        decoh_D_matrix_basis = None
-        decoh_D_matrix = None
-        include_lightcone_fluctuations = False
-        #TODO decoh terms
-        #TODO decoh terms
-        #TODO decoh terms
-        #TODO decoh terms
 
         #
         # Derive function
@@ -453,9 +464,9 @@ class DensityMatrixOscSolver(object) :
         def derive(L, rho, decoh_D_matrix_basis=None, decoh_D_matrix=None, flatten=False): #TODO DO the decoh D martrix things actually need to be args?
 
             # Handle lightcone fluctuations here (since depends on L, not just E)
-            if include_lightcone_fluctuations :
-                from deimos.utils.model.lightcone_fluctuations.lightcone_fluctuation_model import get_lightcone_decoherence_D_matrix
-                decoh_D_matrix_basis, decoh_D_matrix = get_lightcone_decoherence_D_matrix(num_states=self.num_states, H=H, E=E_val, L=L, m=lightcone_m, n=lightcone_n, dL0=lightcone_dL0, L0=lightcone_L0, E0=lightcone_E0) 
+            # if include_lightcone_fluctuations :
+            #     from deimos.utils.model.lightcone_fluctuations.lightcone_fluctuation_model import get_lightcone_decoherence_D_matrix
+            #     decoh_D_matrix_basis, decoh_D_matrix = get_lightcone_decoherence_D_matrix(num_states=self.num_states, H=H, E=E_val, L=L, m=lightcone_m, n=lightcone_n, dL0=lightcone_dL0, L0=lightcone_L0, E0=lightcone_E0) 
 
             # Handle cases where the solver can only pss 1D arrays
             if flatten :
@@ -487,7 +498,7 @@ class DensityMatrixOscSolver(object) :
                 derive, # d(rho)/dL
                 initial_rho_mass, # rho(0)
                 L, # L
-                args=(decoh_D_matrix_basis, decoh_D_matrix, False),  # Args to pass to `derive` (other than `L, rho`). Note that `False` here means "don't flatten arrays"
+                args=(D_matrix_basis, D_matrix, False),  # Args to pass to `derive` (other than `L, rho`). Note that `False` here means "don't flatten arrays"
                 full_output=True,
                 rtol=self.rtol,
                 atol=self.atol,
@@ -518,7 +529,7 @@ class DensityMatrixOscSolver(object) :
                 initial_rho_mass.flatten(), # rho(0) - shape is (L_size,), where N is number of L values    #TODO is the N correct?
                 t_eval=L, # Define values of L for which want specific solutions
                 method=self.solver_method,
-                args=(decoh_D_matrix_basis, decoh_D_matrix, True), # Args to pass to `derive` (other than `L, rho`). Note that `True` here means "flatten arrays"
+                args=(D_matrix_basis, D_matrix, True), # Args to pass to `derive` (other than `L, rho`). Note that `True` here means "flatten arrays"
                 rtol=self.rtol,
                 atol=self.atol,  # atol + rtol * abs(y)
                 # mxstep=self.mxstep,
@@ -548,18 +559,12 @@ class DensityMatrixOscSolver(object) :
         initial_basis="flavor", # Optionally can set initial state in mass basis
         nubar=False,
 
-        # Neutrino direction in celestial coords - only required for certain models (such as the SME)
-        ra_rad=None,
-        dec_rad=None,
-
         # Options to be passed to the decoherence calculator
         decoh_opts=None,
         lightcone_opts=None,
 
         # Options to be passed to the SME calculator
         sme_opts=None,
-        detector_opts= None,
-        neutrino_source_opts=None,
         
         # Misc
         calc_basis="nxn", # Optionally can choose which basis to perform calculation in (nxn, sun)
@@ -655,6 +660,8 @@ class DensityMatrixOscSolver(object) :
         # Handle the optional lightcone fluctuation effects
         if lightcone_opts is not None :
 
+            raise NotImplemented("TODO: Need to reintegrated lightcone fluctuations into updated solver code")
+
             include_lightcone_fluctuations = True
 
             # Check args
@@ -692,6 +699,9 @@ class DensityMatrixOscSolver(object) :
             # To include SME parameters in calculation of the hamiltonian
             include_sme = True
 
+            # Copy the opts to avoid modifying
+            sme_opts = copy.deepcopy(sme_opts)
+
             # Handle isotropic vs directional
             assert "directional" in sme_opts
             sme_is_directional = sme_opts.pop("directional")
@@ -703,7 +713,6 @@ class DensityMatrixOscSolver(object) :
             sme_basis_is_flavor = sme_basis == "flavor" # Bool fast checking during solving
 
             # User provides a(3) and c(4) coefficients, plus a possible mass-dependent non-renomalizable term
-            sme_opts = copy.deepcopy(sme_opts)
             assert "a_eV" in sme_opts
             sme_a = sme_opts.pop("a_eV")
             assert "c" in sme_opts
@@ -711,6 +720,10 @@ class DensityMatrixOscSolver(object) :
             if sme_is_directional : # e term only implemented for direction SME currently
                 assert "e" in sme_opts
                 sme_e = sme_opts.pop("e") # dimensionless
+                assert "ra_rad" in sme_opts
+                ra_rad = sme_opts.pop("ra_rad")
+                assert "dec_rad" in sme_opts
+                dec_rad = sme_opts.pop("dec_rad")
 
             # Check shapes
             if sme_is_directional :
@@ -736,8 +749,6 @@ class DensityMatrixOscSolver(object) :
 
             # Get neutrino direction in celestial coords
             if sme_is_directional :
-                assert ra_rad is not None
-                assert dec_rad is not None
                 assert np.isscalar(ra_rad)
                 assert np.isscalar(dec_rad)
                 assert (ra_rad >= 0) and (ra_rad <= 2 * np.pi)
@@ -938,6 +949,8 @@ class DensityMatrixOscSolver(object) :
                 L=L_nodes, 
                 H=H, 
                 calc_basis=calc_basis,
+                D_matrix=decoh_D_matrix,
+                D_matrix_basis=decoh_D_matrix_basis,
             )
 
             # Remove the extra nodes added for solver stability
