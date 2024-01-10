@@ -1027,7 +1027,7 @@ if __name__ == "__main__" :
          args.anaconda_dir = os.path.join( args.install_dir, "anaconda", "anaconda%i"%python_major_version )
     assert os.path.exists(args.anaconda_dir), "Could not find anaconda dir : %s" % args.anaconda_dir
     anaconda_bin = os.path.join(args.anaconda_dir, "bin")
-    assert os.path.exists(anaconda_bin), "Could not find anaconda bin dir : %s" % args.anaconda_bin
+    assert os.path.exists(anaconda_bin), "Could not find anaconda bin dir : %s" % anaconda_bin
     print("Anaconda bin : %s" % anaconda_bin)
 
     # Environment name
