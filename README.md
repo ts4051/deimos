@@ -23,7 +23,7 @@ python install.py -ad <path/to/anaconda/top/directory> [-ow]
 ```
 
 where:
-* `-ab` is the path to your anaconda installation, e.g. the directory containing the `bin` directory
+* `-ad` is the path to the directory containing your anaconda installation, e.g. the directory containing the `bin` directory
 * `-ow` can optionally be used to force overwritr on any existing DEMIOS installation and associated conda env
 
 This process will generate a script `setup_deimos.sh` that can be used to active the DEIMOS environment. Do this as foloows (must be done for each new shell session):

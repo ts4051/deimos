@@ -9,10 +9,15 @@ Tom Stuttard
 # Do this before anything else, as want the matplotlib backend handling dealt with before any other packages called
 from deimos.utils.plotting import *
 
-import sys, os, collections, numbers, copy, re
+import sys, os, collections, numbers, copy, re, datetime
 import numpy as np
 import warnings
 import healpy as hp
+
+try:
+    import cPickle as pickle
+except:
+    import pickle
 
 # Import nuSQuIDS
 NUSQUIDS_AVAIL = False
@@ -76,6 +81,7 @@ class OscCalculator(object) :
         mixing_angles_rad=None,
         mass_splittings_eV2=None,
         deltacp_rad=None,
+        cache_dir=None,
         **kw
     ) :
 
@@ -83,6 +89,7 @@ class OscCalculator(object) :
         self.tool = tool
         self.atmospheric = atmospheric
         self.flavors = flavors
+        self.cache_dir = cache_dir
 
         # User must specify flavors, or take default
         if self.flavors is None :
@@ -138,6 +145,14 @@ class OscCalculator(object) :
         # Init some variables related to astrohysical coordinates   #TODO are thes DEIMOS-specific? If so, init in _init_deimos()
         self.detector_coords = None
         self._neutrino_source_kw = None
+
+        # Caching
+        if self.cache_dir is None :
+            self.cache_dir = os.path.realpath( os.path.join( os.path.dirname(__file__), "..", "..", ".cache" ) )
+            if not os.path.exists(self.cache_dir) :
+                os.mkdir(self.cache_dir)
+        assert os.path.isdir(self.cache_dir) 
+
 
 
 
@@ -576,6 +591,159 @@ class OscCalculator(object) :
             raise Exception("`%s` does not support setting calculation basis" % self.tool)
 
 
+
+    #
+    # Atmospheric flux
+    #
+
+    def get_atmospheric_neutrino_flux(self, energy_GeV, coszen, grid=False, name="mceq", overwrite_cache=False) :
+        '''
+        Function to return the atmospheric neutrino flux, for a given model or calculation method
+        '''
+
+        #TODO azimuth
+
+        # Checks
+        assert self.atmospheric
+        assert self.num_neutrinos > 2, "Atmospheric flux not defined for 2nu system"
+
+        # Toggle modes
+        if name.lower() == "honda" :
+            raise NotImplemented("TODO: Honda flux")
+
+        elif name.lower() == "daemon" :
+            raise NotImplemented("TODO: Daemon flux")
+
+        elif name.lower() == "mceq" :
+            return self._get_atmospheric_neutrino_flux_mceq(energy_GeV=energy_GeV, coszen=coszen, grid=grid, overwrite_cache=overwrite_cache)
+
+
+    def _get_atmospheric_neutrino_flux_mceq(self, energy_GeV, coszen, grid=False, overwrite_cache=False) :
+        '''
+        Run MCEq to compute flux for some zenith/energy nodes, then spline them to get continuous description
+
+        Cache the spline for later so don't have to regenerate it every time 
+        '''
+
+        #TODO option to load splines from PISA?
+
+        from scipy.interpolate import RectBivariateSpline
+
+        #
+        # Prepare
+        #
+
+        # Define path to cache file, and check if it exists already
+        cache_file = os.path.join(self.cache_dir, "atmo_flux_mceq.pckl") #TODO include model names
+
+        # Check if cache already exists
+        cache_exists = os.path.exists(cache_file)
+
+        # Mapping of MCEq and DEIMOS flavor labels
+        # Note that this labels with return the combined conventional and prompt atmospheric flux from MCEq
+        flavor_mapping = collections.OrderedDict()
+        flavor_mapping["nue"] = (0, False) # flavor, nubar
+        flavor_mapping["antinue"] = (0, True)
+        flavor_mapping["numu"] = (1, False)
+        flavor_mapping["antinumu"] = (1, True)
+        flavor_mapping["nutau"] = (2, False)
+        flavor_mapping["antinutau"] = (2, True)
+
+
+        #
+        # Generate or load splines
+        #
+
+        # Generate splines (a) if no cache exists, or (b) is user wants to overwrite
+        generate_splines = overwrite_cache or (not cache_exists)
+        if generate_splines :  
+
+            #
+            # Use MCEq to compute flux and generate splints
+            #
+
+            start_time = datetime.datetime.now()
+
+            # Import MCEq
+            try :
+                from MCEq.core import config, MCEqRun
+                import crflux.models as crf
+            except Exception as e :
+                raise Exception("MCEq not installed")
+
+            # Initalize MCEq by creating the user interface object MCEqRun   #TODO Make model steerable
+            mceq = MCEqRun(
+                interaction_model='SIBYLL23C', # High-energy hadronic interaction model
+                primary_model=(crf.GlobalSplineFitBeta, None), # cosmic ray flux at the top of the atmosphere
+                theta_deg=0., # This will be overwritten later
+            )
+
+            # Define zenith values to solve for
+            coszen_nodes = np.linspace(-1., 1., num=21)
+            # coszen_nodes = np.array([0.]) # MCEq only considers down-going, need to mirror later for up-going
+
+            # Init flux container
+            mceq_flux = collections.OrderedDict()
+            for f in flavor_mapping.keys() :
+                mceq_flux[f] = []
+
+            # Loop over zenith angles
+            for coszen_node in coszen_nodes :
+
+                # Solve the equation system, for this zenith angle
+                # MCEq only considers down-going, need to mirror later for up-going   #TODO more efficient just to copy array, rathe than re-comoute
+                mceq.set_theta_deg( np.rad2deg(np.arccos(np.abs(coszen_node))) ) # The abs doe the zenith mirroring
+                mceq.solve()
+
+                # Extract the flux
+                for f in mceq_flux.keys() :
+                    mceq_flux[f].append( mceq.get_solution(f).tolist() )
+
+            # numpy-ify
+            for f in mceq_flux.keys() :
+                mceq_flux[f] = np.array(mceq_flux[f]).T # -> [E, coszen]
+
+            # Spline the flux so can interpolate to get values at arbitrary coszen/E values
+            splines = collections.OrderedDict()
+            for flavor, flavor_flux in mceq_flux.items() :
+                splines[flavor] = RectBivariateSpline(mceq.e_grid, coszen_nodes, flavor_flux)
+
+            # Save the splines
+            with open(cache_file,"wb") as f :
+                pickle.dump(splines, f, protocol=-1) # protocol=-1 -> use fastest mode available
+
+            end_time = datetime.datetime.now()
+            print("MCEq flux spline generation complete : Took %s" % (end_time-start_time))
+
+
+        else :
+
+            #
+            # Load the cached splines, if didn't just generate them
+            #
+
+            with open(cache_file, "rb") as f:
+                splines = pickle.load(f)
+
+
+        # 
+        # Evaluate splines for specified [E, coszen] grid
+        #
+
+        # Get flux for each flavor at the specified nodes
+        output_flux = collections.OrderedDict()
+        for flavor, spline in splines.items() :
+            output_flux[ flavor_mapping[flavor] ] = spline(energy_GeV, coszen, grid=grid) # Include mapping from MCEq to DEIMOS flavor
+
+        return output_flux
+
+
+
+
+    #
+    # Decoherence member functions
+    #
+
     # def set_decoherence_D_matrix_basis(self, basis) :
 
     #     if self.tool == "nusquids" :
@@ -587,11 +755,6 @@ class OscCalculator(object) :
     #     else :
     #         raise Exception("`%s` does not support setting decoherence gamma matrix basis" % self.tool)
 
-
-
-    #
-    # Decoherence member functions
-    #
 
     def set_decoherence_D_matrix(self,
         D_matrix_eV,
