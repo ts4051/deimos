@@ -404,26 +404,215 @@ class OscCalculator(object) :
             
 
 
-        elif matter == "three layer" :
-    
-                assert "matter_density_1" in kw
-                assert "matter_density_2" in kw
-                assert "matter_density_3" in kw
-                assert "electron_fraction_1" in kw
-                assert "electron_fraction_2" in kw
-                assert "electron_fraction_3" in kw
+        
+
+        # elif (self._matter == "three layer") and (self.matter_opts is not None):
+
+        #     # define the three layers
+            
+        #     matter_density_1 = self.matter_opts["matter_density_1"]
+        #     matter_density_2 = self.matter_opts["matter_density_2"]
+        #     matter_density_3 = self.matter_opts["matter_density_3"]
+        #     electron_fraction_1 = self.matter_opts["electron_fraction_1"]
+        #     electron_fraction_2 = self.matter_opts["electron_fraction_2"]
+        #     electron_fraction_3 = self.matter_opts["electron_fraction_3"]
+
+
+        #     # Evolve the state in three layers
+        #     # In first if-statement: use body1 until 1/3 of the distance
+        #     # In second if-statement: fist use body1 until 1/3 of the distance and then use body2 for the remaining distance (L-(1/3)*totalt_distance)
+        #     # In third if-statement: fist use body1 until 1/3 of the total distance, then use body2 until 1/3 of the total distance and then use body3 for the remaining distance (L-(2/3)*totalt_distance)
+        #     # Evolve the state between each layer but only set initial state once
+            
+        #     # LAYER 1:
+        #     if i_L < (1/3)*len(distance_km) :
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_1, electron_fraction_1))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_1, electron_fraction_1).Track(L*self.units.km))
+        #         self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )
+        #         self.nusquids.EvolveState()
+
+        #     # LAYER 2:
+        #     elif (i_L < (2/3)*len(distance_km)) and (i_L >= (1/3)*len(distance_km)):
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_1, electron_fraction_1))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_1, electron_fraction_1).Track((1/3)*distance_km[-1]*self.units.km))
+        #         self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )
+        #         self.nusquids.EvolveState()
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_2, electron_fraction_2))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_2, electron_fraction_2).Track((L-(1/3)*distance_km[-1])*self.units.km))
+        #         self.nusquids.EvolveState()
+
+        #     # LAYER 3:
+        #     else :
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_1, electron_fraction_1))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_1, electron_fraction_1).Track((1/3)*distance_km[-1]*self.units.km))
+        #         self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )
+        #         self.nusquids.EvolveState()
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_2, electron_fraction_2))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_2, electron_fraction_2).Track(((1/3)*distance_km[-1])*self.units.km))
+        #         self.nusquids.EvolveState()
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_3, electron_fraction_3))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_3, electron_fraction_3).Track((L-(2/3)*distance_km[-1])*self.units.km))
+        #         self.nusquids.EvolveState()
+
+
+        
+
+
+
+
+        # elif (self._matter == "simple earth"):
+        #     # assert self.matter_opts is not None, "matter_opts are preset for simple earth model"
+        #     assert np.isclose(distance_km[-1], 12742.0, atol=1.), "distance_km[-1] must be equal to the radius of the earth (12742 km)" 
+
+        #     # Simple Earth goes through 3 layers: mantle, outer core and inner core
+
+        #     # Reference to layer data:
+        #     # Preliminary reference Earth model - Adam M. Dziewonski and Don L. Anderson
+
+        #     # define propagation distances through each of the earts layers 
+        #     inner_core_thickness_km = 1221.5*2          #x2 because 1221 is the radius
+        #     outer_core_thicknes_km = 3480.0-1221.5      #3480 is the outer core radius
+        #     mantle_thickness_km = 5701.0-3480.0         #5701 is the mantle radius
+        #     transition_and_crust_thickness_km = 6371.0-5701.0 #6371 is the earth radius
+
+        #     #for simplicity is the transition and crust layer treated as part of the mantle (quite thin layers) #TODO maybe implement layers for both transition and crust, as densities vary a lot
+        #     mantle_thickness_km = mantle_thickness_km + transition_and_crust_thickness_km
+
+            
+
+        #     # define the matter densities (g/cm3) and electron fractions for each of the earths layers
+        #     electron_fraction = 0.5
+        #     matter_density_mantle = 7.957
+        #     matter_density_outer_core = 12.58
+        #     matter_density_inner_core = 13.08
+
+        #     # Evolve the state through the layers: mantle, outer core, inner core, outer core, mantle
+
+        #     D_earth = distance_km[-1]
+        #     N_L = len(distance_km)
+
+
+        #     # layer index boundaries for if-statements
+        #     mantle_index_boundary = (mantle_thickness_km/D_earth)*N_L 
+        #     outer_core_index_boundary = ((mantle_thickness_km+outer_core_thicknes_km)/D_earth)*N_L
+        #     inner_core_index_boundary = ((mantle_thickness_km+outer_core_thicknes_km+inner_core_thickness_km)/D_earth)*N_L
+        #     second_outer_core_index_boundary = ((mantle_thickness_km+outer_core_thicknes_km+inner_core_thickness_km+outer_core_thicknes_km)/D_earth)*N_L
+
+
+        #         # LAYER 1: MANTLE
+            
+        #     if i_L < mantle_index_boundary :
+        #         prop_dist = L*self.units.km
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_mantle, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_mantle, electron_fraction).Track(prop_dist))
+        #         self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )
+        #         self.nusquids.EvolveState()
+            
+
+
+        #     # LAYER 2: OUTER CORE
+            
+        #     elif (i_L < outer_core_index_boundary) and (i_L >= mantle_index_boundary):
+            
+        #         prop_dist_mantle = mantle_thickness_km*self.units.km
+        #         prop_dist_outer_core = (L-mantle_thickness_km)*self.units.km
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_mantle, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_mantle, electron_fraction).Track(prop_dist_mantle))
+        #         self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )
+        #         self.nusquids.EvolveState()
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_outer_core, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_outer_core, electron_fraction).Track(prop_dist_outer_core))
+        #         self.nusquids.EvolveState()
+
+
+        #     # LAYER 3: INNER CORE
+
+        #     elif (i_L < inner_core_index_boundary) and (i_L >= outer_core_index_boundary):
+            
+        #         prop_dist_mantle = mantle_thickness_km*self.units.km
+        #         prop_dist_outer_core = outer_core_thicknes_km*self.units.km
+        #         prop_dist_inner_core = (L-(mantle_thickness_km+outer_core_thicknes_km))*self.units.km
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_mantle, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_mantle, electron_fraction).Track(prop_dist_mantle))
+        #         self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )
+        #         self.nusquids.EvolveState()
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_outer_core, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_outer_core, electron_fraction).Track(prop_dist_outer_core))
+        #         self.nusquids.EvolveState()
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_inner_core, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_inner_core, electron_fraction).Track(prop_dist_inner_core))
+        #         self.nusquids.EvolveState()
+            
+
+        #     # LAYER 4: SECOND OUTER CORE
+
+        #     elif (i_L < second_outer_core_index_boundary) and (i_L >= inner_core_index_boundary):
+            
+        #         prop_dist_mantle = mantle_thickness_km*self.units.km
+        #         prop_dist_outer_core = outer_core_thicknes_km*self.units.km
+        #         prop_dist_inner_core = inner_core_thickness_km*self.units.km
+        #         prop_dist_second_outer_core = (L-(mantle_thickness_km+outer_core_thicknes_km+inner_core_thickness_km))*self.units.km
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_mantle, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_mantle, electron_fraction).Track(prop_dist_mantle))
+        #         self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )
+        #         self.nusquids.EvolveState()
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_outer_core, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_outer_core, electron_fraction).Track(prop_dist_outer_core))
+        #         self.nusquids.EvolveState()
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_inner_core, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_inner_core, electron_fraction).Track(prop_dist_inner_core))
+        #         self.nusquids.EvolveState()
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_outer_core, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_outer_core, electron_fraction).Track(prop_dist_second_outer_core))
+        #         self.nusquids.EvolveState()
+
+
+        #     # LAYER 5: SECOND MANTLE
+        #     elif i_L >= second_outer_core_index_boundary:
+            
+        #         prop_dist_mantle = mantle_thickness_km*self.units.km
+        #         prop_dist_outer_core = outer_core_thicknes_km*self.units.km
+        #         prop_dist_inner_core = inner_core_thickness_km*self.units.km
+        #         prop_dist_second_outer_core = outer_core_thicknes_km*self.units.km
+        #         prop_dist_second_mantle = (L-(mantle_thickness_km+outer_core_thicknes_km+inner_core_thickness_km+outer_core_thicknes_km))*self.units.km
+
                 
-                self.matter_opts = {
-                    "matter_density_1" : kw["matter_density_1"],
-                    "matter_density_2" : kw["matter_density_2"],
-                    "matter_density_3" : kw["matter_density_3"],
-                    "electron_fraction_1" : kw["electron_fraction_1"],
-                    "electron_fraction_2" : kw["electron_fraction_2"],
-                    "electron_fraction_3" : kw["electron_fraction_3"],
-                }
-                
-        elif matter == "simple earth" :
-            print("Simple earth")
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_mantle, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_mantle, electron_fraction).Track(prop_dist_mantle))
+        #         self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )
+        #         self.nusquids.EvolveState()
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_outer_core, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_outer_core, electron_fraction).Track(prop_dist_outer_core))
+        #         self.nusquids.EvolveState()
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_inner_core, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_inner_core, electron_fraction).Track(prop_dist_inner_core))
+        #         self.nusquids.EvolveState()
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_outer_core, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_outer_core, electron_fraction).Track(prop_dist_second_outer_core))
+        #         self.nusquids.EvolveState()
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_mantle, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_mantle, electron_fraction).Track(prop_dist_second_mantle))
+        #         self.nusquids.EvolveState()
+
+
+
 
 
 
@@ -975,9 +1164,17 @@ class OscCalculator(object) :
         #
 
         if self.tool == "nusquids" :
-            assert directional, "Istropic SME not implemented in nuSQuIDS yet"
+            assert directional, "Isotropic SME not implemented in nuSQuIDS yet"
             assert basis == "mass", "Only mass basis SME implemented in nuSQuIDS currently"
             self.nusquids.Set_LIVCoefficient(a_eV, c, e, ra_rad, dec_rad)
+
+            # self.sme_opts = {
+            #         "basis" : basis,
+            #         "a_eV" : a_eV,
+            #         "c" : c,
+            #         "e": e,
+            #         "ra_rad" : ra_rad,
+            #         "dec_rad" : dec_rad,
 
         elif self.tool == "deimos" :
             if directional :
@@ -1449,56 +1646,56 @@ class OscCalculator(object) :
 
         #
         #  SME Case
-        #
+        # #
 
-        if self.sme_opts is not None :
+        # if self.sme_opts is not None :
             
-            # To include SME parameters in calculation of the hamiltonian
-            include_sme = True
+        #     # To include SME parameters in calculation of the hamiltonian
+        #     include_sme = True
 
-            # Handle isotropic vs directional
-            assert "directional" in self.sme_opts
-            sme_is_directional = self.sme_opts.pop("directional")
+        #     # Handle isotropic vs directional
+        #     assert "directional" in self.sme_opts
+        #     sme_is_directional = self.sme_opts.pop("directional")
 
-            # Handle basis in which flavor/mass structure is defined
-            assert "basis" in self.sme_opts
-            sme_basis = self.sme_opts.pop("basis")
-            assert sme_basis in ["mass", "flavor"]
-            sme_basis_is_flavor = sme_basis == "flavor" # Bool fast checking during solving
+        #     # Handle basis in which flavor/mass structure is defined
+        #     assert "basis" in self.sme_opts
+        #     sme_basis = self.sme_opts.pop("basis")
+        #     assert sme_basis in ["mass", "flavor"]
+        #     sme_basis_is_flavor = sme_basis == "flavor" # Bool fast checking during solving
 
-            # User provides a(3) and c(4) coefficients, plus a possible mass-dependent non-renomalizable term
-            self.sme_opts = copy.deepcopy(self.sme_opts)
-            assert "a_eV" in self.sme_opts
-            sme_a = self.sme_opts.pop("a_eV")
-            assert "c" in self.sme_opts
-            sme_c = self.sme_opts.pop("c") # dimensionless
-            # if sme_is_directional : # e term only implemented for direction SME currently
-            assert "e" in self.sme_opts
-            sme_e = self.sme_opts.pop("e") # dimensionless
-
-
-            # Handle antineutrinos
-            if nubar:
-                sme_a = - sme_a
+        #     # User provides a(3) and c(4) coefficients, plus a possible mass-dependent non-renomalizable term
+        #     self.sme_opts = copy.deepcopy(self.sme_opts)
+        #     assert "a_eV" in self.sme_opts
+        #     sme_a = self.sme_opts.pop("a_eV")
+        #     assert "c" in self.sme_opts
+        #     sme_c = self.sme_opts.pop("c") # dimensionless
+        #     # if sme_is_directional : # e term only implemented for direction SME currently
+        #     assert "e" in self.sme_opts
+        #     sme_e = self.sme_opts.pop("e") # dimensionless
 
 
-            # Get neutrino direction in celestial coords
-            if sme_is_directional :
-                assert ra_rad is not None
-                assert dec_rad is not None
-                assert np.isscalar(ra_rad)
-                assert np.isscalar(dec_rad)
-                assert (ra_rad >= 0) and (ra_rad <= 2 * np.pi)
-                assert (dec_rad >= -np.pi / 2) and (dec_rad <= np.pi / 2)
+        #     # Handle antineutrinos
+        #     if nubar:
+        #         sme_a = - sme_a
+
+
+        #     # Get neutrino direction in celestial coords
+        #     if sme_is_directional :
+        #         assert ra_rad is not None
+        #         assert dec_rad is not None
+        #         assert np.isscalar(ra_rad)
+        #         assert np.isscalar(dec_rad)
+        #         assert (ra_rad >= 0) and (ra_rad <= 2 * np.pi)
+        #         assert (dec_rad >= -np.pi / 2) and (dec_rad <= np.pi / 2)
 
             
             
-            # Check for additional SME arguments
-            assert len(self.sme_opts) == 0, "Unused SME arguments!?!"
+        #     # Check for additional SME arguments
+        #     assert len(self.sme_opts) == 0, "Unused SME arguments!?!"
 
 
-            # Set SME parameters in nusquids #TODO e_term not yet implemented
-            self.nusquids.Set_LIVCoefficient(sme_a,sme_c,sme_e,ra_rad, dec_rad)
+        #     # Set SME parameters in nusquids #TODO e_term not yet implemented
+        #     self.nusquids.Set_LIVCoefficient(sme_a,sme_c,sme_e,ra_rad, dec_rad)
             
                 
            
