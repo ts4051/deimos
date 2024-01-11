@@ -153,6 +153,7 @@ class OscCalculator(object) :
         energy_nodes_GeV=None,
         coszen_nodes=None,
         interactions=False,
+        tau_regeneration=False,
         nusquids_variant=None, # Specify nuSQuIDS variants (nuSQuIDSDecoh, nuSQUIDSLIV, etc)
         error=1.e-6,
     ) :
@@ -235,8 +236,9 @@ class OscCalculator(object) :
                 raise Exception("Unknown nusquids varint : %s" % self._nusquids_variant)
             
             # Add tau regeneration
-            # if interactions :
-            #     self.nusquids.Set_TauRegeneration(True) #TODO results look wrong, disable for now and investigate #TODO what about NC regeneration?
+            if tau_regeneration :
+                assert interactions, "Interactions must be enabled for tau regeneration"
+                self.nusquids.Set_TauRegeneration(True) #TODO results look wrong, disable for now and investigate #TODO what about NC regeneration?
 
         else :
 
@@ -915,6 +917,12 @@ class OscCalculator(object) :
 
         else :
             operator_shape = (self.num_neutrinos, self.num_neutrinos) # shape is (N, N), where N is num neutrino states
+
+            if a_eV is None: 
+                a_eV = np.zeros(operator_shape)
+            if c is None:
+                c = np.zeros(operator_shape)
+
             assert isinstance(a_eV, np.ndarray) and (a_eV.shape == operator_shape)
             assert isinstance(c, np.ndarray) and (c.shape == operator_shape) 
             assert e is None, "e not implemented yet for isotropic SME"
@@ -980,6 +988,10 @@ class OscCalculator(object) :
         Set detector (position, etc), choosing from known detectors
         '''
 
+        #
+        # Real detectors
+        #
+
         if name.lower() == "icecube" :
             self.set_detector_location(
                 lat_deg="89°59′24″S",
@@ -1001,6 +1013,34 @@ class OscCalculator(object) :
                 height_m=-1500.,
             )
 
+
+        #
+        # Toy detectors
+        #
+
+        elif name.lower() == "toy_equator" : # Toy detector at sea level on the equator, at 0 deg longitude
+            self.set_detector_location(
+                lat_deg="0°S",
+                long_deg="0°W",
+                height_m=0.,
+            )
+
+        elif name.lower() == "toy_north_pole" : # Same as 'toy_equator' but at the North Pole (only latitude changes)
+            self.set_detector_location(
+                lat_deg="90°N",
+                long_deg="0°W",
+                height_m=0.,
+            )
+
+        elif name.lower() == "toy_south_pole" : # Same as 'toy_equator' but at the South Pole (only latitude changes)
+            self.set_detector_location(
+                lat_deg="90°S",
+                long_deg="0°W",
+                height_m=0.,
+            )
+
+
+        # Error handling
         else :
             raise NotImplemented("Unknown detector : %s" % name)
 
@@ -2075,6 +2115,8 @@ class OscCalculator(object) :
         coszen,
         nubar=False,
         title=None,
+        ax=None,
+        vmax=1.,
     ) :
         '''
         Helper function for plotting an atmospheric neutrino oscillogram
@@ -2084,7 +2126,7 @@ class OscCalculator(object) :
         assert self.atmospheric, "`plot_oscillogram` can only be called in atmospheric mode"
 
         #
-        # Steerig
+        # Steering
         #
 
         # Plot steering
@@ -2116,12 +2158,16 @@ class OscCalculator(object) :
         #
 
         # Create fig
-        fig, ax = plt.subplots( figsize=(7, 6) )
+        fig = None
+        if ax is None :
+            fig, ax = plt.subplots( figsize=(7, 6) )
+
+        # Title
         if title is not None :
-            fig.suptitle(title) 
+            ax.set_title(title) 
 
         # Plot oscillogram
-        plot_colormap( ax=ax, x=energy_GeV, y=coszen, z=osc_probs, vmin=0., vmax=1., cmap=continuous_map, zlabel=r"$%s$"%transition_prob_tex )
+        plot_colormap( ax=ax, x=energy_GeV, y=coszen, z=osc_probs, vmin=0., vmax=vmax, cmap=continuous_map, zlabel=r"$%s$"%transition_prob_tex )
 
         # Format
         xscale = "linear" if value_spacing_is_linear(energy_GeV) else "log"
@@ -2132,7 +2178,8 @@ class OscCalculator(object) :
         ax.set_ylim(coszen[0], coszen[-1])
         ax.set_xlabel(ENERGY_LABEL)
         ax.set_ylabel(COSZEN_LABEL)
-        fig.tight_layout()
+        if fig is not None :
+            fig.tight_layout()
 
         return fig, ax, osc_probs
 
