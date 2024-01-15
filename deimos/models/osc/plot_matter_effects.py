@@ -12,6 +12,8 @@ Tom Stuttard
 
 import sys, os, collections
 
+from matplotlib import cm
+
 from deimos.wrapper.osc_calculator import *
 from deimos.utils.plotting import *
 from deimos.utils.constants import *
@@ -23,21 +25,6 @@ from deimos.utils.oscillations import calc_effective_osc_params_in_matter_2flav
 #
 
 COLORS = [ "red", "blue", "green", "orange", "purple", "magenta" ]
-
-
-#
-# Helper functions
-#
-
-def adjust_lightness(color, amount=0.5):
-    import matplotlib.colors as mc
-    import colorsys
-    try:
-        c = mc.cnames[color]
-    except:
-        c = color
-    c = colorsys.rgb_to_hls(*mc.to_rgb(c))
-    return colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
 
 
 #
@@ -310,8 +297,8 @@ def verify_matter_layers_implementation() :
 
     layer_endpoint_too_long = np.linspace(0., L_km[-1]*5., num=100)[1:]
     cases["Layers extending past L"] = ( 
-        {"matter":"layers", "layer_endpoint_km":layer_endpoints, "matter_density_g_per_cm3":np.zeros_like(layer_endpoints), "electron_fraction":np.zeros_like(layer_endpoints) },
-        {"matter":"layers", "layer_endpoint_km":layer_endpoint_too_long, "matter_density_g_per_cm3":np.zeros_like(layer_endpoint_too_long), "electron_fraction":np.zeros_like(layer_endpoint_too_long) },
+        {"matter":"layers", "layer_endpoint_km":layer_endpoints, "matter_density_g_per_cm3":np.full_like(layer_endpoints, matter_density_g_per_cm3), "electron_fraction":np.full_like(layer_endpoints, electron_fraction) },
+        {"matter":"layers", "layer_endpoint_km":layer_endpoint_too_long, "matter_density_g_per_cm3":np.full_like(layer_endpoint_too_long, matter_density_g_per_cm3), "electron_fraction":np.full_like(layer_endpoint_too_long, electron_fraction) },
     )
 
     cases["Differing layers but same profile"] = ( 
@@ -359,6 +346,25 @@ def verify_matter_layers_implementation() :
         # Loop over nu/nubar
         for x, nubar in enumerate(nubar_values) :
 
+            # Plot vacuum osc probs for ref
+            calculator.set_matter("vacuum")
+            vacuum_osc_probs = calculator.calc_osc_prob(
+                initial_flavor=initial_flavor, 
+                nubar=nubar,
+                energy_GeV=E_GeV,
+                distance_km=L_km,
+            )
+            for y, final_flavor in enumerate(final_flavor_values) :
+                ax[y,x].plot(
+                    L_km, 
+                    vacuum_osc_probs[:,final_flavor], 
+                    linestyle="-",   
+                    color="black",
+                    lw=4,
+                    zorder=5,
+                    alpha=0.3,
+                )
+
             # Loop over ref/test cases
             for case_kw, color, linestyle in zip([ref_case_kw, test_case_kw], ["red", "blue"], ["-", ":"]) :
 
@@ -379,7 +385,7 @@ def verify_matter_layers_implementation() :
                     # Draw layers
                     if case_kw["matter"] == "layers" :
                         for l in case_kw["layer_endpoint_km"] :
-                            ax[y,x].axvline(l, color=color, linestyle=linestyle, lw=2, alpha=0.7, zorder=5)
+                            ax[y,x].axvline(l, color=color, linestyle=linestyle, lw=2, alpha=0.7, zorder=6)
 
                     # Plot osc probs
                     ax[y,x].plot(
@@ -407,6 +413,103 @@ def verify_matter_layers_implementation() :
 
 
 
+def plot_earth_interaction_effects() :
+    '''
+    Plotting Earth interaction effects, e.g. absorption and tau/NC regeneration
+
+    Doing this by propagating a flux (regeneration effects are flux-dependent, since neutrino energy changes)
+    '''
+
+    #
+    # Define parameter space
+    #
+
+    num_scan_points = 25
+    E_values_GeV = np.geomspace(100., 1e5, num=num_scan_points) # Staying above the standard oscillations for simplicity here
+    coszen_values = np.array([-1.,]) # Just testing up-going currently
+
+    nubar = False
+
+
+    #
+    # Define cases
+    #
+
+    cases = collections.OrderedDict()
+    cases["No interactions"] = {"interactions":False}
+    cases["Include interactions/regeneration"] = {"interactions":True}
+
+ 
+    # 
+    # Plot
+    #
+
+    # Loop over cases
+    for i_case, (case_label, case_kw) in enumerate(cases.items()) :
+
+
+        #
+        # Create model
+        #
+
+        # Create calculator
+        calculator = OscCalculator(
+            tool="nusquids",
+            atmospheric=True,
+            energy_nodes_GeV=E_values_GeV,
+            **case_kw # This passes the interaction information to the model
+        )
+
+        # Enable Earth matter
+        calculator.set_matter("earth")
+
+
+        #
+        # Propagate an astrophysical flux
+        #
+
+        # Note that the flux has an impact of tau/NC regeneration, since there are HE->LE transitions and so the relative rates of HE to LE neutrinos matters
+
+        # Propagate the atro flux
+        initial_flux, final_flux = calculator.calc_final_flux(
+            source="astro",
+            energy_GeV=E_values_GeV,
+            coszen=coszen_values,
+            nubar=nubar,
+        )
+
+        # Make figure
+        fig, ax = plt.subplots( figsize=(6,4) )
+        fig.suptitle(case_label)
+
+        # Plot steering
+        linestyles = ["-","--", ":"]
+
+        # Loop over flavors
+        for i_f in range(calculator.num_neutrinos) :
+
+            # Get the flux for this flavor. Only a single coszen value.
+            assert coszen_values.size == 1
+            flavor_initial_flux = initial_flux[:,0,i_f]
+            flavor_final_flux = final_flux[:,0,i_f]
+            ratio = flavor_final_flux / flavor_initial_flux
+            assert ratio.ndim == 1
+
+            # Plot ratio vs energy
+            ax.plot(E_values_GeV, ratio, color=NU_COLORS[i_f], linestyle=linestyles[i_f], lw=4, label=r"$%s$"%calculator.get_nu_flavor_tex(i_f, nubar=nubar))
+                       
+        # Format
+        ax.set_xscale("log")
+        ax.set_xlabel(r"$E$ [GeV]")
+        ax.set_ylabel(r"$\phi_f / \phi_i$")
+        ax.set_xlim(E_values_GeV[0], E_values_GeV[-1])
+        ax.set_ylim(0., 1.1)
+        ax.grid(True)
+        ax.legend(fontsize=12)
+        fig.tight_layout()
+
+
+
 #
 # Main
 #
@@ -415,11 +518,14 @@ if __name__ == "__main__" :
 
     plot_matter_effects_2flav()
 
+    plot_earth_interaction_effects()
+
     compare_matter_effects_between_solvers()
+
+    verify_matter_layers_implementation()
 
     #TODO plot resonance condition
 
-    verify_matter_layers_implementation()
 
     print("")
     dump_figures_to_pdf( __file__.replace(".py",".pdf") )

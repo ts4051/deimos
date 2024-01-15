@@ -123,28 +123,46 @@ def calc_osc_wavelength_from_hamiltonian(H) :
 
 
 
-def calc_effective_osc_params_in_matter_2flav(E_eV, mixing_angle_rad, mass_splitting_eV2, matter_density_g_per_cm3, electron_fraction) :
+def calc_effective_osc_params_in_matter_2flav(E_eV, mixing_angle_rad, mass_splitting_eV2, matter_density_g_per_cm3, electron_fraction, sme_a_ee_flav=None) :
     '''
     Convert Vacuum mixing angle and mass splitting into the effective values in constant density matter
 
     This is for a 2-flavor system, where e is the 0th flavor
 
     Following https://cds.cern.ch/record/1114392/files/p159.pdf eqns (35-37)
+
+    Can optonally include the ee element of the SME a0 (isotropic) matrix (if defined in the flavor basis) since this can also 
+    easily be accounted for in these effective parameters. Generally no need to do this, but useful for testing.
     '''
+
+    # Enforce only 2-flavor
+    assert np.isscalar(mixing_angle_rad), "This function only supports 2-flavor oscillations, must provide single mixing angle only"
+    assert np.isscalar(mass_splitting_eV2), "This function only supports 2-flavor oscillations, must provide single mass splitting only"
 
     from deimos.density_matrix_osc_solver.density_matrix_osc_solver import get_electron_density_per_m3
 
+    # Get electron density
     Ne = get_electron_density_per_m3(matter_density_g_per_cm3, electron_fraction)
 
-    A = 2. * np.sqrt(2.) * FERMI_CONSTANT * Ne * E_eV / mass_splitting_eV2
+    # Compute potential from W boson
+    Vw = np.sqrt(2.) * FERMI_CONSTANT * Ne
 
+    # Add SME term if requested
+    if sme_a_ee_flav is not None :
+        Vw += sme_a_ee_flav #TODO test nubar
+
+    # Compute A term
+    A = 2. * Vw * E_eV / mass_splitting_eV2
+
+    # Compute the trig terms (to simplify next calculation)
     sin2_2theta = np.square( np.sin( 2. * mixing_angle_rad ) )
     cos_2theta = np.cos( 2. * mixing_angle_rad )
 
+    # Compute effective mass splitting
     matter_mass_splitting_eV2 = mass_splitting_eV2 * np.sqrt( sin2_2theta + np.square(cos_2theta - A) )
 
+    # Compute effective mixing angle
     sin2_2theta_m = sin2_2theta / ( sin2_2theta + np.square( cos_2theta - A ) )
-
     matter_mixing_angle_rad = np.arcsin( np.sqrt(sin2_2theta_m) ) / 2.
 
     return matter_mixing_angle_rad, matter_mass_splitting_eV2

@@ -168,7 +168,6 @@ class OscCalculator(object) :
         energy_nodes_GeV=None,
         coszen_nodes=None,
         interactions=False,
-        tau_regeneration=False,
         nusquids_variant=None, # Specify nuSQuIDS variants (nuSQuIDSDecoh, nuSQUIDSLIV, etc)
         error=1.e-6,
     ) :
@@ -250,10 +249,9 @@ class OscCalculator(object) :
             else :
                 raise Exception("Unknown nusquids varint : %s" % self._nusquids_variant)
             
-            # Add tau regeneration
-            if tau_regeneration :
-                assert interactions, "Interactions must be enabled for tau regeneration"
-                self.nusquids.Set_TauRegeneration(True) #TODO results look wrong, disable for now and investigate #TODO what about NC regeneration?
+            # Enable tau regeneration if using interactions
+            if interactions :
+                self.nusquids.Set_TauRegeneration(True)
 
         else :
 
@@ -288,6 +286,11 @@ class OscCalculator(object) :
             else :
                 raise Exception("Unknown nusquids varint : %s" % self._nusquids_variant)
 
+            # Enable tau regeneration if using interactions
+            if interactions :
+                self.nusquids.Set_TauRegeneration(True)
+
+                
         #
         # Various settings
         #
@@ -593,32 +596,89 @@ class OscCalculator(object) :
 
 
     #
-    # Atmospheric flux
+    # Nu flux
     #
 
-    def get_atmospheric_neutrino_flux(self, energy_GeV, coszen, grid=False, name="mceq", overwrite_cache=False) :
+    def get_neutrino_flux(self, energy_GeV, coszen, source, tool=None, grid=False, overwrite_cache=False) :
         '''
         Function to return the atmospheric neutrino flux, for a given model or calculation method
+
+        Output flux shape is: [E, cz, flavor, nu/nubar]
         '''
 
         #TODO azimuth
 
-        # Checks
-        assert self.atmospheric
-        assert self.num_neutrinos > 2, "Atmospheric flux not defined for 2nu system"
+        # Check inputs
+        assert energy_GeV.ndim == 1 #TODO support 2D, scalar, etc
+        assert coszen.ndim == 1
 
-        # Toggle modes
-        if name.lower() == "honda" :
-            raise NotImplemented("TODO: Honda flux")
-
-        elif name.lower() == "daemon" :
-            raise NotImplemented("TODO: Daemon flux")
-
-        elif name.lower() == "mceq" :
-            return self._get_atmospheric_neutrino_flux_mceq(energy_GeV=energy_GeV, coszen=coszen, grid=grid, overwrite_cache=overwrite_cache)
+        # Toggle neutrino source
+        if source.lower() in [ "atmospheric", "atmo" ] :
 
 
-    def _get_atmospheric_neutrino_flux_mceq(self, energy_GeV, coszen, grid=False, overwrite_cache=False) :
+            #
+            # Atmospheric flux
+            #
+
+            # Checks
+            assert self.atmospheric, "Must be in atmospheric mode"
+            assert self.num_neutrinos > 2, "Atmospheric flux not defined for 2nu system"
+
+            # Default tool
+            if tool is None :
+                tool = "mceq"
+
+            # Toggle tool used to generate flux
+            if tool.lower() == "honda" :
+                raise NotImplemented("TODO: Honda flux")
+
+            elif tool.lower() == "daemon" :
+                raise NotImplemented("TODO: Daemon flux")
+
+            elif tool.lower() == "mceq" :
+                return self._get_atmo_neutrino_flux_mceq(energy_GeV=energy_GeV, coszen=coszen, grid=grid, overwrite_cache=overwrite_cache)
+
+            else :
+                raise NotImplemented("Unknown tool for atmospheric flux")
+
+
+        else :
+
+            #
+            # High energy astrophysical flux (as detected by IceCube)
+            #
+
+            # Checks
+            assert self.atmospheric, "Must be in atmospheric mode"
+            assert self.num_neutrinos > 2, "Atmospheric flux not defined for 2nu system"
+
+            # Default tool
+            if tool is None :
+                tool = "spl"
+
+            # Toggle tool used to generate flux
+            if tool in [ "spl", "single_power_law" ] :
+
+                # Generate a basic single power law using roughly the spectral index from IceCube observations
+                # Not rigorous, good for quick checks though
+                # Assumes 1:1:1 flavor, and 1:1 nu:nubar, isotropic (which means uniform in coszen)
+
+                norm_100_TeV = 1. #TODO what number?
+                spectral_index = -2. #TODO what number?
+                phi_E = norm_100_TeV * np.power( energy_GeV / 1e5, spectral_index ) 
+
+                output_flux = np.full( (energy_GeV.size, coszen.size, self.num_neutrinos, 2), np.NaN ) # shape =  (same as used by e.g. calc_osc_probs)
+                for cz in range(coszen.size) :
+                    for f in range(self.num_neutrinos) :
+                        for r in range(2) :
+                            output_flux[:, cz, f, r] = phi_E
+                assert np.all( np.isfinite(output_flux) )
+
+                return output_flux
+
+
+
+    def _get_atmo_neutrino_flux_mceq(self, energy_GeV, coszen, grid=False, overwrite_cache=False) :
         '''
         Run MCEq to compute flux for some zenith/energy nodes, then spline them to get continuous description
 
@@ -731,9 +791,15 @@ class OscCalculator(object) :
         #
 
         # Get flux for each flavor at the specified nodes
-        output_flux = collections.OrderedDict()
-        for flavor, spline in splines.items() :
-            output_flux[ flavor_mapping[flavor] ] = spline(energy_GeV, coszen, grid=grid) # Include mapping from MCEq to DEIMOS flavor
+        # Output as 4D array in same format used elsewhere in code
+        output_flux = np.full( (energy_GeV.size, coszen.size, self.num_neutrinos, 2), np.NaN ) # shape = [E, cz, flavor, nu/nubar] (same as used by e.g. calc_osc_probs)
+        for mceq_flavor, spline in splines.items() :
+            flavor, nubar = flavor_mapping[mceq_flavor]
+            rho = 1 if nubar else 0
+            output_flux[:, :, flavor, rho] = spline(energy_GeV, coszen, grid=grid) # Include mapping from MCEq to DEIMOS flavor
+
+        # Checks
+        assert np.all( np.isfinite(output_flux) )
 
         return output_flux
 
@@ -1610,18 +1676,27 @@ class OscCalculator(object) :
             # results = np.full( (energy_GeV.size, coszen.size, final_flavors.size, 2 ), np.NaN )
             results = np.full( (energy_GeV.size, coszen.size, final_flavors.size ), np.NaN )
 
-            # Determine shape of initial state vector
+            # Determine shape of initial state vector in nuSQuIDS
             state_shape = [ self.nusquids.GetNumCos(), self.nusquids.GetNumE() ]
-            state_shape.append( 2 )
+            state_shape.append( 2 ) # nu/nubar
             state_shape.append( final_flavors.size )
             state_shape = tuple(state_shape)
 
-            # Define initial state if not provided, otherwise verify the one provided
+            # Define initial state if not provided, otherwise verify the one provided and re-order to match DEIMOS format
             if initial_state is None :
                 initial_state = np.full( state_shape, 0. )
                 initial_state[ :, :, rho, initial_flavor ] = 1. # dims = [ cz node, E node, nu(bar), flavor ]
             else :
-                assert initial_state.shape == state_shape, "Incompatible shape for initial state : Expected %s, found %s" % (state_shape, initial_state.shape)
+                # DEIMOS expects [E, cz, flavor] shape (for either nu or nubar), but nuSQuIDS expects [cz, E, nu/nubar, flavor]. Reformat...
+                input_initial_state = initial_state
+                assert input_initial_state.shape == (state_shape[1], state_shape[0], state_shape[3]), "User provided an incompatible shape for initial state"
+                input_initial_state = np.swapaxes(initial_state, 1, 0) # swap E and cz dimensions
+                initial_state = np.full( state_shape, 0. )
+                for f in range(final_flavors.size) :
+                    for r in range(2) : 
+                        if r == rho :
+                            np.copyto(src=input_initial_state[:,:,f], dst=initial_state[:,:,r,f])
+            assert initial_state.shape == state_shape, "Wrong shape for initial state"
 
             # Set the intial state
             self.nusquids.Set_initial_state(initial_state, nsq.Basis.flavor)
@@ -1649,9 +1724,9 @@ class OscCalculator(object) :
             results = np.full( (energy_GeV.size, distance_km.size, final_flavors.size), np.NaN )
             # results = np.full( (energy_GeV.size, distance_km.size, final_flavors.size, 2), np.NaN )
 
-            # Determine shape of initial state vector
+            # Determine shape of initial state vector in nuSQuIDS
             state_shape = [ self.nusquids.GetNumE() ]
-            state_shape.append(2)
+            state_shape.append(2) # nu/nubar
             state_shape.append( final_flavors.size )
             state_shape = tuple(state_shape)
 
@@ -1939,6 +2014,87 @@ class OscCalculator(object) :
             results = np.flip(results, axis=1)
 
         return results
+
+
+
+    def calc_final_flux(self,
+        source,
+        energy_GeV,
+        coszen,
+        nubar=False,
+        tool=None,
+    ) :
+        '''
+        Propagate an initial flux to a final flux, accounting for oscillations, matter, etc
+
+        This largely re-uses calc_osc_probs() but with a different format for the initial state
+        '''
+
+        #
+        # Check inputs
+        # 
+
+        # Some limitations of current implementation
+        assert self.atmospheric, "Currently only supporting flux propagation in atmospheric mode"
+
+
+        #
+        # Get initial flux
+        #
+
+        # Get the initital flux before any propagation  #TODO ideally let user provide any flux of their choosing, but run into issues with nusquids since it needs the flux values at its nodes
+        get_neutrino_flux_kw = dict(grid=True, source=source, tool=tool, overwrite_cache=False)
+        initial_flux = self.get_neutrino_flux(energy_GeV=energy_GeV, coszen=coszen, **get_neutrino_flux_kw)
+
+        # Remove nubar dim
+        rho = 1 if nubar else 0
+        initial_flux = initial_flux[:, :, :, rho]
+
+
+        #
+        # Handle differently for different solvers
+        #
+
+        # Check tool
+        if self.tool == "nusquids" :
+
+
+            #
+            # nuSQuIDS
+            #
+
+            # For nuSQuIDS, must define the initital state vector as the flux at the E and coszen nodes of the nuSQuIDSAtm instance
+            initial_state = self.get_neutrino_flux(energy_GeV=self.energy_nodes_GeV, coszen=self.coszen_nodes, **get_neutrino_flux_kw)
+            initial_state = initial_state[:, :, :, rho]
+
+            # Propagate, (ab)using the calc_osc_prob function
+            final_flux = self.calc_osc_prob(
+                energy_GeV=energy_GeV,
+                initial_state=initial_state,
+                coszen=coszen,
+                nubar=nubar,
+            )
+
+            #TODO potential issues due to differing nodes for the generation of the initial and final state here (MCEq interpolation and nuSQuIDS interpolation). Make it safer though by setting the plotting grid as the nuSQuIDS nodes...
+
+        else :
+
+            raise NotImplemented("TODO: calc_final_flux not implemented for %s" % self.tool)
+
+
+        #
+        # Done
+        #
+
+        # Check shapes match
+        assert initial_flux.shape == final_flux.shape
+
+        # Checks
+        assert np.all( np.isfinite(initial_flux) ), "Found non-finite initial flux"
+        assert np.all( np.isfinite(final_flux) ), "Found non-finite final flux"
+
+        return initial_flux, final_flux
+
 
 
     def _get_flavor_index(self,flavor) :
