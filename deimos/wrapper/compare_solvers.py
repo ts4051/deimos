@@ -59,7 +59,6 @@ def compare_osc_solvers(solver_defs) :
         calculator = OscCalculator(
             tool=tool,
             atmospheric=False,
-            num_neutrinos=3,
             **kw
         )
 
