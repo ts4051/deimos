@@ -341,6 +341,11 @@ def get_decoherence_operator_nxn_basis_from_sun_D_matrix(D_matrix, rho) :
     return Drho
 
 
+
+#
+# Testing
+#
+
 # Define a rho for testing
 # This is a random one grabbed from the solver, which is valid (Hermitian) and has many non-zero elements
 TEST_RHO_NxN = np.array([
@@ -448,6 +453,142 @@ def test_decoherence_operator_functions() :
 
 
 
+def check_decoherence_D_matrix(num_neutrinos, D) :
+    '''
+    There exist inequalities between the elements of the decoherence D matrix, meaning that the elements are not fully independent
+
+    Enforcing these inequalities here, as defined in:
+     - 2 flavor: https://arxiv.org/pdf/hep-ph/0105303.pdf
+     - 3 flavor: https://arxiv.org/pdf/1811.04982.pdf Appendix B
+    '''
+
+    #TODO implement the 2nu constraints
+    
+    if num_neutrinos == 3 :
+
+        #
+        # SU(3) case
+        #
+
+        #TODO What enforces g1=g1, g4=g5, g6=g7 ?
+
+        assert D.shape == (9, 9)
+
+        #TODO what about 0th row/col?
+
+        # Check everything is real
+        assert np.all( D.imag == 0. )
+
+        # Check everything is positive or zero
+        assert np.all( D >= 0. )
+
+        # Extract diagonal elements (gamma)
+        g1 = D[1,1]
+        g2 = D[2,2]
+        g3 = D[3,3]
+        g4 = D[4,4]
+        g5 = D[5,5]
+        g6 = D[6,6]
+        g7 = D[7,7]
+        g8 = D[8,8]
+
+        # Extract off-diagonal elements (beta)
+        # Enforce pairs either side of the diagonal match in the process
+        b12 = D[1,2]
+        assert D[2,1] == b12
+        b13 = D[1,3]
+        assert D[3,1] == b13
+        b14 = D[1,4]
+        assert D[4,1] == b14
+        b15 = D[1,5]
+        assert D[5,1] == b15
+        b16 = D[1,6]
+        assert D[6,1] == b16
+        b17 = D[1,7]
+        assert D[7,1] == b17
+        b18 = D[1,8]
+        assert D[8,1] == b18
+        b23 = D[2,3]
+        assert D[3,2] == b23
+        b24 = D[2,4]
+        assert D[4,2] == b24
+        b25 = D[2,5]
+        assert D[5,2] == b25
+        b26 = D[2,6]
+        assert D[6,2] == b26
+        b27 = D[2,7]
+        assert D[7,2] == b27
+        b28 = D[2,8]
+        assert D[8,2] == b28
+        b34 = D[3,4]
+        assert D[4,3] == b34
+        b35 = D[3,5]
+        assert D[5,3] == b35
+        b36 = D[3,6]
+        assert D[6,3] == b36
+        b37 = D[3,7]
+        assert D[7,3] == b37
+        b38 = D[3,8]
+        assert D[8,3] == b38
+        b45 = D[4,5]
+        assert D[5,4] == b45
+        b46 = D[4,6]
+        assert D[6,4] == b46
+        b47 = D[4,7]
+        assert D[7,4] == b47
+        b48 = D[4,8]
+        assert D[8,4] == b48
+        b56 = D[5,6]
+        assert D[6,5] == b56
+        b57 = D[5,7]
+        assert D[7,5] == b57
+        b58 = D[5,8]
+        assert D[8,5] == b58
+        b67 = D[6,7]
+        assert D[7,6] == b67
+        b68 = D[6,8]
+        assert D[8,6] == b68
+        b78 = D[7,8]
+        assert D[8,7] == b78
+
+        # Now implement all inequalities
+        a1 = -g1 + g2 + g3 - (g8/3.) 
+        a2 =  g1 - g2 + g3 - (g8/3.)
+        a3 =  g1 + g2  -g3 - (g8/3.)
+
+        a4 = -g4 + g5 + g3 + (2.*g8/3.) - (2.*b38/np.sqrt(3.)) # See here that beta38 is somehwat special (since it relates to the special gamma3/8 params)
+        a5 =  g4 - g5 + g3 + (2.*g8/3.) - (2.*b38/np.sqrt(3.))
+        a6 = -g6 + g7 + g3 + (2.*g8/3.) + (2.*b38/np.sqrt(3.))
+        a7 =  g6 - g7 + g3 + (2.*g8/3.) + (2.*b38/np.sqrt(3.))
+
+        a8 = -(g1/3.) - (g2/3.) - (g3/3.) + (2.*g4/3.) + (2.*g5/3.) + (2.*g6/3.) + (2.*g7/3.) - g8
+
+        assert a1 >= 0., "Inequality failure (a1)"
+        assert a2 >= 0., "Inequality failure (a2)"
+        assert a3 >= 0., "Inequality failure (a3)"
+        assert a4 >= 0., "Inequality failure (a4)"
+        assert a5 >= 0., "Inequality failure (a5)"
+        assert a6 >= 0., "Inequality failure (a1)"
+        assert a7 >= 0., "Inequality failure (a7)"
+        assert a8 >= 0., "Inequality failure (a8)"
+
+        assert (4.*np.square(b12)) <= ( np.square(g3 - (g8/3.)) - np.square(g1 - g2) )
+        assert (4.*np.square(b13)) <= ( np.square(g2 - (g8/3.)) - np.square(g1 - g3) )
+        assert (4.*np.square(b23)) <= ( np.square(g1 - (g8/3.)) - np.square(g2 - g3) )
+
+        assert np.square( 4.*np.square(b38) + (g4/np.sqrt(3.)) + (g5/np.sqrt(3.)) - (g6/np.sqrt(3.)) - (g7/np.sqrt(3.)) ) <= (a3*a8)
+
+        #TODO there are still quite a few more involving beta....
+
+
+    else :
+
+        # Error handling
+        raise NotImplementedError("Checks on decoherence D matrix inequalities not yet implemented for a %i neutrino system" % num_neutrinos)
+
+
+
+
 #
 # Interface to decoherence models
 #
@@ -488,7 +629,7 @@ def get_model_D_matrix(model_name, num_states, **kw) :
 
 def calc_osc_prob(PMNS, mass_splittings_eV2, L_km, E_GeV, initial_flavor, final_flavor, Lcoh_km=None, L_index=None) :
     '''
-    Oscillation probability calculation
+    Oscillation probability calculation, with decoherence
 
     https://en.wikipedia.org/wiki/Neutrino_oscillation
 
@@ -552,7 +693,6 @@ FLAT_SPACETIME_METRIC_TENSOR = np.array([ # Minkowski
     [  0., 0., 1., 0., ],
     [  0., 0., 0., 1., ],
 ])
-
 
 def get_ds_from_metric_tensor(dx, g=FLAT_SPACETIME_METRIC_TENSOR) :
     '''
@@ -635,6 +775,68 @@ def get_fluctuated_metric_tensor(a1, a2, a3, a4) :
 
 
 #
+# Model implementations
+#
+
+def get_generic_model_decoherence_D_matrix(name, gamma) :
+    '''
+    Return the D matrix for a given generic model, using the definitions in https://arxiv.org/abs/2306.14699
+    '''
+
+    #
+    # Get the texture
+    #
+
+    if name == "A" :
+        gamma21 = gamma
+        gamma31 = gamma
+        gamma32 = gamma
+
+    elif name == "B" :
+        gamma21 = gamma
+        gamma31 = gamma
+        gamma32 = 0.
+
+    elif name == "C" :
+        gamma21 = gamma
+        gamma31 = 0.
+        gamma32 = gamma
+
+    elif name == "D" :
+        gamma21 = 0.
+        gamma31 = gamma
+        gamma32 = gamma
+
+    elif name == "E" :
+        gamma21 = gamma
+        gamma31 = 0.
+        gamma32 = 0.
+
+    elif name == "F" :
+        gamma21 = 0.
+        gamma31 = gamma
+        gamma32 = 0.
+
+    elif name == "G" :
+        gamma21 = 0.
+        gamma31 = 0.
+        gamma32 = gamma
+
+    else :
+        raise Exception("Unknown model")
+
+
+    #
+    # Form the D matrix
+    #
+
+    D = np.diag([0., gamma21, gamma21, 0., gamma31, gamma31, gamma32, gamma32, 0.])
+
+    return D
+
+
+
+#
 # Test
 #
 
@@ -678,11 +880,8 @@ if __name__ == "__main__" :
 
 
     #
-    # Test decohernce operator maths
+    # Test decoherence operator maths
     #
 
     test_decoherence_operator_functions()
     
-
-
-

@@ -31,13 +31,13 @@ except ImportError as e:
     except ImportError as e:
         pass
 
-# Import nuSQuIDS decoherence implementation
-NUSQUIDS_DECOH_AVAIL = False
-try:
-    from nuSQUIDSDecohPy import nuSQUIDSDecoh, nuSQUIDSDecohAtm
-    NUSQUIDS_DECOH_AVAIL = True
-except ImportError as e:
-    pass
+# Import nuSQuIDS decoherence implementation - now deprecated (import from nsq)
+# NUSQUIDS_DECOH_AVAIL = False
+# try:
+#     from nuSQUIDSDecohPy import nuSQUIDSDecoh, nuSQUIDSDecohAtm
+#     NUSQUIDS_DECOH_AVAIL = True
+# except ImportError as e:
+#     pass
 
 # Import prob3
 PROB3_AVAIL = False
@@ -49,7 +49,6 @@ except ImportError as e:
 
 # General DEIMOS imports
 from deimos.utils.constants import *
-from deimos.models.decoherence.decoherence_operators import get_model_D_matrix
 from deimos.density_matrix_osc_solver.density_matrix_osc_solver import DensityMatrixOscSolver, get_pmns_matrix, get_matter_potential_flav
 from deimos.utils.oscillations import calc_path_length_from_coszen
 from deimos.utils.coordinates import *
@@ -211,6 +210,16 @@ class OscCalculator(object) :
         else :
             assert coszen_nodes is None, "`coszen_nodes` argument only valid in `atmospheric` mode"
 
+        # In theory should be able to provide a single energy node for single energy mode, but finding some issues with this (constructor definitions)
+        # Instead, provide two energy nodes in this case to by pass this minimal extra computation time
+        if np.isscalar(self.energy_nodes_GeV) :
+            self.energy_nodes_GeV = np.array([ self.energy_nodes_GeV, self.energy_nodes_GeV*2. ])
+
+        # Check formats
+        assert isinstance(self.energy_nodes_GeV, np.ndarray) and self.energy_nodes_GeV.ndim, "nuSQuIDs energy_nodes_GeV must be a 1D numpy array"
+        if self.atmospheric :
+            assert isinstance(self.coszen_nodes, np.ndarray) and self.coszen_nodes.ndim, "nuSQuIDs coszen_nodes must be a 1D numpy array"
+
 
         #
         # Instantiate nuSQuIDS
@@ -239,8 +248,10 @@ class OscCalculator(object) :
                 self.nusquids = nsq.nuSQUIDSAtm(*args)
 
             elif self._nusquids_variant == "nuSQUIDSDecoh" :
-                assert NUSQUIDS_DECOH_AVAIL, "Could not find nuSQuIDS decoherence implementation"
-                self.nusquids = nuSQUIDSDecohAtm(*args) #TODO Needs updating to modern nuSQuIDS pybindings format
+                # assert NUSQUIDS_DECOH_AVAIL, "Could not find nuSQuIDS decoherence implementation"
+                # self.nusquids = nuSQUIDSDecohAtm(*args) #TODO Needs updating to modern nuSQuIDS pybindings format
+                assert hasattr(nsq, "nuSQUIDSDecohAtm"), "Could not find nuSQuIDS Decoh implementation"
+                self.nusquids = nsq.nuSQUIDSDecohAtm(*args)
 
             elif self._nusquids_variant == "nuSQUIDSLIV" :
                 assert hasattr(nsq, "nuSQUIDSLIVAtm"), "Could not find nuSQuIDS LIV implementation"
@@ -276,8 +287,10 @@ class OscCalculator(object) :
                 self.nusquids = nsq.nuSQUIDS(*args)
 
             elif self._nusquids_variant == "nuSQUIDSDecoh" :
-                assert NUSQUIDS_DECOH_AVAIL, "Could not find nuSQuIDS decoherence implementation"
-                self.nusquids = nuSQUIDSDecoh(*args) #TODO Needs updating to modern nuSQuIDS pybindings format
+                # assert NUSQUIDS_DECOH_AVAIL, "Could not find nuSQuIDS decoherence implementation"
+                # self.nusquids = nuSQUIDSDecoh(*args) #TODO Needs updating to modern nuSQuIDS pybindings format
+                assert hasattr(nsq, "nuSQUIDSDecoh"), "Could not find nuSQuIDS Decoh implementation"
+                self.nusquids = nsq.nuSQUIDSDecoh(*args)
 
             elif self._nusquids_variant == "nuSQUIDSLIV" :
                 assert hasattr(nsq, "nuSQUIDSLIV"), "Could not find nuSQuIDS LIV implementation"
@@ -835,6 +848,9 @@ class OscCalculator(object) :
           - energy-dependence (steered by n and E9) -> eqn 18
         '''
 
+        from deimos.models.decoherence.decoherence_operators import check_decoherence_D_matrix
+
+
         #
         # Check inputs
         #
@@ -843,7 +859,7 @@ class OscCalculator(object) :
         assert isinstance(D_matrix_eV, np.ndarray)
 
         # Check all relevent matrix conditions
-        self.check_decoherence_D_matrix(D_matrix_eV)
+        check_decoherence_D_matrix(num_neutrinos=self.num_neutrinos, D=D_matrix_eV)
 
 
         #
@@ -865,147 +881,13 @@ class OscCalculator(object) :
                 "D_matrix_basis" : "sun" # Added this line!
             }
 
-
-    def check_decoherence_D_matrix(self, D) :
-        '''
-        There exist inequalities between the elements of the D matrix, meaning that the elements are not fully independent
-
-        Enforcing these inequalities here:
-
-         - 2 flavor: https://arxiv.org/pdf/hep-ph/0105303.pdf
-         - 3 flavor: https://arxiv.org/pdf/1811.04982.pdf Appendix B
-        '''
-
-        #TODO Move this function out of this class, into models dir
-
-        if self.num_neutrinos == 3 :
-
-            #
-            # SU(3) case
-            #
-
-            #TODO What enforces g1=g1, g4=g5, g6=g7 ?
-
-            assert D.shape == (9, 9)
-
-            #TODO what about 0th row/col?
-
-            # Check everything is real
-            assert np.all( D.imag == 0. )
-
-            # Check everything is positive or zero
-            assert np.all( D >= 0. )
-
-            # Extract diagonal elements (gamma)
-            g1 = D[1,1]
-            g2 = D[2,2]
-            g3 = D[3,3]
-            g4 = D[4,4]
-            g5 = D[5,5]
-            g6 = D[6,6]
-            g7 = D[7,7]
-            g8 = D[8,8]
-
-            # Extract off-diagonal elements (beta)
-            # Enforce pairs either side of the diagonal match in the process
-            b12 = D[1,2]
-            assert D[2,1] == b12
-            b13 = D[1,3]
-            assert D[3,1] == b13
-            b14 = D[1,4]
-            assert D[4,1] == b14
-            b15 = D[1,5]
-            assert D[5,1] == b15
-            b16 = D[1,6]
-            assert D[6,1] == b16
-            b17 = D[1,7]
-            assert D[7,1] == b17
-            b18 = D[1,8]
-            assert D[8,1] == b18
-            b23 = D[2,3]
-            assert D[3,2] == b23
-            b24 = D[2,4]
-            assert D[4,2] == b24
-            b25 = D[2,5]
-            assert D[5,2] == b25
-            b26 = D[2,6]
-            assert D[6,2] == b26
-            b27 = D[2,7]
-            assert D[7,2] == b27
-            b28 = D[2,8]
-            assert D[8,2] == b28
-            b34 = D[3,4]
-            assert D[4,3] == b34
-            b35 = D[3,5]
-            assert D[5,3] == b35
-            b36 = D[3,6]
-            assert D[6,3] == b36
-            b37 = D[3,7]
-            assert D[7,3] == b37
-            b38 = D[3,8]
-            assert D[8,3] == b38
-            b45 = D[4,5]
-            assert D[5,4] == b45
-            b46 = D[4,6]
-            assert D[6,4] == b46
-            b47 = D[4,7]
-            assert D[7,4] == b47
-            b48 = D[4,8]
-            assert D[8,4] == b48
-            b56 = D[5,6]
-            assert D[6,5] == b56
-            b57 = D[5,7]
-            assert D[7,5] == b57
-            b58 = D[5,8]
-            assert D[8,5] == b58
-            b67 = D[6,7]
-            assert D[7,6] == b67
-            b68 = D[6,8]
-            assert D[8,6] == b68
-            b78 = D[7,8]
-            assert D[8,7] == b78
-
-            # Now implement all inequalities
-            a1 = -g1 + g2 + g3 - (g8/3.) 
-            a2 =  g1 - g2 + g3 - (g8/3.)
-            a3 =  g1 + g2  -g3 - (g8/3.)
-
-            a4 = -g4 + g5 + g3 + (2.*g8/3.) - (2.*b38/np.sqrt(3.)) # See here that beta38 is somehwat special (since it relates to the special gamma3/8 params)
-            a5 =  g4 - g5 + g3 + (2.*g8/3.) - (2.*b38/np.sqrt(3.))
-            a6 = -g6 + g7 + g3 + (2.*g8/3.) + (2.*b38/np.sqrt(3.))
-            a7 =  g6 - g7 + g3 + (2.*g8/3.) + (2.*b38/np.sqrt(3.))
-
-            a8 = -(g1/3.) - (g2/3.) - (g3/3.) + (2.*g4/3.) + (2.*g5/3.) + (2.*g6/3.) + (2.*g7/3.) - g8
-
-            assert a1 >= 0., "Inequality failure (a1)"
-            assert a2 >= 0., "Inequality failure (a2)"
-            assert a3 >= 0., "Inequality failure (a3)"
-            assert a4 >= 0., "Inequality failure (a4)"
-            assert a5 >= 0., "Inequality failure (a5)"
-            assert a6 >= 0., "Inequality failure (a1)"
-            assert a7 >= 0., "Inequality failure (a7)"
-            assert a8 >= 0., "Inequality failure (a8)"
-
-            assert (4.*np.square(b12)) <= ( np.square(g3 - (g8/3.)) - np.square(g1 - g2) )
-            assert (4.*np.square(b13)) <= ( np.square(g2 - (g8/3.)) - np.square(g1 - g3) )
-            assert (4.*np.square(b23)) <= ( np.square(g1 - (g8/3.)) - np.square(g2 - g3) )
-
-            assert np.square( 4.*np.square(b38) + (g4/np.sqrt(3.)) + (g5/np.sqrt(3.)) - (g6/np.sqrt(3.)) - (g7/np.sqrt(3.)) ) <= (a3*a8)
-
-            #TODO there are still quite a few more involving beta....
-
-        else :
-            print("Checks on decoherence D matrix inequalities not yet implemented for a %i neutrino system" % self.num_neutrinos)
-            pass
-
-
     def set_decoherence_model(self, model_name, **kw) :
         '''
         Set the decoherence model to be one of the pre-defined models
         '''
 
         from deimos.models.decoherence.nuVBH_model import get_randomize_phase_decoherence_D_matrix, get_randomize_state_decoherence_D_matrix, get_neutrino_loss_decoherence_D_matrix
-        from deimos.models.decoherence.generic_models import get_generic_model_decoherence_D_matrix
+        from deimos.models.decoherence.decoherence_operators import get_generic_model_decoherence_D_matrix
 
         #
         # Unpack args

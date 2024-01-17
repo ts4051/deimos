@@ -37,7 +37,6 @@ from deimos.models.liv.sme import get_sme_hamiltonian_isotropic, get_sme_hamilto
 #
 
 # Unit conversions
-#TODO Use my natural_units.py modules
 km_to_eV = 5.06773093741e9 # [km] -> [1/eV]
 GeV_to_eV = 1.e9 # [GeV] -> [eV]
 hbar = 6.5821195691e-16 # [eV s]
