@@ -11,10 +11,8 @@ import collections
 
 import numpy as np
 
-# from analysis.common.utils.natural_units import si_to_natural_units, natural_to_si_units
 from deimos.utils.constants import PLANCK_LENGTH_m, PLANCK_MASS_eV
-
-# from pisa import ureg
+from deimos.density_matrix_osc_solver.density_matrix_osc_solver import km_to_eV
 
 
 #
@@ -70,24 +68,6 @@ def convert_gamma0_energy_scale(gamma0_in_eV, energy_scale_in_eV, energy_scale_o
 
 
 #TODO interdepedence equation
-
-
-#
-# Conversion to distance scale
-#
-
-def convert_gamma_eV_to_gamma_inv_m(gamma_eV) :
-    '''
-    invert gamma [eV] to get 1/gamma (e.g. distance scale) in [m]
-    '''
-    return natural_to_si_units( 1./(gamma_eV*ureg["eV"]), "length" ).m_as("m")
-
-
-def convert_gamma_inv_m_to_gamma_eV(gamma_inv_m):
-    '''
-    Re-invert 1/gamma [m] to get gamma [eV]
-    '''
-    return ( 1. / si_to_natural_units( gamma_inv_m*ureg["m"] ).m_as("1/eV") )
 
 
 #
@@ -327,20 +307,14 @@ def get_neutrino_loss_decoherence_D_matrix(num_states, gamma) :
 
 def get_vVBH_coherence_length_km_from_gamma_eV(gamma_eV) :
     '''
-    TODO ref paper
-
     Lcoh = 1 / Gamma
     '''
-
-    return natural_to_si_units( 1./(gamma_eV*ureg["eV"]), "length" ).m_as("km")
+    return ( 1. / gamma_eV ) / km_to_eV
 
 
 def get_vVBH_gamma_eV_from_coherence_length_km(Lcoh_km) :
     '''
-    TODO ref paper
-
     Gamma = 1 / Lcoh
     '''
-
-    return ( 1. / si_to_natural_units( Lcoh_km*ureg["km"] ).m_as("1/eV") )
+    return 1. / ( Lcoh_km * km_to_eV )
 
