@@ -63,6 +63,7 @@ def get_sme_hamiltonian_directional(
 
     #TODO Is this formalism dependent on the baseline being much smaller than the osc length (see https://arxiv.org/pdf/hep-ph/0406255.pdf page 2)? If so, this is a problem for atmo.....
 
+    # print(a_eV_x, a_eV_y, a_eV_z, c_tx, c_ty, c_tz,'----')
 
     #
     # Coordinates
@@ -82,7 +83,7 @@ def get_sme_hamiltonian_directional(
     # theta vector
     ThetaX = np.cos(theta)*np.cos(phi)
     ThetaY = np.cos(theta)*np.sin(phi)
-    ThetaZ = -np.sin(theta)
+    ThetaZ = -np.sin(theta)  
     
     # phi vector
     PhiX = -np.sin(phi)

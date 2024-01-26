@@ -43,6 +43,7 @@ if __name__ == "__main__" :
     calculator = OscCalculator(
         tool=solver,
         atmospheric=False,
+        num_neutrinos=3,
         **kw
     )
 
@@ -83,7 +84,7 @@ if __name__ == "__main__" :
         fig, ax, _, = calculator.plot_osc_prob_vs_energy(initial_flavor=initial_flavor, energy_GeV=E_GeV, distance_km=EARTH_DIAMETER_km, xscale="log", color="black", label="Standard osc", title=r"coszen = %0.3g"%coszen)
 
         # Calc osc probs and plot, with SME
-        calculator.set_sme(directional=False, a_eV=a_eV, c=c)
+        calculator.set_sme(directional=False,basis=sme_basis, a_eV=a_eV, c=c)
         calculator.plot_osc_prob_vs_energy(initial_flavor=initial_flavor, energy_GeV=E_GeV, distance_km=EARTH_DIAMETER_km, xscale="log", color="orange", label=r"SME : %s"%(case_label), linestyle="--", fig=fig, ax=ax)
 
 

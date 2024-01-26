@@ -314,6 +314,8 @@ class OscCalculator(object) :
         self.nusquids.Set_ProgressBar(False)
 
 
+
+
     def _init_deimos(self,
         **kw
     ) :
@@ -352,7 +354,8 @@ class OscCalculator(object) :
 
 
 
-    def set_matter(self, matter, **kw) :
+    def set_matter(self, matter,
+                   **kw) :
 
         # Re-initalise any persistent matter-related setting
         # Mostly don't use this, only for "layers" mode currently 
@@ -413,6 +416,238 @@ class OscCalculator(object) :
             elif self.tool == "prob3" :
                 self._prob3_settings["matter"] = "constant"
                 self._prob3_settings["matter_density_g_per_cm3"] = kw["matter_density_g_per_cm3"]
+
+            
+        elif matter == "variable" :
+
+            assert "radius_fraction_array" in kw     # Array of radii, in units of Earth radius, i.e. 0 at centre and 1 at surface
+            assert "matter_density_array_g_per_cm3" in kw
+            assert "electron_fraction_array" in kw
+
+            if self.tool == "nusquids" :
+                # print(kw["radius_fraction_array"], kw["matter_density_array_g_per_cm3"], kw["electron_fraction_array"])
+
+                self.nusquids.Set_Body(nsq.VariableDensity(kw["radius_fraction_array"], kw["matter_density_array_g_per_cm3"], kw["electron_fraction_array"]))
+            
+            elif self.tool == "deimos" :
+                raise Exception("`%s` does not have a variable density matter model implemented" % self.tool)
+
+            elif self.tool == "prob3" :
+                raise Exception("`%s` does not have a variable density matter model implemented" % self.tool)
+            
+
+
+        
+
+        # elif (self._matter == "three layer") and (self.matter_opts is not None):
+
+        #     # define the three layers
+            
+        #     matter_density_1 = self.matter_opts["matter_density_1"]
+        #     matter_density_2 = self.matter_opts["matter_density_2"]
+        #     matter_density_3 = self.matter_opts["matter_density_3"]
+        #     electron_fraction_1 = self.matter_opts["electron_fraction_1"]
+        #     electron_fraction_2 = self.matter_opts["electron_fraction_2"]
+        #     electron_fraction_3 = self.matter_opts["electron_fraction_3"]
+
+
+        #     # Evolve the state in three layers
+        #     # In first if-statement: use body1 until 1/3 of the distance
+        #     # In second if-statement: fist use body1 until 1/3 of the distance and then use body2 for the remaining distance (L-(1/3)*totalt_distance)
+        #     # In third if-statement: fist use body1 until 1/3 of the total distance, then use body2 until 1/3 of the total distance and then use body3 for the remaining distance (L-(2/3)*totalt_distance)
+        #     # Evolve the state between each layer but only set initial state once
+            
+        #     # LAYER 1:
+        #     if i_L < (1/3)*len(distance_km) :
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_1, electron_fraction_1))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_1, electron_fraction_1).Track(L*self.units.km))
+        #         self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )
+        #         self.nusquids.EvolveState()
+
+        #     # LAYER 2:
+        #     elif (i_L < (2/3)*len(distance_km)) and (i_L >= (1/3)*len(distance_km)):
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_1, electron_fraction_1))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_1, electron_fraction_1).Track((1/3)*distance_km[-1]*self.units.km))
+        #         self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )
+        #         self.nusquids.EvolveState()
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_2, electron_fraction_2))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_2, electron_fraction_2).Track((L-(1/3)*distance_km[-1])*self.units.km))
+        #         self.nusquids.EvolveState()
+
+        #     # LAYER 3:
+        #     else :
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_1, electron_fraction_1))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_1, electron_fraction_1).Track((1/3)*distance_km[-1]*self.units.km))
+        #         self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )
+        #         self.nusquids.EvolveState()
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_2, electron_fraction_2))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_2, electron_fraction_2).Track(((1/3)*distance_km[-1])*self.units.km))
+        #         self.nusquids.EvolveState()
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_3, electron_fraction_3))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_3, electron_fraction_3).Track((L-(2/3)*distance_km[-1])*self.units.km))
+        #         self.nusquids.EvolveState()
+
+
+        
+
+
+
+
+        # elif (self._matter == "simple earth"):
+        #     # assert self.matter_opts is not None, "matter_opts are preset for simple earth model"
+        #     assert np.isclose(distance_km[-1], 12742.0, atol=1.), "distance_km[-1] must be equal to the radius of the earth (12742 km)" 
+
+        #     # Simple Earth goes through 3 layers: mantle, outer core and inner core
+
+        #     # Reference to layer data:
+        #     # Preliminary reference Earth model - Adam M. Dziewonski and Don L. Anderson
+
+        #     # define propagation distances through each of the earts layers 
+        #     inner_core_thickness_km = 1221.5*2          #x2 because 1221 is the radius
+        #     outer_core_thicknes_km = 3480.0-1221.5      #3480 is the outer core radius
+        #     mantle_thickness_km = 5701.0-3480.0         #5701 is the mantle radius
+        #     transition_and_crust_thickness_km = 6371.0-5701.0 #6371 is the earth radius
+
+        #     #for simplicity is the transition and crust layer treated as part of the mantle (quite thin layers) #TODO maybe implement layers for both transition and crust, as densities vary a lot
+        #     mantle_thickness_km = mantle_thickness_km + transition_and_crust_thickness_km
+
+            
+
+        #     # define the matter densities (g/cm3) and electron fractions for each of the earths layers
+        #     electron_fraction = 0.5
+        #     matter_density_mantle = 7.957
+        #     matter_density_outer_core = 12.58
+        #     matter_density_inner_core = 13.08
+
+        #     # Evolve the state through the layers: mantle, outer core, inner core, outer core, mantle
+
+        #     D_earth = distance_km[-1]
+        #     N_L = len(distance_km)
+
+
+        #     # layer index boundaries for if-statements
+        #     mantle_index_boundary = (mantle_thickness_km/D_earth)*N_L 
+        #     outer_core_index_boundary = ((mantle_thickness_km+outer_core_thicknes_km)/D_earth)*N_L
+        #     inner_core_index_boundary = ((mantle_thickness_km+outer_core_thicknes_km+inner_core_thickness_km)/D_earth)*N_L
+        #     second_outer_core_index_boundary = ((mantle_thickness_km+outer_core_thicknes_km+inner_core_thickness_km+outer_core_thicknes_km)/D_earth)*N_L
+
+
+        #         # LAYER 1: MANTLE
+            
+        #     if i_L < mantle_index_boundary :
+        #         prop_dist = L*self.units.km
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_mantle, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_mantle, electron_fraction).Track(prop_dist))
+        #         self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )
+        #         self.nusquids.EvolveState()
+            
+
+
+        #     # LAYER 2: OUTER CORE
+            
+        #     elif (i_L < outer_core_index_boundary) and (i_L >= mantle_index_boundary):
+            
+        #         prop_dist_mantle = mantle_thickness_km*self.units.km
+        #         prop_dist_outer_core = (L-mantle_thickness_km)*self.units.km
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_mantle, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_mantle, electron_fraction).Track(prop_dist_mantle))
+        #         self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )
+        #         self.nusquids.EvolveState()
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_outer_core, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_outer_core, electron_fraction).Track(prop_dist_outer_core))
+        #         self.nusquids.EvolveState()
+
+
+        #     # LAYER 3: INNER CORE
+
+        #     elif (i_L < inner_core_index_boundary) and (i_L >= outer_core_index_boundary):
+            
+        #         prop_dist_mantle = mantle_thickness_km*self.units.km
+        #         prop_dist_outer_core = outer_core_thicknes_km*self.units.km
+        #         prop_dist_inner_core = (L-(mantle_thickness_km+outer_core_thicknes_km))*self.units.km
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_mantle, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_mantle, electron_fraction).Track(prop_dist_mantle))
+        #         self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )
+        #         self.nusquids.EvolveState()
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_outer_core, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_outer_core, electron_fraction).Track(prop_dist_outer_core))
+        #         self.nusquids.EvolveState()
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_inner_core, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_inner_core, electron_fraction).Track(prop_dist_inner_core))
+        #         self.nusquids.EvolveState()
+            
+
+        #     # LAYER 4: SECOND OUTER CORE
+
+        #     elif (i_L < second_outer_core_index_boundary) and (i_L >= inner_core_index_boundary):
+            
+        #         prop_dist_mantle = mantle_thickness_km*self.units.km
+        #         prop_dist_outer_core = outer_core_thicknes_km*self.units.km
+        #         prop_dist_inner_core = inner_core_thickness_km*self.units.km
+        #         prop_dist_second_outer_core = (L-(mantle_thickness_km+outer_core_thicknes_km+inner_core_thickness_km))*self.units.km
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_mantle, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_mantle, electron_fraction).Track(prop_dist_mantle))
+        #         self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )
+        #         self.nusquids.EvolveState()
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_outer_core, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_outer_core, electron_fraction).Track(prop_dist_outer_core))
+        #         self.nusquids.EvolveState()
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_inner_core, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_inner_core, electron_fraction).Track(prop_dist_inner_core))
+        #         self.nusquids.EvolveState()
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_outer_core, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_outer_core, electron_fraction).Track(prop_dist_second_outer_core))
+        #         self.nusquids.EvolveState()
+
+
+        #     # LAYER 5: SECOND MANTLE
+        #     elif i_L >= second_outer_core_index_boundary:
+            
+        #         prop_dist_mantle = mantle_thickness_km*self.units.km
+        #         prop_dist_outer_core = outer_core_thicknes_km*self.units.km
+        #         prop_dist_inner_core = inner_core_thickness_km*self.units.km
+        #         prop_dist_second_outer_core = outer_core_thicknes_km*self.units.km
+        #         prop_dist_second_mantle = (L-(mantle_thickness_km+outer_core_thicknes_km+inner_core_thickness_km+outer_core_thicknes_km))*self.units.km
+
+                
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_mantle, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_mantle, electron_fraction).Track(prop_dist_mantle))
+        #         self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )
+        #         self.nusquids.EvolveState()
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_outer_core, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_outer_core, electron_fraction).Track(prop_dist_outer_core))
+        #         self.nusquids.EvolveState()
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_inner_core, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_inner_core, electron_fraction).Track(prop_dist_inner_core))
+        #         self.nusquids.EvolveState()
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_outer_core, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_outer_core, electron_fraction).Track(prop_dist_second_outer_core))
+        #         self.nusquids.EvolveState()
+
+        #         self.nusquids.Set_Body(nsq.ConstantDensity(matter_density_mantle, electron_fraction))
+        #         self.nusquids.Set_Track(nsq.ConstantDensity(matter_density_mantle, electron_fraction).Track(prop_dist_second_mantle))
+        #         self.nusquids.EvolveState()
+
+
+
+
+
 
 
 
@@ -1003,6 +1238,8 @@ class OscCalculator(object) :
         TODO
         '''
 
+
+
         #
         # Check inputs
         #
@@ -1046,9 +1283,17 @@ class OscCalculator(object) :
         #
 
         if self.tool == "nusquids" :
-            assert directional, "Istropic SME not implemented in nuSQuIDS yet"
+            assert directional, "Isotropic SME not implemented in nuSQuIDS yet"
             assert basis == "mass", "Only mass basis SME implemented in nuSQuIDS currently"
             self.nusquids.Set_LIVCoefficient(a_eV, c, e, ra_rad, dec_rad)
+
+            # self.sme_opts = {
+            #         "basis" : basis,
+            #         "a_eV" : a_eV,
+            #         "c" : c,
+            #         "e": e,
+            #         "ra_rad" : ra_rad,
+            #         "dec_rad" : dec_rad,
 
         elif self.tool == "deimos" :
             if directional :
@@ -1501,6 +1746,10 @@ class OscCalculator(object) :
         nubar=False,
         distance_km=None,
         coszen=None,
+
+        # Neutrino direction in celestial coords - only required for certain models (such as the SME)
+        ra_rad=None,
+        dec_rad=None,
     ) :
         '''
         Calculate oscillation probability for the model
@@ -1547,10 +1796,68 @@ class OscCalculator(object) :
 
 
         #
+        #  SME Case
+        # #
+
+        # if self.sme_opts is not None :
+            
+        #     # To include SME parameters in calculation of the hamiltonian
+        #     include_sme = True
+
+        #     # Handle isotropic vs directional
+        #     assert "directional" in self.sme_opts
+        #     sme_is_directional = self.sme_opts.pop("directional")
+
+        #     # Handle basis in which flavor/mass structure is defined
+        #     assert "basis" in self.sme_opts
+        #     sme_basis = self.sme_opts.pop("basis")
+        #     assert sme_basis in ["mass", "flavor"]
+        #     sme_basis_is_flavor = sme_basis == "flavor" # Bool fast checking during solving
+
+        #     # User provides a(3) and c(4) coefficients, plus a possible mass-dependent non-renomalizable term
+        #     self.sme_opts = copy.deepcopy(self.sme_opts)
+        #     assert "a_eV" in self.sme_opts
+        #     sme_a = self.sme_opts.pop("a_eV")
+        #     assert "c" in self.sme_opts
+        #     sme_c = self.sme_opts.pop("c") # dimensionless
+        #     # if sme_is_directional : # e term only implemented for direction SME currently
+        #     assert "e" in self.sme_opts
+        #     sme_e = self.sme_opts.pop("e") # dimensionless
+
+
+        #     # Handle antineutrinos
+        #     if nubar:
+        #         sme_a = - sme_a
+
+
+        #     # Get neutrino direction in celestial coords
+        #     if sme_is_directional :
+        #         assert ra_rad is not None
+        #         assert dec_rad is not None
+        #         assert np.isscalar(ra_rad)
+        #         assert np.isscalar(dec_rad)
+        #         assert (ra_rad >= 0) and (ra_rad <= 2 * np.pi)
+        #         assert (dec_rad >= -np.pi / 2) and (dec_rad <= np.pi / 2)
+
+            
+            
+        #     # Check for additional SME arguments
+        #     assert len(self.sme_opts) == 0, "Unused SME arguments!?!"
+
+
+        #     # Set SME parameters in nusquids #TODO e_term not yet implemented
+        #     self.nusquids.Set_LIVCoefficient(sme_a,sme_c,sme_e,ra_rad, dec_rad)
+            
+                
+           
+
+
+        #
         # Atmospheric case
         #
 
         if self.atmospheric :
+            
 
             randomize_atmo_prod_height = False #TODO support
 
@@ -1593,7 +1900,14 @@ class OscCalculator(object) :
                         # results[i_E,i_cz,i_f] = self.nusquids.EvalFlavor( final_flavor, cz, E*self.units.GeV )#, rho ) #TODO Add randomize prod height arg
                         results[i_E,i_cz,i_f] = self.nusquids.EvalFlavor( int(final_flavor), cz, E*self.units.GeV, int(rho), randomize_atmo_prod_height) #TODO add nubar
 
+
             return results
+        
+       
+
+
+
+
 
 
         #
@@ -1602,6 +1916,7 @@ class OscCalculator(object) :
 
         else :
 
+            
             # Init results container
             results = np.full( (energy_GeV.size, distance_km.size, final_flavors.size), np.NaN )
             # results = np.full( (energy_GeV.size, distance_km.size, final_flavors.size, 2), np.NaN )
@@ -1646,7 +1961,7 @@ class OscCalculator(object) :
 
                 elif self._matter_settings["matter"] == "layers" :
 
-                    # Layers on constant density are a bit more tricky. Step through them, evolving the state though each later, then changing density and continuing the state evolution (wuthout resetting it)
+                    # Layers on constant density are a bit more tricky. Step through them, evolving the state though each later, then changing density and continuing the state evolution (without resetting it)
                     # Take care to cut off when reach the requested propagation distance
 
                     # Check the layers cover the full path length
@@ -1693,6 +2008,12 @@ class OscCalculator(object) :
                         results[i_e,i_L,i_f] = self.nusquids.EvalFlavor( int(final_flavor), float(E*self.units.GeV), int(rho) )
 
             return results
+
+
+
+
+
+
 
 
     def _calc_osc_prob_prob3(self,
@@ -3102,6 +3423,7 @@ class OscCalculator(object) :
         initial_flavor,
         energy_GeV,
         distance_km=None, coszen=None,
+        date_str = None,
         nubar=False,
         final_flavor=None,
         #Plotting
@@ -3141,21 +3463,24 @@ class OscCalculator(object) :
         
         # Convert pixel to polar coordinates (in deg)
         right_ascension_flat, declination_flat = hp.pix2ang(nside=resolution, ipix=np.arange(npix), lonlat=True)
-        date_str = self._neutrino_source_kw["date_str"]
-        self._neutrino_source_kw = None
-        self.set_neutrino_source(# Date, Time and Timezone
-                                date_str = date_str,
-                                # Location on the sky
-                                ra_deg = right_ascension_flat, 
-                                dec_deg = declination_flat,
-                                )
+        ra_rad, dec_rad = np.deg2rad(right_ascension_flat), np.deg2rad(declination_flat)
+
+        # NEUTRINO SOURCE NO LONGER IMPLEMENTED
+        # date_str = self._neutrino_source_kw["date_str"]
+        # self._neutrino_source_kw = None
+        # self.set_neutrino_source(# Date, Time and Timezone
+        #                         date_str = date_str,
+        #                         # Location on the sky
+        #                         ra_deg = right_ascension_flat, 
+        #                         dec_deg = declination_flat,
+        #                         )
         
         #Store dictionaries for later use
-        neutrinos_dict = self._neutrino_source_kw
+        # neutrinos_dict = self._neutrino_source_kw
         sme_dict = self._sme_model_kw
         
         # Evaluate which pixels are above the horizon 
-        _, alt, _ = self.detector_coords.get_coszen_altitude_and_azimuth(date_str = date_str, ra_deg = right_ascension_flat, dec_deg = declination_flat)
+        _, alt, _ = self.detector_coords.get_coszen_altitude_and_azimuth(time = date_str, ra_deg = right_ascension_flat, dec_deg = declination_flat)
         # Create a mask for altitudes between 0 and 90 degrees
         mask = (alt >= 0) # & (alt <= 90)
         # Create an array of zeros with the same shape as alt
@@ -3170,6 +3495,8 @@ class OscCalculator(object) :
         sme_probabilities2d = self.calc_osc_prob(
             initial_flavor=initial_flavor,
             energy_GeV=energy_GeV,
+            ra_rad = ra_rad,
+            dec_rad = dec_rad,
             **dist_kw
         )
        
@@ -3292,7 +3619,7 @@ class OscCalculator(object) :
         sme_dict = self._sme_model_kw
         
         # Set coszen values to the values corresponding to the different pixels of the healpix map
-        self.skymap_use = True
+        self.skymap_use = False
         
         # Calculate probabilities with SME model
         sme_probabilities2d = self.calc_osc_prob(

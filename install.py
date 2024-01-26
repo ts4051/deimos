@@ -220,6 +220,7 @@ def clone_git_repo(repo_path, target_dir, branch=None, recursive=False, overwrit
 
     # Check if it already exists
     #TODO check the target dir is actually a git repo, not just a dir
+    print("Checking if git repo already exists : %s" % target_dir)
     already_exists = os.path.exists(target_dir)
 
     # Safety checks
@@ -227,6 +228,7 @@ def clone_git_repo(repo_path, target_dir, branch=None, recursive=False, overwrit
 
     # Check if clone is required
     do_clone = (not already_exists) or overwrite
+    print("Clone required : %s" % do_clone)
     if do_clone :
 
         # Remove the existing clone if requires
@@ -1063,15 +1065,26 @@ if __name__ == "__main__" :
     }
 
     # Steer PISA installation
-    pisa_kw = None # Can optionally steer e.g. branch, fork, etc
+    pisa_kw = {"repo_path":"git@github.com:ts4051/pisa.git",
+                "branch":"oscNext2",}
+
+
+
+
+
+    # Can optionally steer e.g. branch, fork, etc
 
     # Steer MCEq installation
     mceq_kw = None # Can optionally steer e.g. branch, fork, etc
 
     # Steer nuSQuIDS installation
+    
     nusquids_kw = { # Can optionally steer e.g. branch, fork, etc
         "make" : True,
         "test" : False,
+        # to access Toms liv branch, use the following:
+        "nusquids_repo_path" : "git@github.com:SimonHNoerkjaer/nuSQuIDS.git",
+        "nusquids_branch" : "sme",
     }
 
     # Steer prob3 installation
@@ -1086,7 +1099,7 @@ if __name__ == "__main__" :
         conda_env_kw=conda_env_kw,
         overwrite=args.overwrite,
         git_protocol=args.git_protocol,
-        pisa=args.pisa,
+        pisa=args.pisa, 
         pisa_kw=pisa_kw,
         mceq=args.mceq,
         mceq_kw=mceq_kw,
@@ -1094,4 +1107,6 @@ if __name__ == "__main__" :
         nusquids_kw=nusquids_kw,
         prob3=args.prob3,
         prob3_kw=prob3_kw,
+        git_protocol="ssh",
     )
+
