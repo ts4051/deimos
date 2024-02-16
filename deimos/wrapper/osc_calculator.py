@@ -1246,6 +1246,13 @@ class OscCalculator(object) :
                 height_m=-1500.,
             )
 
+        elif name.lower() == "equator" :
+            self.set_detector_location(
+                lat_deg=0.,
+                long_deg=0.,
+                height_m=0.,
+            )
+
         else :
             raise NotImplemented("Unknown detector : %s" % name)
 
