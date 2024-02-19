@@ -1008,6 +1008,9 @@ if __name__ == "__main__" :
     # Get path to deimos installation (should be where this script lives)
     deimos_dir = os.path.abspath( os.path.dirname( os.path.abspath(__file__) ) )
 
+    args.mceq = True
+    args.nusquids = True
+
     # Define python version
     python_version = "3.7.5"
     python_major_version = int(python_version.split(".")[0])
@@ -1072,6 +1075,8 @@ if __name__ == "__main__" :
     nusquids_kw = { # Can optionally steer e.g. branch, fork, etc
         "make" : True,
         "test" : False,
+        "nusquids_repo_path" : "https://github.com/SimonHNoerkjaer/nuSQuIDS.git",
+        "nusquids_branch" : "sme",
     }
 
     # Steer prob3 installation
@@ -1085,7 +1090,7 @@ if __name__ == "__main__" :
         env_name=args.env_name,
         conda_env_kw=conda_env_kw,
         overwrite=args.overwrite,
-        git_protocol=args.git_protocol,
+        git_protocol="https",
         pisa=args.pisa,
         pisa_kw=pisa_kw,
         mceq=args.mceq,
