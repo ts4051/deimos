@@ -130,10 +130,13 @@ class OscCalculator(object) :
                 raise Exception("Must specify 'mixing_angles_rad' when not in 3 flavor mode")
 
         if deltacp_rad is None :
-            if self.num_neutrinos == 3 :
+            if self.num_neutrinos == 2 :
+                assert deltacp_rad is None, "deltacp not relevent for 2 flavor oscillations"
+                deltacp_rad = 0.
+            elif self.num_neutrinos == 3 :
                 deltacp_rad = DELTACP_rad
             else :
-                raise Exception("Must specify 'deltacp_rad' when not in 3 flavor mode")
+                raise Exception("Must specify 'deltacp_rad' when using >3 flavors")
 
         # Update osc params
         self.set_mixing_angles(*mixing_angles_rad, deltacp=deltacp_rad)
@@ -676,8 +679,10 @@ class OscCalculator(object) :
                 # Not rigorous, good for quick checks though
                 # Assumes 1:1:1 flavor, and 1:1 nu:nubar, isotropic (which means uniform in coszen)
 
-                norm_100_TeV = 1. #TODO what number?
-                spectral_index = -2. #TODO what number?
+                # Using flux from IceCube HESE 2020 (arXiv:2011.03545)
+                norm_100_TeV = 6.5e-18 / 6. # GeV^{-1} sr^{-1} s^{-1} cm^{-2}. Dividing by 6 since this is the total flux for all flavors and nu/nubar       #TODO get more precise value
+                spectral_index = -2.87
+
                 phi_E = norm_100_TeV * np.power( energy_GeV / 1e5, spectral_index ) 
 
                 output_flux = np.full( (energy_GeV.size, coszen.size, self.num_neutrinos, 2), np.NaN ) # shape =  (same as used by e.g. calc_osc_probs)
@@ -1834,6 +1839,8 @@ class OscCalculator(object) :
         ra_rad=None,
         dec_rad=None,
 
+        **kw
+
     ) :
 
         #
@@ -1888,7 +1895,8 @@ class OscCalculator(object) :
             decoh_opts=self._decoh_model_kw,
             lightcone_opts=self._lightcone_model_kw,
             sme_opts=self._sme_model_kw,
-            verbose=False
+            verbose=False,
+            **kw
         )
 
         # Handle flip in results (L dimension)
