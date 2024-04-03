@@ -130,10 +130,13 @@ class OscCalculator(object) :
                 raise Exception("Must specify 'mixing_angles_rad' when not in 3 flavor mode")
 
         if deltacp_rad is None :
-            if self.num_neutrinos == 3 :
+            if self.num_neutrinos == 2 :
+                assert deltacp_rad is None, "deltacp not relevent for 2 flavor oscillations"
+                deltacp_rad = 0.
+            elif self.num_neutrinos == 3 :
                 deltacp_rad = DELTACP_rad
             else :
-                raise Exception("Must specify 'deltacp_rad' when not in 3 flavor mode")
+                raise Exception("Must specify 'deltacp_rad' when using >3 flavors")
 
         # Update osc params
         self.set_mixing_angles(*mixing_angles_rad, deltacp=deltacp_rad)
@@ -1836,6 +1839,8 @@ class OscCalculator(object) :
         ra_rad=None,
         dec_rad=None,
 
+        **kw
+
     ) :
 
         #
@@ -1890,7 +1895,8 @@ class OscCalculator(object) :
             decoh_opts=self._decoh_model_kw,
             lightcone_opts=self._lightcone_model_kw,
             sme_opts=self._sme_model_kw,
-            verbose=False
+            verbose=False,
+            **kw
         )
 
         # Handle flip in results (L dimension)
