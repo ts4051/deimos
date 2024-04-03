@@ -76,7 +76,7 @@ def try_all_mixing_orders_and_signs(mixing_matrix, H2E, deg=True):
             if angles is not None:
                 theta12, theta13, theta23 = angles
 
-                if 0 <= theta12 <= np.pi/2 and 0 <= theta13 <= np.pi/2 and 0 <= theta23 <= np.pi/2:
+                if 0-0.01 <= theta12 <= np.pi/2+0.01 and 0-0.01 <= theta13 <= np.pi/2+0.01 and 0-0.01 <= theta23 <= np.pi/2+0.01:
                     
                     result_array = np.dot(modified_matrix.conjugate().T, np.dot(H2E, modified_matrix))
                     # Set values close to zero to zero based on the tolerance
@@ -128,7 +128,7 @@ def diagonalize_H2E(H2E, deg=True):
             if angles is not None:
                 theta12, theta13, theta23 = angles
 
-                if 0 <= theta12 <= np.pi/2 and 0 <= theta13 <= np.pi/2 and 0 <= theta23 <= np.pi/2:
+                if 0-0.01 <= theta12 <= np.pi/2+0.01 and 0-0.01 <= theta13 <= np.pi/2+0.01 and 0-0.01 <= theta23 <= np.pi/2+0.01:
                     result_array = np.dot(modified_matrix.conjugate().T, np.dot(H2E, modified_matrix))
                     # Set values close to zero to zero based on the tolerance
                     tolerance = 1e-9
@@ -153,11 +153,11 @@ calculator = OscCalculator(
     tool="nusquids",
     atmospheric=False,
     energy_nodes_GeV=energy_GeV,
-    # mass_splittings_eV2=[2e-5, 2e-3],
+    mass_splittings_eV2=[2e-5, 2e-3],
 )
 
 # Set some matter (to make sure there is a time-dependent component of the Hamiltonian)
-calculator.set_matter(matter="constant", matter_density_g_per_cm3=3.3, electron_fraction=0.5)
+calculator.set_matter(matter="constant", matter_density_g_per_cm3=0.0, electron_fraction=0.0)
 
 # Calc osc probs (this inits the state in nuSQuIDS)
 calculator.calc_osc_prob(

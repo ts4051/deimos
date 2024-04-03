@@ -26,7 +26,22 @@ class DetectorCoords(object):
         detector_height_m (float): Height of the detector above sea level in meters.
     """
 
-    def __init__(self, detector_lat, detector_long, detector_height_m):
+    def __init__(self, detector_lat=0, detector_long=0, detector_height_m=0, name = "None"):
+        
+        if name.lower() == "icecube" :
+            detector_lat = Angle("89°59′24″S").deg
+            detector_long = Angle("63°27′11″W").deg
+            detector_height_m = -1400.
+            
+        elif name.lower() == "dune" :
+            detector_lat = Angle(44.3517).deg
+            detector_long = Angle(-103.7513).deg
+            detector_height_m = -1.5e3,
+
+        elif name.lower() == "arca" :
+            detector_lat = Angle("36°15′36″N").deg
+            detector_long = Angle("16°06′00″E").deg
+            detector_height_m = -1500.
 
         # Convert latitude and longitude to degrees
         # latitude in range [-90,90]

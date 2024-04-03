@@ -37,7 +37,7 @@ if __name__ == "__main__" :
     #
 
     # Choose solver
-    solver = "deimos" # deimos nusquids
+    solver = "nusquids" #"deimos" # deimos nusquids
 
     # For nuSQuIDS case, need to specify energy nodes covering full space
     kw = {}
