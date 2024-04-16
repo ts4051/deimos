@@ -675,7 +675,7 @@ class OscCalculator(object) :
             # Toggle tool used to generate flux
             if tool in [ "spl", "single_power_law" ] :
 
-                # Generate a basic single power law using roughly the spectral index from IceCube observations
+                # Generate a basic   using roughly the spectral index from IceCube observations
                 # Not rigorous, good for quick checks though
                 # Assumes 1:1:1 flavor, and 1:1 nu:nubar, isotropic (which means uniform in coszen)
 
@@ -1938,7 +1938,7 @@ class OscCalculator(object) :
 
         # Remove nubar dim
         rho = 1 if nubar else 0
-        initial_flux = initial_flux[:, :, :, rho]
+        initial_flux = initial_flux[:, :, :, rho]*1e18 #TODO remove this factor, which is just to make the calculation work for now
 
 
         #
@@ -1955,7 +1955,8 @@ class OscCalculator(object) :
 
             # For nuSQuIDS, must define the initital state vector as the flux at the E and coszen nodes of the nuSQuIDSAtm instance
             initial_state = self.get_neutrino_flux(energy_GeV=self.energy_nodes_GeV, coszen=self.coszen_nodes, **get_neutrino_flux_kw)
-            initial_state = initial_state[:, :, :, rho]
+            initial_state = initial_state[:, :, :, rho]*1e18
+            print("Initial state at an energy of {} GeV:".format(energy_GeV[0]) ,initial_state[0,0,:])
 
             # Propagate, (ab)using the calc_osc_prob function
             final_flux = self.calc_osc_prob(
@@ -1964,6 +1965,7 @@ class OscCalculator(object) :
                 coszen=coszen,
                 nubar=nubar,
             )
+            #print("Final state at an energy of {} GeV:".format(energy_GeV[0]) ,final_flux[0,0,:] )
 
             #TODO potential issues due to differing nodes for the generation of the initial and final state here (MCEq interpolation and nuSQuIDS interpolation). Make it safer though by setting the plotting grid as the nuSQuIDS nodes...
 

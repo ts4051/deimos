@@ -236,7 +236,7 @@ def compare_matter_effects_between_solvers() :
                         label="%s, %s"%(solver, case_label), 
                         linestyle=linestyle,   
                         color=adjust_lightness(COLORS[i_case], color_adjust),
-                        lw=4,
+                        lw=2,
                         # color=color_prefix+COLORS[i_case], 
                         # alpha=alpha,
                     )
@@ -480,12 +480,13 @@ def plot_earth_interaction_effects() :
 
         # Make figure
         fig, ax = plt.subplots( figsize=(6,4) )
-        fig.suptitle(case_label)
+        #fig.suptitle(case_label)
 
         # Plot steering
         linestyles = ["-","--", ":"]
 
         # Loop over flavors
+        colors= [(196, 71, 54), (147, 197, 114), (74, 74, 121)]
         for i_f in range(calculator.num_neutrinos) :
 
             # Get the flux for this flavor. Only a single coszen value.
@@ -496,7 +497,7 @@ def plot_earth_interaction_effects() :
             assert ratio.ndim == 1
 
             # Plot ratio vs energy
-            ax.plot(E_values_GeV, ratio, color=NU_COLORS[i_f], linestyle=linestyles[i_f], lw=4, label=r"$%s$"%calculator.get_nu_flavor_tex(i_f, nubar=nubar))
+            ax.plot(E_values_GeV, ratio, color=[c/255 for c in colors[i_f]], linestyle=linestyles[i_f], lw=3, label=r"$%s$"%calculator.get_nu_flavor_tex(i_f, nubar=nubar))
                        
         # Format
         ax.set_xscale("log")
@@ -516,13 +517,13 @@ def plot_earth_interaction_effects() :
 
 if __name__ == "__main__" :
 
-    plot_matter_effects_2flav()
+    #plot_matter_effects_2flav()
 
     plot_earth_interaction_effects()
 
-    compare_matter_effects_between_solvers()
+    #compare_matter_effects_between_solvers()
 
-    verify_matter_layers_implementation()
+    #verify_matter_layers_implementation()
 
     #TODO plot resonance condition
 
