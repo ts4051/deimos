@@ -258,9 +258,9 @@ E_GeV = np.array([1000.,20000.])
 E_node = 0
 
 #SME strength and direction
-a_magnitude_eV = 10e-14 # Overall strength of a component
-c_magnitude = 0#2e-26 # Overall strength of c component
-a_eV, ct, field_direction_coords = set_sme(a_magnitude_eV = a_magnitude_eV, 
+a_magnitude_eV = 1e-14
+c_magnitude = 0
+a_eV, ct, _ = set_sme(a_magnitude_eV = a_magnitude_eV, 
                                            c_magnitude = c_magnitude, 
                                            flavor_structure=np.array([.45, .5, 0.]), 
                                            field_direction_structure=np.array([0., 0., 1.])
@@ -338,8 +338,8 @@ if __name__ == "__main__" :
         kw["nusquids_variant"] = "sme"
 
     # Create calculator
-    calculator = OscCalculator(tool=solver,
-                               atmospheric=atmospheric,
+    calculator = OscCalculator(tool="nusquids",
+                               atmospheric=False,
                                mixing_angles_rad=MIXING_ANGLES_rad,
                                 mass_splittings_eV2=MASS_SPLITTINGS_eV2,
                                 **kw)
@@ -368,11 +368,11 @@ if __name__ == "__main__" :
     layer_osc_prob = np.zeros((3, len(baseline)))
 
     # Set SME and matter
-    calculator.set_sme(directional=directional, basis=sme_basis, a_eV=a_eV, c=ct, ra_rad=ra_rad, dec_rad=dec_rad)
+    calculator.set_sme(directional=True, basis="mass", a_eV=a_eV, c=ct, ra_rad=ra_rad, dec_rad=dec_rad)
     calculator.set_matter(layer_matter_model, **layer_matter_kwargs)
 
     # Calculate oscillation probabilities
-    osc_prob_loop = calculator.calc_osc_prob(distance_km = baseline, **calc_kw)
+    osc_prob_loop = calculator.calc_osc_prob(distance_km = np.linspace(0,EARTH_DIAMETER_km, num=1000), **calc_kw)
     layer_osc_prob[:,:] = osc_prob_loop[E_node].T       # Transpose and select energy node
     
     # Check that probabilities sum to 1 for each data point
