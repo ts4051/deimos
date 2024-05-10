@@ -1956,7 +1956,7 @@ class OscCalculator(object) :
             # For nuSQuIDS, must define the initital state vector as the flux at the E and coszen nodes of the nuSQuIDSAtm instance
             initial_state = self.get_neutrino_flux(energy_GeV=self.energy_nodes_GeV, coszen=self.coszen_nodes, **get_neutrino_flux_kw)
             initial_state = initial_state[:, :, :, rho]*1e18
-            print("Initial state at an energy of {} GeV:".format(energy_GeV[0]) ,initial_state[0,0,:])
+            #print("Initial state at an energy of {} GeV:".format(energy_GeV[0]) ,initial_state[0,0,:])
 
             # Propagate, (ab)using the calc_osc_prob function
             final_flux = self.calc_osc_prob(
