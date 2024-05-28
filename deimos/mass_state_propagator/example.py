@@ -14,7 +14,7 @@ from deimos.utils.plotting import *
 # Globals: Physics steering
 #
 
-# These plots are 2 flavor for simplicity
+# These plots are 2-flavor for simplicity
 NUM_STATES = 2
 
 # Use same neutrino params across the board
@@ -249,5 +249,5 @@ if __name__ == "__main__" :
 
     # Dump figures to PDF
     print("")
-    dump_figures_to_pdf( __file__.replace(".py",".pdf") )
+    dump_figures_to_pdf( "mass_state_propagator_example.pdf" )
 

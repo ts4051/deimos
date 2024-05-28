@@ -12,7 +12,6 @@ from deimos.utils.plotting import *
 import sys, os, collections, numbers, copy, re, datetime
 import numpy as np
 import warnings
-import healpy as hp
 
 try:
     import cPickle as pickle
@@ -30,14 +29,6 @@ except ImportError as e:
         NUSQUIDS_AVAIL = True
     except ImportError as e:
         pass
-
-# Import nuSQuIDS decoherence implementation - now deprecated (import from nsq)
-# NUSQUIDS_DECOH_AVAIL = False
-# try:
-#     from nuSQUIDSDecohPy import nuSQUIDSDecoh, nuSQUIDSDecohAtm
-#     NUSQUIDS_DECOH_AVAIL = True
-# except ImportError as e:
-#     pass
 
 # Import prob3
 PROB3_AVAIL = False
@@ -610,9 +601,118 @@ class OscCalculator(object) :
             raise Exception("`%s` does not support setting calculation basis" % self.tool)
 
 
+    def _get_flavor_index(self,flavor) :
+
+        index = None
+
+        if isinstance(flavor, str) :
+            if flavor in ["e","nue"] :
+                index = 0
+            elif flavor in ["mu","numu"] :
+                index = 1
+            elif flavor in ["tau","nutau"] :
+                index = 2
+
+        else :
+            assert flavor in [0,1,2]
+            index = flavor
+
+        assert flavor < self.num_neutrinos
+
+        return index 
+
+    def set_colors(self, nu_colors) :
+        self.nu_colors = nu_colors
+
+
+    @property
+    def states(self) :
+        return np.array(range(self.num_neutrinos))
+
+
+    def get_flavor_tex(self, i) :
+        '''
+        Get tex representation of flavor i (e.g. e, mu, tau)
+        '''
+
+        assert i < self.num_neutrinos
+        flavor = self.flavors[i]
+
+        if flavor == "e" :
+            return r"e"
+        elif flavor == "mu" :
+            return r"\mu"
+        elif flavor == "tau" :
+            return r"\tau"
+        else :
+            raise Exception("Unknown flavor : %s" % flavor)
+
+
+    def get_nu_flavor_tex(self, i=None, nubar=False) :
+        '''
+        Get tex representation of neutrino flavor i (e.g. nue, numu, nutau)
+        '''
+
+        nu_tex = r"\nu"
+
+        if nubar :
+            nu_tex = r"\bar{" + nu_tex + r"}"
+
+        if i is None :
+            nu_tex += r"_{\rm{all}}"
+        else :
+            flavor_tex = self.get_flavor_tex(i)
+            nu_tex += r"_{" + flavor_tex + r"}"
+
+        return nu_tex
+
+
+    def get_nu_mass_tex(self, i=None, nubar=False) :
+        '''
+        Get tex representation of neutrino mass state i (e.g. nu_1, numu_2, nutau_3)
+        '''
+
+        nu_tex = r"\nu"
+
+        if nubar :
+            nu_tex = r"\bar{" + nu_tex + r"}"
+
+        if i is None :
+            nu_tex += r"_{\rm{all}}"
+        else :
+            nu_tex += r"_{" + (i+1) + r"}"
+
+        return nu_tex
+
+
+
+    def get_transition_prob_tex(self, initial_flavor, final_flavor, nubar=False) :
+        return r"P(%s \rightarrow %s)" % ( self.get_nu_flavor_tex(initial_flavor, nubar), self.get_nu_flavor_tex(final_flavor, nubar) )
+
+
+    @property
+    def PMNS(self) :
+        '''
+        Return the PMNS matrix
+        '''
+
+        if self.tool == "nusquids" :
+            if self.num_neutrinos == 2 :
+                theta = [ self.nusquids.Get_MixingAngle(0,1) ]
+            elif self.num_neutrinos == 3 :
+                theta = [ self.nusquids.Get_MixingAngle(0,1), self.nusquids.Get_MixingAngle(0,2), self.nusquids.Get_MixingAngle(1,2) ]
+            else :
+                raise Exception("`PMNS` function only supports 2/3 flavors")
+            deltacp = self.nusquids.Get_CPPhase(0,2) #TODO check indices
+            return get_pmns_matrix( theta=theta, dcp=deltacp )
+
+
+        elif self.tool == "deimos" :
+            return self.solver.PMNS
+            
 
     #
-    # Nu flux
+    # Neutrino flux functions
     #
 
     def get_neutrino_flux(self, energy_GeV, coszen, source, tool=None, grid=False, overwrite_cache=False) :
@@ -1079,6 +1179,11 @@ class OscCalculator(object) :
             raise NotImplemented("SME not yet wrapped for %s" % self.tool) #TODO this is already supported by prob3, just need to wrap it
 
 
+
+    #
+    # Detector definition functions
+    #
+
     def set_detector_location(
         self,
         lat_deg,
@@ -1162,43 +1267,9 @@ class OscCalculator(object) :
 
 
 
-
-    
-    # def set_neutrino_source(self,
-    #                         # Date, Time and Timezone
-    #                         date_str,
-    #                         # Location on the sky
-    #                         ra_deg=None, 
-    #                         dec_deg=None,
-    #                         ):
-
-    #     if self.tool == "nusquids" :
-    #         raise NotImplementedError()
-
-    #     elif self.tool == "deimos" :
-    #         #Set date, time and location of neutrino source
-    #         coszen_neutrino_source, altitude_neutrino_source, azimuth_neutrino_source = self.detector_coords.get_coszen_altitude_and_azimuth(
-    #             ra_deg = ra_deg, 
-    #             dec_deg = dec_deg,
-    #             date_str = date_str
-    #             )
-            
-    #         self._neutrino_source_kw = {
-    #             # Horizontal Coordinate System
-    #             "coszen" : coszen_neutrino_source,
-    #             "altitude" : altitude_neutrino_source,
-    #             "azimuth" : azimuth_neutrino_source,
-    #             # Equatorial Coordinate System
-    #             "ra" : ra_deg,
-    #             "dec" : dec_deg,
-    #             # Store date_str for skymap
-    #             "date_str" : date_str,
-    #             "sidereal_time" : self.detector_coords.get_local_sidereal_time(date_str)
-    #         }
-         
-    #     else :
-    #         raise NotImplemented()
-
+    #
+    # Oscillation calculation functions
+    #
 
     def calc_osc_prob(self,
         energy_GeV,
@@ -1337,7 +1408,7 @@ class OscCalculator(object) :
         '''
 
         #TODO option to provide detector coord info (coszen, azimuth) instead of ra/dec
-        #TODO anything required to support skymaps?
+        #TODO support skymaps?
 
 
         #
@@ -1906,7 +1977,6 @@ class OscCalculator(object) :
         return results
 
 
-
     def calc_final_flux(self,
         source,
         energy_GeV,
@@ -1987,132 +2057,50 @@ class OscCalculator(object) :
 
 
 
-    def _get_flavor_index(self,flavor) :
+    #
+    # Integration with MassStatePropagator
+    #
 
-        index = None
-
-        if isinstance(flavor, str) :
-            if flavor in ["e","nue"] :
-                index = 0
-            elif flavor in ["mu","numu"] :
-                index = 1
-            elif flavor in ["tau","nutau"] :
-                index = 2
-
-        else :
-            assert flavor in [0,1,2]
-            index = flavor
-
-        assert flavor < self.num_neutrinos
-
-        return index 
-
-    def set_colors(self, nu_colors) :
-        self.nu_colors = nu_colors
-
-
-    @property
-    def states(self) :
-        return np.array(range(self.num_neutrinos))
-
-
-    def get_flavor_tex(self, i) :
+    def get_mass_state_propagator(self) :
         '''
-        Get tex representation of flavor i (e.g. e, mu, tau)
+        Create MassStatePropagator instance with consistent settings to this OscCalculator instances (e.g. osc parameters)
+
+        Allows for easy comparison between models
         '''
 
-        assert i < self.num_neutrinos
-        flavor = self.flavors[i]
+        from deimos.mass_state_propagator.mass_state_propagator import MassStatePropagator
 
-        if flavor == "e" :
-            return r"e"
-        elif flavor == "mu" :
-            return r"\mu"
-        elif flavor == "tau" :
-            return r"\tau"
-        else :
-            raise Exception("Unknown flavor : %s" % flavor)
+        #
+        # Define system
+        #
 
+        # Get the system definition
+        num_states = len(self.flavor)
+        mass_splittings_eV2 = self.get_mass_splittings
+        PMNS = self.PMNS
 
-    def get_nu_flavor_tex(self, i=None, nubar=False) :
-        '''
-        Get tex representation of neutrino flavor i (e.g. nue, numu, nutau)
-        '''
+        # Assuming some (arbitrary, at least w.r.t. oscillations) lightest neutrino mass, get masses from mass splittings
+        lowest_neutrino_mass_eV = 1.e-3  #TODO steerable
+        masses_eV = get_neutrino_masses(lowest_neutrino_mass_eV, mass_splittings_eV2)
 
-        nu_tex = r"\nu"
+        # Get PMNS
+        PMNS = get_pmns_matrix(mixing_angles_rad, dcp=deltacp)
 
-        if nubar :
-            nu_tex = r"\bar{" + nu_tex + r"}"
+        # Create propagator
+        propagator = MassStatePropagator(
+            num_states=num_states,
+            mass_state_masses_eV=masses_eV,
+            PMNS=PMNS,
+            seed=12345,  #TODO steerable
+        )
 
-        if i is None :
-            nu_tex += r"_{\rm{all}}"
-        else :
-            flavor_tex = self.get_flavor_tex(i)
-            nu_tex += r"_{" + flavor_tex + r"}"
-
-        return nu_tex
+        return propagator
 
 
-    def get_nu_mass_tex(self, i=None, nubar=False) :
-        '''
-        Get tex representation of neutrino mass state i (e.g. nu_1, numu_2, nutau_3)
-        '''
 
-        nu_tex = r"\nu"
-
-        if nubar :
-            nu_tex = r"\bar{" + nu_tex + r"}"
-
-        if i is None :
-            nu_tex += r"_{\rm{all}}"
-        else :
-            nu_tex += r"_{" + (i+1) + r"}"
-
-        return nu_tex
-
-
-    # @property
-    # def flavors_tex(self) :
-    #     return [ self.get_flavor_tex(i) for i in self.states ]
-
-
-    # @property
-    # def masses_tex(self) :
-    #     return [ self.get_mass_tex(i) for i in self.states ]
-
-
-    # @property
-    # def flavors_color(self) :
-    #     return [ self.get_flavor_color(i) for i in self.states ]
-
-    # def get_flavor_color(self, flavor) :
-    #     return self.nu_colors[flavor]
-
-
-    def get_transition_prob_tex(self, initial_flavor, final_flavor, nubar=False) :
-        return r"P(%s \rightarrow %s)" % ( self.get_nu_flavor_tex(initial_flavor, nubar), self.get_nu_flavor_tex(final_flavor, nubar) )
-
-
-    @property
-    def PMNS(self) :
-        '''
-        Return the PMNS matrix
-        '''
-
-        if self.tool == "nusquids" :
-            if self.num_neutrinos == 2 :
-                theta = [ self.nusquids.Get_MixingAngle(0,1) ]
-            elif self.num_neutrinos == 3 :
-                theta = [ self.nusquids.Get_MixingAngle(0,1), self.nusquids.Get_MixingAngle(0,2), self.nusquids.Get_MixingAngle(1,2) ]
-            else :
-                raise Exception("`PMNS` function only supports 2/3 flavors")
-            deltacp = self.nusquids.Get_CPPhase(0,2) #TODO check indices
-            return get_pmns_matrix( theta=theta, dcp=deltacp )
-
-
-        elif self.tool == "deimos" :
-            return self.solver.PMNS
-
+    #
+    # Plotting functions
+    #
 
     def plot_osc_prob_vs_distance(self, 
         # Steer physics
@@ -2328,7 +2316,7 @@ class OscCalculator(object) :
         vmax=1.,
     ) :
         '''
-        Helper function for plotting an atmospheric neutrino oscillogram
+        Helper function for plotting an atmospheric neutrino oscillogram (e.g. 2D plot of P vs [E, coszen])
         '''
         from deimos.utils.plotting import plot_colormap, value_spacing_is_linear
 
@@ -2391,1141 +2379,4 @@ class OscCalculator(object) :
             fig.tight_layout()
 
         return fig, ax, osc_probs
-
-
-    def plot_right_ascension_vs_energy_2D(
-            self,
-            # Steer physics
-            initial_flavor,
-            energy_GeV,
-            distance_km=None, coszen=None,
-            nubar=False,
-            final_flavor=None,
-            # Plotting
-            fig=None, ax=None,
-            label=None,
-            title=None,
-            xscale="linear",
-            ylim=None,
-            **plot_kw
-    ):
-        '''
-        Make a 2D plot of oscillation probabilities vs neutrino energy (x-axis) and right ascension (y-axis).
-        '''
-    
-        # Check inputs
-        assert isinstance(initial_flavor, int)
-        assert isinstance(energy_GeV, np.ndarray)
-        assert isinstance(nubar, bool)
-        if final_flavor is not None:
-            assert isinstance(final_flavor, int)
-    
-        # User may provide a figure, otherwise make one
-        ny = self.num_neutrinos + 1 if final_flavor is None else 1
-        if fig is None:
-            fig, ax = plt.subplots(nrows=ny, sharex=True, sharey=False, figsize=(6, 4 * ny))
-            if ny == 1:
-                ax = [ax]
-            if title is not None:
-                for this_ax in ax:
-                    this_ax.set_title(title)  # Set the same title for all subplots
-        else:
-            assert ax is not None
-            assert len(ax) == ny
-            assert title is None
-            
-        # Get a_eV, c and ra for naming the plot
-        if self._sme_model_kw:    
-            a_eV = self._sme_model_kw.get("a_eV")
-            c = self._sme_model_kw.get("c")
-            dec_0 = np.deg2rad(self._neutrino_source_kw["dec"][0])
-    
-        # Set title of figure     
-        if self._sme_model_kw:
-            fig.suptitle("SME",
-                # r"$\delta \sim {:.2f}$".format(dec_0)
-                # + r", $a^X = {:.2e} \, \rm GeV$".format(a_eV[0])
-                # + r", $a^Y = {:.2e} \, \rm GeV$".format(a_eV[1])
-                # + r", $c^X = {:.2e}$".format(c[0])
-                # + r", $c^Y = {:.2e}$".format(c[1]),
-                fontsize=14,
-            )
-        else:
-            fig.suptitle("Standard osc",
-                fontsize=14,
-            )
-        
-        # Handle distance vs coszen
-        if self.atmospheric:
-            assert coszen is not None
-            dist_kw = {"coszen": coszen}
-        else:
-            assert distance_km is not None
-            dist_kw = {"distance_km": distance_km}
-    
-        # Calculate probabilities
-        probabilities2d = self.calc_osc_prob(
-            initial_flavor = initial_flavor,
-            energy_GeV = energy_GeV,
-            **dist_kw
-        )
-        
-        # Transpose array to plot right ascension vs. energy
-        probabilities2d = np. transpose(probabilities2d, (1,0,2) )
-    
-        # Define the possible final states
-        final_states = ["e", "\u03BC", "\u03C4"]  # Use unicode characters for mu and tau
-        
-        # Loop over each final state and create the corresponding plot
-        for i, final_flavor in enumerate(final_states):
-            
-            # Check for values outside the range [0.9, 1.1]
-            if np.any(probabilities2d[:, :, i] < -0.1) or np.any(probabilities2d[:, :, i] > 1.1):
-                warnings.warn("Values of oscillation probabilities outside the range [0, 1].", UserWarning)
-                
-            # Plot the results
-            if self._sme_model_kw: 
-                im = ax[i].pcolormesh(energy_GeV,
-                                      np.deg2rad(self._neutrino_source_kw["ra"]),
-                                      probabilities2d[:, :, i],
-                                      vmin=0, vmax=1.0, 
-                                      cmap='RdPu')
-                ax[i].set_ylabel("Right Ascension (rad)")
-            
-            else:
-                im = ax[i].pcolormesh(energy_GeV,
-                                      coszen,
-                                      probabilities2d[:, :, i],
-                                      vmin=0, vmax=1.0, 
-                                      cmap='RdPu')
-                ax[i].set_ylabel("Coszen")
-            ax[i].set_xscale(xscale)
-    
-            # Add colorbar
-            cbar = fig.colorbar(im, ax=ax[i], label=r"$P(\nu_{\mu}\rightarrow \nu_{" + final_flavor + r"})$")
-    
-        # Plot total oscillations to any final state
-        if final_flavor is not None:
-            osc_probs_flavor_sum = probabilities2d.sum(axis=-1)
-            
-            # Check for values outside the range [0.9, 1.1]
-            if np.any(osc_probs_flavor_sum < 0.9) or np.any(osc_probs_flavor_sum > 1.1):
-                warnings.warn("Values outside the range [0.9, 1.1] in osc_probs_flavor_sum.", UserWarning)
-            
-            if self._sme_model_kw: 
-                ax[-1].pcolormesh(energy_GeV,
-                    np.deg2rad(self._neutrino_source_kw["ra"]),
-                    osc_probs_flavor_sum,
-                    vmin=0.9, vmax=1.1,
-                    cmap="RdPu")
-                
-                ax[-1].set_ylabel("Right Asceionsion (rad)")
-            
-            else:
-                im = ax[-1].pcolormesh(energy_GeV,
-                    coszen,
-                    osc_probs_flavor_sum,
-                    vmin=0.9, vmax=1.1,
-                    cmap="RdPu")
-                
-                ax[-1].set_ylabel("Coszen")
-            ax[-1].set_xlabel(ENERGY_LABEL)
-            ax[-1].set_xscale(xscale)
-            
-            # Add colorbar
-            cbar = fig.colorbar(im, ax=ax[-1], label=r"$P(\nu_{\mu}\rightarrow \nu_{all})$")
-    
-        plt.tight_layout()
-        plt.show()
-
-        return fig, ax, probabilities2d
-    
-    
-    def plot_declination_vs_energy_2D(
-        self,
-        # Steer physics
-        initial_flavor,
-        energy_GeV,
-        distance_km=None, coszen=None,
-        nubar=False,
-        final_flavor=None,
-        # Plotting
-        fig=None, ax=None,
-        label=None,
-        title=None,
-        xscale="linear",
-        ylim=None,
-        **plot_kw
-    ):
-        '''
-        Make a 2D plot of oscillation probabilities vs neutrino energy (x-axis) and declination (y-axis).
-        '''
-    
-        # Check inputs
-        assert isinstance(initial_flavor, int)
-        assert isinstance(energy_GeV, np.ndarray)
-        assert isinstance(nubar, bool)
-        if final_flavor is not None:
-            assert isinstance(final_flavor, int)
-    
-        # User may provide a figure, otherwise make one
-        ny = self.num_neutrinos + 1 if final_flavor is None else 1
-        if fig is None:
-            fig, ax = plt.subplots(nrows=ny, sharex=True, sharey=False, figsize=(6, 4 * ny))
-            if ny == 1:
-                ax = [ax]
-            if title is not None:
-                for this_ax in ax:
-                    this_ax.set_title(title)  # Set the same title for all subplots
-        else:
-            assert ax is not None
-            assert len(ax) == ny
-            assert title is None
-    
-        # Set title of figure     
-        # TODO adjust title of plots
-        if self._sme_model_kw:
-            fig.suptitle("SME",
-                # r"$\alpha \sim {:.2f}$".format(ra_0)
-                # + r", $a^X = {:.2e} \, \rm GeV$".format(a_eV[0])
-                # + r", $a^Y = {:.2e} \, \rm GeV$".format(a_eV[1])
-                # + r", $c^X = {:.2e}$".format(c[0])
-                # + r", $c^Y = {:.2e}$".format(c[1]),
-                fontsize=14,
-            )
-        else:
-            fig.suptitle("Standard osc",
-                fontsize=14,
-            )
-        
-        # Handle distance vs coszen
-        if self.atmospheric:
-            assert coszen is not None
-            dist_kw = {"coszen": coszen}
-        else:
-            assert distance_km is not None
-            dist_kw = {"distance_km": distance_km}
-    
-        # Calculate probabilities
-        probabilities2d = self.calc_osc_prob(
-            initial_flavor=initial_flavor,
-            energy_GeV=energy_GeV,
-            **dist_kw
-        )
-    
-        # Transpose array to plot declination vs. energy
-        probabilities2d = np.transpose(probabilities2d, (1, 0, 2))
-    
-        # Define the possible final states
-        final_states = ["e", "\u03BC", "\u03C4"]  # Use unicode characters for mu and tau
-            
-        # Loop over each final state and create the corresponding plot
-        for i, final_flavor in enumerate(final_states):
-            
-            # Check for values outside the range [0.9, 1.1]
-            if np.any(probabilities2d[:, :, i] < -0.1) or np.any(probabilities2d[:, :, i] > 1.1):
-                warnings.warn("Values of oscillation probabilities outside the range [0, 1].", UserWarning)
-              
-            # Plot the results
-            if self._sme_model_kw: 
-                im = ax[i].pcolormesh(energy_GeV,
-                                      np.deg2rad(self._neutrino_source_kw["dec"]),
-                                      probabilities2d[:, :, i],
-                                      vmin=0, vmax=1.0, 
-                                      cmap='RdPu')
-                ax[i].set_ylabel("Declination (rad)")
-            
-            else:
-                im = ax[i].pcolormesh(energy_GeV,
-                                      coszen,
-                                      probabilities2d[:, :, i],
-                                      vmin=0, vmax=1.0, 
-                                      cmap='RdPu')
-                ax[i].set_ylabel("Coszen")
-                
-            ax[i].set_xscale(xscale)
-    
-            # Add colorbar
-            cbar = fig.colorbar(im, ax=ax[i], label=r"$P(\nu_{\mu}\rightarrow \nu_{" + final_flavor + r"})$")
-    
-        # Plot total oscillations to any final state
-        if final_flavor is not None:
-            osc_probs_flavor_sum = probabilities2d.sum(axis=-1)
-            
-            # Check for values outside the range [0.9, 1.1]
-            if np.any(osc_probs_flavor_sum < 0.9) or np.any(osc_probs_flavor_sum > 1.1):
-                warnings.warn("Values outside the range [0.9, 1.1] in osc_probs_flavor_sum.", UserWarning)
-            
-            if self._sme_model_kw: 
-                ax[-1].pcolormesh(energy_GeV,
-                    np.deg2rad(self._neutrino_source_kw["dec"]),
-                    osc_probs_flavor_sum,
-                    vmin=0.9, vmax=1.1,
-                    cmap="RdPu")
-                
-                ax[-1].set_ylabel("Declination (rad)")
-            
-            else:
-                im = ax[-1].pcolormesh(energy_GeV,
-                    coszen,
-                    osc_probs_flavor_sum,
-                    vmin=0.9, vmax=1.1,
-                    cmap="RdPu")
-                
-                ax[-1].set_ylabel("Coszen")
-            ax[-1].set_xlabel(ENERGY_LABEL)
-            ax[-1].set_xscale(xscale)
-        
-            #Add colorbar
-            cbar = fig.colorbar(im, ax=ax[-1], label=r"$P(\nu_{\mu}\rightarrow \nu_{all})$")
-    
-        plt.tight_layout()
-        plt.show()
-    
-        return fig, ax, probabilities2d
-    
-    
-    def plot_declination_vs_energy_2D_diff(
-    self,
-    # Steer physics
-    initial_flavor,
-    energy_GeV,
-    distance_km=None, coszen=None,
-    nubar=False,
-    final_flavor=None,
-    # Plotting
-    fig=None, ax=None,
-    label=None,
-    title=None,
-    xscale="linear",
-    ylim=None,
-    **plot_kw
-    ):
-        '''
-        Make a 2D plot of the difference of oscillation probabilities between standard osc and with SME
-        vs neutrino energy (x-axis) and declination (y-axis).
-        '''
-    
-        # Check inputs
-        assert isinstance(initial_flavor, int)
-        assert isinstance(energy_GeV, np.ndarray)
-        assert isinstance(nubar, bool)
-        if final_flavor is not None:
-            assert isinstance(final_flavor, int)
-    
-        # User may provide a figure, otherwise make one
-        ny = self.num_neutrinos + 1 if final_flavor is None else 1
-        if fig is None:
-            fig, ax = plt.subplots(nrows=ny, sharex=True, sharey=False, figsize=(6, 4 * ny))
-            if ny == 1:
-                ax = [ax]
-            if title is not None:
-                for this_ax in ax:
-                    this_ax.set_title(title)  # Set the same title for all subplots
-        else:
-            assert ax is not None
-            assert len(ax) == ny
-            assert title is None
-    
-        # Get a_eV, c and ra for naming the plot
-        if self._sme_model_kw:    
-            a_eV = self._sme_model_kw.get("a_eV")
-            c = self._sme_model_kw.get("c")
-            ra_0 = np.deg2rad(self._neutrino_source_kw["ra"][0])
-    
-        # Set title of figure     
-        if self._sme_model_kw:
-            fig.suptitle("SME",
-                # r"$\alpha \sim {:.2f}$".format(ra_0)
-                # + r", $a^X = {:.2e} \, \rm GeV$".format(a_eV[0])
-                # + r", $a^Y = {:.2e} \, \rm GeV$".format(a_eV[1])
-                # + r", $c^X = {:.2e}$".format(c[0])
-                # + r", $c^Y = {:.2e}$".format(c[1]),
-                fontsize=14,
-            )
-        else:
-            fig.suptitle("Standard osc",
-                fontsize=14,
-            )
-        
-        # Handle distance vs coszen
-        if self.atmospheric:
-            assert coszen is not None
-            dist_kw = {"coszen": coszen}
-        else:
-            assert distance_km is not None
-            dist_kw = {"distance_km": distance_km}
-            
-        # Calculate probabilities for the non-standard case
-        sme_probabilities2d = self.calc_osc_prob(
-            initial_flavor=initial_flavor,
-            energy_GeV=energy_GeV,
-            **dist_kw
-        )
-        
-        # Call method to set parameters for the standard oscillation case
-        self.set_std_osc()
-        
-        # Calculate probabilities for the standard case
-        standard_probabilities2d = self.calc_osc_prob(
-            initial_flavor=initial_flavor,
-            energy_GeV=energy_GeV,
-            **dist_kw
-        )
-
-        # Calculate the difference of probabilities between non-standard and standard cases
-        diff_probabilities2d = sme_probabilities2d - standard_probabilities2d
-
-        # Select a colormap
-        cmap_diff = 'bwr'
-
-        # Define the possible final states
-        final_states = ["e", "\u03BC", "\u03C4"]  # Use unicode characters for mu and tau
-        
-        # Loop over each final state and create the corresponding plot
-        for i, final_flavor in enumerate(final_states):
-            
-            # Check for values outside the range [0.9, 1.1]
-            if np.any(diff_probabilities2d[:, :, i] < -1.1) or np.any(diff_probabilities2d[:, :, i] > 1.1):
-                warnings.warn("Values of the difference of the oscillation probabilities outside the range [-1, 1].", UserWarning)
-            
-            # Use the custom colormap to plot the difference of probabilities
-            if self._sme_model_kw: 
-                im = ax[i].pcolormesh(energy_GeV,
-                                      np.deg2rad(self._neutrino_source_kw["dec"]),
-                                      diff_probabilities2d[:, :, i],
-                                      vmin=-1.0, vmax=1.0, 
-                                      cmap=cmap_diff)
-                ax[i].set_ylabel("Declination (rad)")
-            
-            else:
-                im = ax[i].pcolormesh(energy_GeV,
-                                      coszen,
-                                      diff_probabilities2d[:, :, i],
-                                      vmin=-1.0, vmax=1.0, 
-                                      cmap=cmap_diff)
-                ax[i].set_ylabel("Coszen")
-            
-            ax[i].set_xscale(xscale)
-            
-            # Add colorbar
-            cbar = fig.colorbar(im, ax=ax[i], label=r"$\Delta P(\nu_{\mu}\rightarrow \nu_{" + final_flavor + r"})$")
-    
-            
-        # Plot total oscillations to any final state
-        if final_flavor is not None:
-            osc_probs_flavor_sum = diff_probabilities2d.sum(axis=-1)
-            
-            # Check for values outside the range [0.9, 1.1]
-            if np.any(osc_probs_flavor_sum < -0.1) or np.any(osc_probs_flavor_sum > 0.1):
-                warnings.warn("Values outside the range [-0.1, 0.1] in osc_probs_flavor_sum.", UserWarning)
-
-            if self._sme_model_kw: 
-                ax[-1].pcolormesh(energy_GeV,
-                    np.deg2rad(self._neutrino_source_kw["dec"]),
-                    osc_probs_flavor_sum,
-                    vmin=-0.1, vmax=0.1,
-                    cmap=cmap_diff)
-                
-                ax[-1].set_ylabel("Declination (rad)")
-            
-            else:
-                im = ax[-1].pcolormesh(energy_GeV,
-                    coszen,
-                    osc_probs_flavor_sum,
-                    vmin=-0.1, vmax=0.1,
-                    cmap=cmap_diff)
-                
-                ax[-1].set_ylabel("Coszen")
-            ax[-1].set_xlabel(ENERGY_LABEL)
-            ax[-1].set_xscale(xscale)
-        
-            #Add colorbar
-            cbar = fig.colorbar(im, ax=ax[-1], label=r"$\Delta P(\nu_{\mu}\rightarrow \nu_{all})$")
-    
-
-        return fig, ax, diff_probabilities2d
-    
-    
-    def plot_right_ascension_vs_energy_2D_diff(
-    self,
-    # Steer physics
-    initial_flavor,
-    energy_GeV,
-    distance_km=None, coszen=None,
-    nubar=False,
-    final_flavor=None,
-    # Plotting
-    fig=None, ax=None,
-    label=None,
-    title=None,
-    xscale="linear",
-    ylim=None,
-    **plot_kw
-    ):
-        '''
-        Make a 2D plot of the difference of oscillation probabilities between standard osc and with SME
-        vs neutrino energy (x-axis) and declination (y-axis).
-        '''
-    
-        # Check inputs
-        assert isinstance(initial_flavor, int)
-        assert isinstance(energy_GeV, np.ndarray)
-        assert isinstance(nubar, bool)
-        if final_flavor is not None:
-            assert isinstance(final_flavor, int)
-    
-        # User may provide a figure, otherwise make one
-        ny = self.num_neutrinos + 1 if final_flavor is None else 1
-        if fig is None:
-            fig, ax = plt.subplots(nrows=ny, sharex=True, sharey=False, figsize=(6, 4 * ny))
-            if ny == 1:
-                ax = [ax]
-            if title is not None:
-                for this_ax in ax:
-                    this_ax.set_title(title)  # Set the same title for all subplots
-        else:
-            assert ax is not None
-            assert len(ax) == ny
-            assert title is None
-    
-        # Get a_eV, c and ra for naming the plot
-        if self._sme_model_kw:    
-            a_eV = self._sme_model_kw.get("a_eV")
-            c = self._sme_model_kw.get("c")
-            dec_0 = np.deg2rad(self._neutrino_source_kw["dec"][0])
-    
-        # Set title of figure     
-        if self._sme_model_kw:
-            fig.suptitle("SME",
-                # r"$\delta \sim {:.2f}$".format(dec_0)
-                # + r", $a^X = {:.2e} \, \rm GeV$".format(a_eV[0])
-                # + r", $a^Y = {:.2e} \, \rm GeV$".format(a_eV[1])
-                # + r", $c^X = {:.2e}$".format(c[0])
-                # + r", $c^Y = {:.2e}$".format(c[1]),
-                fontsize=14,
-            )
-        else:
-            fig.suptitle("Standard osc",
-                fontsize=14,
-            )
-        
-        # Handle distance vs coszen
-        if self.atmospheric:
-            assert coszen is not None
-            dist_kw = {"coszen": coszen}
-        else:
-            assert distance_km is not None
-            dist_kw = {"distance_km": distance_km}
-            
-        # Calculate probabilities for the non-standard case
-        sme_probabilities2d = self.calc_osc_prob(
-            initial_flavor=initial_flavor,
-            energy_GeV=energy_GeV,
-            **dist_kw
-        )
-        
-        # Call method to set parameters for the standard oscillation case
-        self.set_std_osc()
-        
-        # Calculate probabilities for the standard case
-        standard_probabilities2d = self.calc_osc_prob(
-            initial_flavor=initial_flavor,
-            energy_GeV=energy_GeV,
-            **dist_kw
-        )
-
-        # Calculate the difference of probabilities between non-standard and standard cases
-        diff_probabilities2d = sme_probabilities2d - standard_probabilities2d
-
-        # Create a custom colormap
-        cmap_diff = 'bwr'
-        
-        # Define the possible final states
-        final_states = ["e", "\u03BC", "\u03C4"]  # Use unicode characters for mu and tau
-        
-        # Loop over each final state and create the corresponding plot
-        for i, final_flavor in enumerate(final_states):
-            
-            # Check for values outside the range [0.9, 1.1]
-            if np.any(diff_probabilities2d[:, :, i] < -1.1) or np.any(diff_probabilities2d[:, :, i] > 1.1):
-                warnings.warn("Values of the difference of the oscillation probabilities outside the range [-1, 1].", UserWarning)
-               
-            # Use the custom colormap to plot the difference of probabilities
-            if self._sme_model_kw: 
-                im = ax[i].pcolormesh(energy_GeV,
-                                      np.deg2rad(self._neutrino_source_kw["ra"]),
-                                      diff_probabilities2d[:, :, i],
-                                      vmin=-1.0, vmax=1.0, 
-                                      cmap=cmap_diff)
-                ax[i].set_ylabel("Declination (rad)")
-            
-            else:
-                im = ax[i].pcolormesh(energy_GeV,
-                                      coszen,
-                                      diff_probabilities2d[:, :, i],
-                                      vmin=-1.0, vmax=1.0, 
-                                      cmap=cmap_diff)
-                ax[i].set_ylabel("Coszen")
-            ax[i].set_xscale(xscale)
-            
-            # Add colorbar
-            cbar = fig.colorbar(im, ax=ax[i], label=r"$\Delta P(\nu_{\mu}\rightarrow \nu_{" + final_flavor + r"})$")
-    
-            
-        # Plot total oscillations to any final state
-        if final_flavor is not None:
-            osc_probs_flavor_sum = diff_probabilities2d.sum(axis=-1)
-            
-            # Check for values outside the range [0.9, 1.1]
-            if np.any(osc_probs_flavor_sum < -0.1) or np.any(osc_probs_flavor_sum > 0.1):
-                warnings.warn("Values outside the range [-0.1, 0.1] in osc_probs_flavor_sum.", UserWarning)
-            
-            if self._sme_model_kw: 
-                ax[-1].pcolormesh(energy_GeV,
-                    np.deg2rad(self._neutrino_source_kw["ra"]),
-                    osc_probs_flavor_sum,
-                    vmin=-0.1, vmax=0.1,
-                    cmap=cmap_diff)
-                
-                ax[-1].set_ylabel("Right Ascension (rad)")
-            
-            else:
-                im = ax[-1].pcolormesh(energy_GeV,
-                    coszen,
-                    osc_probs_flavor_sum,
-                    vmin=-0.1, vmax=0.1,
-                    cmap="RdPu")
-                
-                ax[-1].set_ylabel("Coszen")
-            ax[-1].set_xlabel(ENERGY_LABEL)
-            ax[-1].set_xscale(xscale)
-        
-            #Add colorbar
-            cbar = fig.colorbar(im, ax=ax[-1], label=r"$\Delta P(\nu_{\mu}\rightarrow \nu_{all})$")
-    
-
-        return fig, ax, diff_probabilities2d
-    
-
-    def plot_healpix_map(
-            self,
-            healpix_map,
-            visible_sky_map,
-            nside,
-            title,
-            cbar_label,
-            cmap='viridis',
-            min_val = -1,
-            max_val = 1,
-            ):
-        
-        #Plot in the mollview projection
-        projected_map = hp.mollview(
-                            map = healpix_map, 
-                            title=title + "\n", 
-                            cmap=cmap,
-                            xsize=2000,
-                            # rotation in the form (lon, lat, psi) (unit: degrees) : the point at longitude lon and latitude lat will be at the center.
-                            # An additional rotation of angle psi around this direction is applied.
-                            rot=(180, 0, 0),
-                            # equatorial (celestial) coordinate system
-                            coord='C',
-                            # east towards left, west towards right
-                            flip = 'astro',
-                            min=min_val,
-                            max=max_val,
-                            cbar=False,
-                            return_projected_map=True,
-                            # Allow overlaying
-                            hold = True
-                            )
-        # Overlay the visible_sky map
-        hp.mollview(
-            map=visible_sky_map,  # Add the visible_sky map as an overlay
-            cmap='Greys',  # Set the colormap to 'Greys'
-            xsize=2000,
-            # An additional rotation of angle psi around this direction is applied.
-            rot=(180, 0, 0),
-            # equatorial (celestial) coordinate system
-            coord='C',
-            # east towards left, west towards right
-            flip = 'astro',
-            min = 0,
-            max =1,
-            # Set opacity to 0.2
-            alpha=visible_sky_map,  
-            # Allow overlaying
-            reuse_axes=True,
-            cbar=False,
-            )
-        
-        # Add meridians and parallels
-        hp.graticule()
-        
-        # Add declination labels
-        for dec in np.arange(-75, 0, 15):
-            #lonlat If True, theta and phi are interpreted as longitude and latitude in degree, otherwise, as colatitude and longitude in radian
-            hp.projtext(359.9, dec, "\n" + f"{dec}°   ", lonlat=True, color="black", ha="right", va="center")  
-        for dec in np.arange(0, 76, 15):
-            if dec == 0:
-                hp.projtext(359.9, dec, r"Declination $\delta$" + "\n\n", lonlat=True, color="black", ha="right", va="center", rotation ='vertical')
-                continue
-            hp.projtext(359.9, dec, f"{dec}°   " + "\n", lonlat=True, color="black", ha="right", va="center")
-            
-        # Add the right ascension labels
-        hp.projtext(359.9, 0, "24h ", lonlat=True, color="black", ha="right", va="center")
-        hp.projtext(0, 0, " 0h", lonlat=True, color="black", ha="left", va="center")
-        hp.projtext(180, -90, "\n\n\n12h" + "\nRight Ascension " +  r"$\alpha$", lonlat=True, color="black", ha="center", va="center")
-    
-        # Create an empty image plot as a mappable for the colorbar
-        img = plt.imshow(projected_map, cmap=cmap, vmin=min_val, vmax=max_val)
-        cb = plt.colorbar(img, shrink=0.7)  # You can adjust the size of the colorbar using 'shrink' parameter
-        cb.set_label(label=cbar_label)  
-        
-        # Save the plot to a file
-        # Replace Greek symbols with English letters
-        cbar_label = cbar_label.replace(r"$\Delta", "Delta")
-        cbar_label = cbar_label.replace(r"\nu", "nu")
-        cbar_label = cbar_label.replace(r"\mu", "mu")
-        cbar_label = cbar_label.replace(r"\rightarrow", "to")
-        cbar_label = cbar_label.replace(r"_", " ")
-
-        # Remove any remaining LaTeX commands (e.g., "{", "}", "$")
-        cbar_label = re.sub(r"{|}|\$", "", cbar_label)
-
-        # Remove spaces and add underscores between words
-        cbar_label = cbar_label.replace(" ", "_")
-        title = title.replace(" ", "_")
-        plt.savefig(title + cbar_label + ".png", bbox_inches='tight')
-        plt.show()
-        
-        # Close the current plot to free memory
-        plt.close()  
-        
-        
-    def plot_osc_prob_skymap_2D(
-        self,
-        # Steer physics
-        initial_flavor,
-        energy_GeV,
-        distance_km=None, coszen=None,
-        nubar=False,
-        final_flavor=None,
-        #Plotting
-        resolution= 8,
-        cmap='RdPu',
-        ) :
-        
-        '''
-        Make a 2D plot of neutrino oscillation probabilities vs right ascension and declination
-        for a fixed energy.
-        '''
-        
-        # Check inputs
-        assert isinstance(initial_flavor, int)
-        assert isinstance(energy_GeV, np.ndarray)
-        assert isinstance(nubar, bool)
-        if final_flavor is not None:
-            assert isinstance(final_flavor, int)
-        assert resolution > 0 and (resolution & (resolution - 1)) == 0, "resolution needs to be a power of 2."
-    
-        # Get a_eV, c and ra for naming the plot
-        if self._sme_model_kw:    
-            a_eV = self._sme_model_kw.get("a_eV")
-            c = self._sme_model_kw.get("c")
-        
-        # Handle distance vs coszen
-        if self.atmospheric:
-            assert coszen is not None
-            dist_kw = {"coszen": coszen}
-        else:
-            assert distance_km is not None
-            dist_kw = {"distance_km": distance_km}
-        
-        # Generate minimal ra and dec to cover all pixels of healpy map
-        # Number of pixels of healpy map
-        npix = hp.nside2npix(nside=resolution)
-        
-        # Convert pixel to polar coordinates (in deg)
-        right_ascension_flat, declination_flat = hp.pix2ang(nside=resolution, ipix=np.arange(npix), lonlat=True)
-        date_str = self._neutrino_source_kw["date_str"]
-        self._neutrino_source_kw = None
-        self.set_neutrino_source(# Date, Time and Timezone
-                                date_str = date_str,
-                                # Location on the sky
-                                ra_deg = right_ascension_flat, 
-                                dec_deg = declination_flat,
-                                )
-        
-        #Store dictionaries for later use
-        neutrinos_dict = self._neutrino_source_kw
-        sme_dict = self._sme_model_kw
-        
-        # Evaluate which pixels are above the horizon 
-        _, alt, _ = self.detector_coords.get_coszen_altitude_and_azimuth(date_str = date_str, ra_deg = right_ascension_flat, dec_deg = declination_flat)
-        # Create a mask for altitudes between 0 and 90 degrees
-        mask = (alt >= 0) # & (alt <= 90)
-        # Create an array of zeros with the same shape as alt
-        visible_sky = np.zeros_like(alt)
-        
-        # Set the elements where the condition is met to .4
-        visible_sky[mask] = .4
-
-        
-        
-        # Calculate probabilities with SME model
-        sme_probabilities2d = self.calc_osc_prob(
-            initial_flavor=initial_flavor,
-            energy_GeV=energy_GeV,
-            **dist_kw
-        )
-       
-        #
-        # Plot each healpix map
-        #
-        
-        #number of plots
-        ny = self.num_neutrinos if final_flavor is None else 1
-        
-        # Define the possible final states
-        if final_flavor is None:
-            final_flavor = ["e", "\u03BC", "\u03C4"]  # Use unicode characters for mu and tau
-        else:
-            final_flavor = [final_flavor] 
-            
-        for i in range(len(energy_GeV)):
-            healpix_maps_flavours = sme_probabilities2d[i,:,:]
-            
-            # Round to two significant digits
-            rounded_energy = round(energy_GeV[i], -int(np.floor(np.log10(abs(energy_GeV[i]))) - 1))
-            
-            # Display in scientific notation
-            formatted_energy = f"{rounded_energy:.2e} GeV"
-        
-            for j in range(ny):
-                single_healpix_map = healpix_maps_flavours[:,j]
-                # Check if any values are outside the range [-1, 1]
-                if np.any(single_healpix_map < -.1) or np.any(single_healpix_map > 1.1):
-                    warnings.warn("Values of the difference of the oscillation probabilities outside the range [-1, 1].", UserWarning)
-
-                #Plot the difference in oscillation probabilities for all flavours
-                self.plot_healpix_map(
-                    healpix_map=single_healpix_map, 
-                    visible_sky_map=visible_sky,
-                    nside=resolution, 
-                    title=formatted_energy,
-                    cbar_label=r"$P(\nu_{\mu}\rightarrow \nu_{" + final_flavor[j] + r"})$", 
-                    cmap=cmap,
-                    min_val=0
-                )
-               
-            healpix_maps_sum_flavours = np.sum(healpix_maps_flavours, axis=1)
-            healpix_maps_sum_flavours = np.squeeze(healpix_maps_sum_flavours)
-            
-            # Check if any values are outside the range [-0.1, 0.1]
-            if np.any(single_healpix_map < -0.1) or np.any(single_healpix_map > 0.1):
-                warnings.warn("Values of the sum of the difference of the oscillation probabilities outside the range [-0.1, 0.1].", UserWarning)
-            
-            # Plot sum of flavours 
-            self.plot_healpix_map(
-                healpix_map=healpix_maps_sum_flavours,
-                visible_sky_map=visible_sky, 
-                nside=resolution, 
-                title=formatted_energy,
-                cbar_label=r"$P(\nu_{\mu}\rightarrow \nu_{all})$", 
-                cmap=cmap,
-                max_val=1.1,
-                min_val=0.9,
-            )
-            
-        return sme_probabilities2d
-    
-    def plot_osc_prob_skymap_2D_diff(
-        self,
-        # Steer physics
-        initial_flavor,
-        energy_GeV,
-        distance_km=None, coszen=None,
-        nubar=False,
-        final_flavor=None,
-        #Plotting
-        resolution= 8,
-        cmap='bwr',
-        ) :
-        
-        '''
-        Make a 2D plot of neutrino oscillation probabilities vs right ascension and declination
-        for a fixed energy.
-        '''
-        
-        # Check inputs
-        assert isinstance(initial_flavor, int)
-        assert isinstance(energy_GeV, np.ndarray)
-        assert isinstance(nubar, bool)
-        if final_flavor is not None:
-            assert isinstance(final_flavor, int)
-        assert resolution > 0 and (resolution & (resolution - 1)) == 0, "resolution needs to be a power of 2."
-    
-        # Get a_eV, c and ra for naming the plot
-        if self._sme_model_kw:    
-            a_eV = self._sme_model_kw.get("a_eV")
-            c = self._sme_model_kw.get("c")
-        
-        # Handle distance vs coszen
-        if self.atmospheric:
-            assert coszen is not None
-            dist_kw = {"coszen": coszen}
-        else:
-            assert distance_km is not None
-            dist_kw = {"distance_km": distance_km}
-        
-        # Generate minimal ra and dec to cover all pixels of healpy map
-        # Number of pixels of healpy map
-        npix = hp.nside2npix(nside=resolution)
-        
-        # Convert pixel to polar coordinates (in deg)
-        right_ascension_flat, declination_flat = hp.pix2ang(nside=resolution, ipix=np.arange(npix), lonlat=True)
-        date_str = self._neutrino_source_kw["date_str"]
-        self._neutrino_source_kw = None
-        self.set_neutrino_source(# Date, Time and Timezone
-                                date_str = date_str,
-                                # Location on the sky
-                                ra_deg = right_ascension_flat, 
-                                dec_deg = declination_flat,
-                                )
-        
-        #Store dictionaries for later use
-        neutrinos_dict = self._neutrino_source_kw
-        sme_dict = self._sme_model_kw
-        
-        # Set coszen values to the values corresponding to the different pixels of the healpix map
-        self.skymap_use = True
-        
-        # Calculate probabilities with SME model
-        sme_probabilities2d = self.calc_osc_prob(
-            initial_flavor=initial_flavor,
-            energy_GeV=energy_GeV,
-            **dist_kw
-        )
-        # Call method to set parameters for the standard oscillation case
-        self.set_std_osc()
-        
-        # Set _neutrino_source_kw values again and _sme_model_kw to zero to ensure 
-        # that standard_probabilities2d has the same shape as sme_probabilities2d
-        self._neutrino_source_kw = neutrinos_dict
-        
-        # Calculate probabilities for the standard case
-        standard_probabilities2d = self.calc_osc_prob(
-            initial_flavor=initial_flavor,
-            energy_GeV=energy_GeV,
-            **dist_kw
-        )
-        
-        # Calculate the difference of probabilities between non-standard and standard cases
-        diff_probabilities = sme_probabilities2d - standard_probabilities2d
-        
-        #
-        # Plot each healpix map
-        #
-        
-        #number of plots
-        ny = self.num_neutrinos if final_flavor is None else 1
-        
-        # Define the possible final states
-        if final_flavor is None:
-            final_flavor = ["e", "\u03BC", "\u03C4"]  # Use unicode characters for mu and tau
-        else:
-            final_flavor = [final_flavor] 
-            
-        for i in range(len(energy_GeV)):
-            healpix_maps_flavours = diff_probabilities[i,:,:]
-            
-            # Round to two significant digits
-            rounded_energy = round(energy_GeV[i], -int(np.floor(np.log10(abs(energy_GeV[i]))) - 1))
-            
-            # Display in scientific notation
-            formatted_energy = f"{rounded_energy:.2e} GeV"
-        
-            for j in range(ny):
-                single_healpix_map = healpix_maps_flavours[:,j]
-                # Check if any values are outside the range [-1, 1]
-                if np.any(single_healpix_map < -1.1) or np.any(single_healpix_map > 1.1):
-                    warnings.warn("Values of the difference of the oscillation probabilities outside the range [-1, 1].", UserWarning)
-
-                #Plot the difference in oscillation probabilities for all flavours
-                self.plot_healpix_map(
-                    healpix_map=single_healpix_map, 
-                    nside=resolution, 
-                    title=formatted_energy,
-                    cbar_label=r"$\Delta P(\nu_{\mu}\rightarrow \nu_{" + final_flavor[j] + r"})$", 
-                    cmap=cmap
-                )
-               
-            healpix_maps_sum_flavours = np.sum(healpix_maps_flavours, axis=1)
-            healpix_maps_sum_flavours = np.squeeze(healpix_maps_sum_flavours)
-            
-            # Check if any values are outside the range [-0.1, 0.1]
-            if np.any(single_healpix_map < -0.1) or np.any(single_healpix_map > 0.1):
-                warnings.warn("Values of the sum of the difference of the oscillation probabilities outside the range [-0.1, 0.1].", UserWarning)
-            
-            # Plot sum of flavours 
-            self.plot_healpix_map(
-                healpix_map=healpix_maps_sum_flavours, 
-                nside=resolution, 
-                title=formatted_energy,
-                cbar_label=r"$\Delta P(\nu_{\mu}\rightarrow \nu_{all})$", 
-                cmap=cmap
-            )
-            
-        return sme_probabilities2d, standard_probabilities2d 
-            
-    def compare_models(
-        self,
-        model_defs,
-        initial_flavors,
-        energy_GeV,
-        distance_km, 
-        include_std_osc=True,
-    ) :
-        '''
-        Compare the different models/cases specified by `model_defs`
-
-        model_defs : list of dicts
-            Each dict must/can have the following entries:
-                "calc_basis" (required)
-                "D_matrix_basis" (required)
-                "D_matrix" (required)
-                "n" (required)
-                "label" (required)
-                "color" (optional)
-                "linestyle" (optional)
-        '''
-
-        #TODO add comparison w.r.t. energy
-
-        # Check inputs
-        #TODO
-
-        # Plot steering
-        color_scale = ColorScale("hsv", len(model_defs))
-
-        # Output containers
-        figures = []
-
-        # Loop over initial flavors
-        for initial_flavor in initial_flavors :
-
-            fig, ax = plt.subplots( nrows=self.num_neutrinos+1, sharex=True, figsize=(6,7) )
-            figures.append(fig)
-
-            # Plot std osc
-            if include_std_osc :
-                self.set_std_osc()
-                self.plot_osc_prob_vs_distance(fig=fig, initial_flavor=initial_flavor, energy_GeV=energy_GeV, distance_km=distance_km, color="lightgrey", label="Std osc")
-
-            # Loop over models/cases
-            for i_model, model_dict in enumerate(model_defs) :
-
-                # Plot steering
-                label = model_dict["label"]
-                color = model_dict["color"] if "color" in model_dict else color_scale.get(i_model)
-                linestyle = model_dict["linestyle"] if "linestyle" in model_dict else "-"
-
-                # Set physics params
-                self.set_calc_basis(model_dict["calc_basis"])
-                self.set_decoherence_D_matrix_basis(model_dict["D_matrix_basis"])
-                self.set_decoherence_D_matrix( D_matrix_eV=model_dict["D_matrix"], n=model_dict["n"] )
-
-                # Plot
-                self.plot_osc_prob_vs_distance(fig=fig, initial_flavor=initial_flavor, energy_GeV=energy_GeV, distance_km=distance_km, color=color, linestyle=linestyle, label=label ) 
-
-            # Add long range behaviour lines
-            #TODO
-
-            # Format
-            ax[-1].set_xlabel(DISTANCE_LABEL)
-            ax[0].legend( loc="upper right", fontsize=10 ) #TODO put to the right of the ax
-            fig.quick_format( ylim=(-0.01,1.01), legend=False )
-
-        return figures
-
-
-
-
-def define_matching_perturbation_and_lindblad_calculators(num_neutrinos=3) :
-    '''
-    Create DecoherenceToyModel and OscCalculator instances
-    with common osc parmas, etc.
-
-    Allows for easy comparison between the models.
-    '''
-
-    #TODO Make this more flexible by making this a member function of OscCalculator
-    # which returns a compatible DecoherenceToyModel instance.
-
-
-    from deimos.utils.toy_model.decoherence_toy_model import DecoherenceToyModel, get_neutrino_masses
-
-    #
-    # Define system
-    #
-
-    # Get the system definition
-    flavors = FLAVORS
-    mass_splittings_eV2 = MASS_SPLITTINGS_eV2
-    mixing_angles_rad = MIXING_ANGLES_rad
-    deltacp = DELTACP_rad
-
-    #TODO store flavor labels in class, or integrate with OscCalculator
-
-    # Assuming some (arbitrary, at least w.r.t. oscillations) lightest neutrino mass, get masses from mass splittings
-    lowest_neutrino_mass_eV = 0. #1.e-3
-    masses_eV = get_neutrino_masses(lowest_neutrino_mass_eV, mass_splittings_eV2)
-
-    # Get PMNS
-    PMNS = get_pmns_matrix(mixing_angles_rad, dcp=deltacp)
-
-
-    #
-    # Create toy model
-    #
-
-    perturbation_toy_model = DecoherenceToyModel(
-        num_states=num_neutrinos,
-        mass_state_masses_eV=masses_eV,
-        PMNS=PMNS,
-        seed=12345,
-    )
-
-
-    #
-    # Create Lindblad lindblad_calculator
-    #
-
-    lindblad_calculator = OscCalculator(
-        tool="dmos", #TODO nusquids
-        atmospheric=False,
-        num_neutrinos=num_neutrinos,
-    )
-
-    lindblad_calculator.set_matter("vacuum")
-
-    lindblad_calculator.set_mass_splittings(*mass_splittings_eV2)
-    lindblad_calculator.set_mixing_angles(*mixing_angles_rad, deltacp=deltacp)
-
-    # Handle basis choice
-    lindblad_calculator.set_calc_basis("nxn")
-
-
-    #
-    # Checks
-    #
-
-    assert np.array_equal(perturbation_toy_model.PMNS, lindblad_calculator.PMNS)
-    assert np.isclose(perturbation_toy_model.get_mass_splittings()[0], mass_splittings_eV2[0]) # 21
-    if num_neutrinos > 2 :
-        assert np.isclose(perturbation_toy_model.get_mass_splittings()[1], mass_splittings_eV2[1]) # 31
-
-    return perturbation_toy_model, lindblad_calculator
 

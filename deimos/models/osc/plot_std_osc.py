@@ -36,8 +36,6 @@ if __name__ == "__main__" :
     kw = {}
     if args.solver == "nusquids" :
         kw["energy_nodes_GeV"] = np.geomspace(0.1, 1000., num=1000) # For nuSQuIDS case, need to specify energy nodes covering full space 
-    elif args.solver == "deimos" :
-        kw["solver_name"] = "odeintw" # odeintw solve_ivp 
 
     # Create calculator
     calculator = OscCalculator(
