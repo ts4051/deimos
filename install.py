@@ -255,7 +255,7 @@ def install_deimos() :
     '''
 
     # Get DEIMOS clone directory
-    deimos_dir = os.path.join( os.path.dirname(__file__), ".." )
+    deimos_dir = os.path.dirname(__file__)
 
     # Install using pip
     execute_commands([
