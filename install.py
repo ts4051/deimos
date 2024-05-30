@@ -118,7 +118,7 @@ def install_mceq() :
     '''
 
     # Simply install using PyPi (e.g. not from source)
-    execute_commands(["pip install MCEq"])
+    execute_commands(["python -m pip install MCEq"])
 
 
 def install_nusquids(
@@ -171,8 +171,15 @@ def install_nusquids(
     # Install dependencies
     #
 
+    # Get python version in the conda env
+    # Will enforce this during the installation of these dependencies, as otherwise boost has a tendency to force 
+    # a new version to be installated that can leave an inconsistent environment with multiple python versions
+    py_version = sys.version.split(" ")[0]
+    print(f"Found python version : {py_version}")
+
     # Define (nu)SQuIDS dependencies
     dependencies = [
+        f"python={py_version}",
         "gsl",
         "hdf5",
         "numpy",
@@ -255,12 +262,12 @@ def install_deimos() :
     '''
 
     # Get DEIMOS clone directory
-    deimos_dir = os.path.join( os.path.dirname(__file__), ".." )
+    deimos_dir = os.path.dirname(__file__)
 
     # Install using pip
     execute_commands([
         f"cd {deimos_dir}", # Go to top directory
-        "pip install .", # Install from source, using pip
+        "python -m pip install .", # Install from source, using pip
     ])
 
 
@@ -271,7 +278,15 @@ def install_deimos() :
 
 if __name__ == "__main__" :
 
+    # Check a suitable enviornment is detected
     check_env()
+
+    # Install nuSQuIDS optional dependency
+    # Good idea to do this before other dependencies, since it can change the python version
     install_nusquids()
+
+    # Install MCEq optional dependency
     install_mceq()
+
+    # Install DEIMOS
     install_deimos()
