@@ -267,7 +267,7 @@ def install_deimos() :
     # Install using pip
     execute_commands([
         f"cd {deimos_dir}", # Go to top directory
-        "python -m pip install .", # Install from source, using pip
+        "python -m pip install --upgrade -e .", # Install from source, using pip. Using developer mode so user can modify code.
     ])
 
 
@@ -283,7 +283,15 @@ if __name__ == "__main__" :
 
     # Install nuSQuIDS optional dependency
     # Good idea to do this before other dependencies, since it can change the python version
-    install_nusquids()
+    # Here specifying a force/branch with BSM effects implemented that are directly comparable to DEIMOS
+    # You are free to choose your own, including the original master branches
+    nusquids_kw = dict(
+        squids_repo_path="git@github.com:ts4051/SQuIDS.git",
+        squids_branch="bsm",
+        nusquids_repo_path="git@github.com:ts4051/nuSQuIDS.git",
+        nusquids_branch="bsm",
+    )
+    install_nusquids(**nusquids_kw)
 
     # Install MCEq optional dependency
     install_mceq()
