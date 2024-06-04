@@ -18,6 +18,17 @@ from deimos.utils.plotting import *
 if __name__ == "__main__" :
 
     #
+    # Steering
+    #
+
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-s", "--solver", type=str, required=False, default="deimos", help="Solver name")
+    args = parser.parse_args()
+
+
+
+    #
     # Define basic system
     #
 
@@ -36,19 +47,15 @@ if __name__ == "__main__" :
     # Create model
     #
 
-    # Choose solver
-    solver = "deimos" # deimos nusquids
-
     # For nuSQuIDS case, need to specify energy nodes covering full space
     kw = {}
-    if solver == "nusquids" :
-        # kw["energy_nodes_GeV"] = np.array([0.5*E_GeV, E_GeV, 1.5*E_GeV])
+    if args.solver == "nusquids" :
         kw["energy_nodes_GeV"] = E_GeV_scan
         kw["nusquids_variant"] = "sme"
 
     # Create calculator
     calculator = OscCalculator(
-        tool=solver,
+        tool=args.solver,
         atmospheric=True,
         **kw
     )

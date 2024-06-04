@@ -19,6 +19,16 @@ if __name__ == "__main__" :
 
 
     #
+    # Steering
+    #
+
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-s", "--solver", type=str, required=False, default="deimos", help="Solver name")
+    args = parser.parse_args()
+
+
+    #
     # Define neutrino
     #
 
@@ -31,17 +41,14 @@ if __name__ == "__main__" :
     # Create model
     #
 
-    # Choose solver
-    solver = "deimos" # deimos nusquids
-
     # For nuSQuIDS case, need to specify energy nodes covering full space
     kw = {}
-    if solver == "nusquids" :
+    if args.solver == "nusquids" :
         kw["energy_nodes_GeV"] = np.geomspace(E_GeV[0], E_GeV[-1], num=100)
 
     # Create calculator
     calculator = OscCalculator(
-        tool=solver,
+        tool=args.solver,
         atmospheric=False,
         **kw
     )
