@@ -1214,8 +1214,8 @@ class OscCalculator(object) :
 
         if name.lower() == "icecube" :
             self.set_detector_location(
-                lat_deg="89°59′24″S",
-                long_deg="63°27′11″W",
+                lat_deg="-89.99 degree",
+                long_deg="-63.45 degree",
                 height_m=-1400.,
             )
 
@@ -1228,8 +1228,8 @@ class OscCalculator(object) :
 
         elif name.lower() == "arca" :
             self.set_detector_location(
-                lat_deg="36°15′36″N",
-                long_deg="16°06′00″E",
+                lat_deg="36.26 degree",
+                long_deg="16.1 degree",
                 height_m=-1500.,
             )
 
