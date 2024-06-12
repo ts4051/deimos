@@ -31,7 +31,6 @@ if __name__ == "__main__" :
     # Create model
     #
 
-    
     # Tool specific configuration
     kw = {}
     if args.solver == "nusquids" :

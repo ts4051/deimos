@@ -59,12 +59,12 @@ DEFAULT_DECOHERENCE_GAMMA_BASIS = "sun"
 
 class OscCalculator(object) :
     '''
-    A unified interface to a range of oscillation + decoherence calculation tools.
+    A unified interface to a range of oscillation + BSM calculation tools.
     Allows easy comparison of methods.
     ''' 
 
     def __init__(self,
-        tool, # Name of the underlying calculion tool
+        solver, # Name of the underlying calculion solver
         atmospheric, # Bool indicating calculating in atmospheric parameter space (e.g. zenith instead of baseline)
         flavors=None,
         # Osc params
@@ -76,7 +76,7 @@ class OscCalculator(object) :
     ) :
 
         # Store args
-        self.tool = tool
+        self.solver = solver
         self.atmospheric = atmospheric
         self.flavors = flavors
         self.cache_dir = cache_dir
@@ -96,14 +96,14 @@ class OscCalculator(object) :
         self.num_sun_basis_vectors = self.num_neutrinos ** 2
 
         # Init
-        if self.tool == "nusquids" :
+        if self.solver == "nusquids" :
             self._init_nusquids(**kw)
-        elif self.tool == "deimos" :
+        elif self.solver == "deimos" :
             self._init_deimos(**kw)
-        elif self.tool == "prob3" :
+        elif self.solver == "prob3" :
             self._init_prob3(**kw)
         else :
-            raise Exception("Unrecognised tool : %s" % self.tool)
+            raise Exception("Unrecognised solver : %s" % self.solver)
 
         # Set some default values for parameters
         self.set_matter("vacuum")
@@ -322,10 +322,9 @@ class OscCalculator(object) :
         self._decoh_model_kw = None
         self._lightcone_model_kw = None
         self._sme_model_kw = None
-        self.skymap_use = None
         
         # Instantiate solver
-        self.solver = DensityMatrixOscSolver(
+        self.dmos = DensityMatrixOscSolver(
             num_states=self.num_neutrinos,
             **kw
         )
@@ -358,13 +357,13 @@ class OscCalculator(object) :
 
         if (matter == "vacuum") or (matter is None) :
 
-            if self.tool == "nusquids" :
+            if self.solver == "nusquids" :
                 self.nusquids.Set_Body(nsq.Vacuum())
 
-            elif self.tool == "deimos" :
-                self.solver.set_matter_potential(None)
+            elif self.solver == "deimos" :
+                self.dmos.set_matter_potential(None)
 
-            elif self.tool == "prob3" :
+            elif self.solver == "prob3" :
                 self._prob3_settings["matter"] = None
 
         #
@@ -373,16 +372,16 @@ class OscCalculator(object) :
 
         elif matter == "earth" :
 
-            if self.tool == "nusquids" :
+            if self.solver == "nusquids" :
                 if self.atmospheric :
                     self.nusquids.Set_EarthModel(nsq.EarthAtm())
                 else :
                     raise Exception("`earth` is only an option in atmospheric mode")
 
-            elif self.tool == "deimos" :
-                raise Exception("`%s` does have an Earth model" % self.tool)
+            elif self.solver == "deimos" :
+                raise Exception("`%s` does not have an Earth model" % self.solver)
 
-            elif self.tool == "prob3" :
+            elif self.solver == "prob3" :
                 self._prob3_settings["matter"] = "earth"
 
 
@@ -396,15 +395,15 @@ class OscCalculator(object) :
             assert "matter_density_g_per_cm3" in kw
             assert "electron_fraction" in kw
 
-            if self.tool == "nusquids" :
+            if self.solver == "nusquids" :
                 self.nusquids.Set_Body(nsq.ConstantDensity(kw["matter_density_g_per_cm3"], kw["electron_fraction"]))
 
-            elif self.tool == "deimos" :
+            elif self.solver == "deimos" :
                 V = get_matter_potential_flav(flavors=self.flavors, matter_density_g_per_cm3=kw["matter_density_g_per_cm3"], electron_fraction=kw["electron_fraction"], nsi_matrix=None)
-                self.solver.set_matter_potential(V)
+                self.dmos.set_matter_potential(V)
 
 
-            elif self.tool == "prob3" :
+            elif self.solver == "prob3" :
                 self._prob3_settings["matter"] = "constant"
                 self._prob3_settings["matter_density_g_per_cm3"] = kw["matter_density_g_per_cm3"]
 
@@ -430,17 +429,17 @@ class OscCalculator(object) :
             # Check layer endpoints as ascending
             assert np.all(kw["layer_endpoint_km"][:-1] <= kw["layer_endpoint_km"][1:]), "'layer_endpoint_km' must be ascending"
 
-            if self.tool == "nusquids" :
+            if self.solver == "nusquids" :
                 # Store the laters for use during state evolution
                 self._matter_settings["layer_endpoint_km"] = kw["layer_endpoint_km"]
                 self._matter_settings["matter_density_g_per_cm3"] = kw["matter_density_g_per_cm3"]
                 self._matter_settings["electron_fraction"] = kw["electron_fraction"]
 
-            elif self.tool == "deimos" :
-                raise NotImplemented("'layers' mode for matter effects not implemented for deimos")
+            elif self.solver == "deimos" :
+                raise NotImplementedError("'layers' mode for matter effects not implemented for deimos")
 
-            elif self.tool == "prob3" :
-                raise NotImplemented("'layers' mode for matter effects not implemented for prob3")
+            elif self.solver == "prob3" :
+                raise NotImplementedError("'layers' mode for matter effects not implemented for prob3")
 
 
         #
@@ -464,18 +463,18 @@ class OscCalculator(object) :
             assert theta13 is not None
             assert theta23 is not None
 
-        if self.tool == "nusquids" :
+        if self.solver == "nusquids" :
             self.nusquids.Set_CPPhase( 0, 2, deltacp ) #TODO check indices
             self.nusquids.Set_MixingAngle( 0, 1, theta12 )
             if self.num_neutrinos > 2 :
                 self.nusquids.Set_MixingAngle( 0, 2, theta13 )
                 self.nusquids.Set_MixingAngle( 1, 2, theta23 )
 
-        elif self.tool == "deimos" :
-            self.solver.set_mixing_angles( np.array([ t for t in [theta12,theta13,theta23] if t is not None ]), deltacp=deltacp )
-            # self.solver.set_mixing_angles( -1. * np.array([ t for t in [theta12,theta13,theta23] if t is not None ]) ) #TODO
+        elif self.solver == "deimos" :
+            self.dmos.set_mixing_angles( np.array([ t for t in [theta12,theta13,theta23] if t is not None ]), deltacp=deltacp )
+            # self.dmos.set_mixing_angles( -1. * np.array([ t for t in [theta12,theta13,theta23] if t is not None ]) ) #TODO
 
-        elif self.tool == "prob3" :
+        elif self.solver == "prob3" :
             # Just store for passing an propagation time to solver
             self._prob3_settings["theta12"] = theta12
             self._prob3_settings["theta13"] = theta13
@@ -485,10 +484,10 @@ class OscCalculator(object) :
 
     def get_mixing_angles(self) :
 
-        if self.tool == "deimos" :
-            return self.solver.theta_rad
+        if self.solver == "deimos" :
+            return self.dmos.theta_rad
 
-        elif self.tool == "prob3" :
+        elif self.solver == "prob3" :
             assert self.num_neutrinos == 3
             return (self._prob3_settings["theta12"],  self._prob3_settings["theta13"], self._prob3_settings["theta23"])
 
@@ -498,10 +497,10 @@ class OscCalculator(object) :
 
     def get_deltacp(self) :
 
-        if self.tool == "deimos" :
-            return self.solver.deltacp
+        if self.solver == "deimos" :
+            return self.dmos.deltacp
 
-        elif self.tool == "prob3" :
+        elif self.solver == "prob3" :
             return self._prob3_settings["deltacp"]
 
         else :
@@ -510,13 +509,13 @@ class OscCalculator(object) :
 
     def set_deltacp(self, deltacp) :
 
-        if self.tool == "nusquids" :
+        if self.solver == "nusquids" :
             self.nusquids.Set_CPPhase( 0, 2, deltacp )
 
-        elif self.tool == "deimos" :
+        elif self.solver == "deimos" :
             raise Exception("Cannot set delta CP on its own for `deimos`, use `set_mixing_angles`")
 
-        elif self.tool == "prob3" :
+        elif self.solver == "prob3" :
             self._prob3_settings["deltacp"] = deltacp
 
 
@@ -532,15 +531,15 @@ class OscCalculator(object) :
         else :
             assert deltam31 is not None
 
-        if self.tool == "nusquids" :
+        if self.solver == "nusquids" :
             self.nusquids.Set_SquareMassDifference( 1, deltam21*self.units.eV*self.units.eV )
             if deltam31 is not None :
                 self.nusquids.Set_SquareMassDifference( 2, deltam31*self.units.eV*self.units.eV )
 
-        elif self.tool == "deimos" :
-            self.solver.set_mass_splittings( np.array([ dm2 for dm2 in [deltam21, deltam31] if dm2 is not None ]) )
+        elif self.solver == "deimos" :
+            self.dmos.set_mass_splittings( np.array([ dm2 for dm2 in [deltam21, deltam31] if dm2 is not None ]) )
 
-        elif self.tool == "prob3" :
+        elif self.solver == "prob3" :
             self._prob3_settings["deltam21"] = deltam21
             self._prob3_settings["deltam31"] = deltam31
 
@@ -550,16 +549,16 @@ class OscCalculator(object) :
         Units: eV**2
         '''
 
-        if self.tool == "nusquids" :
+        if self.solver == "nusquids" :
             mass_splittings_eV2 = [ self.nusquids.Get_SquareMassDifference(1)/(self.units.eV*self.units.eV) ]
             if self.num_neutrinos > 2 :
                 mass_splittings_eV2.append( self.nusquids.Get_SquareMassDifference(2)/(self.units.eV*self.units.eV) )
             return tuple(mass_splittings_eV2)
 
-        elif self.tool == "deimos" :
-            return self.solver.get_mass_splittings()
+        elif self.solver == "deimos" :
+            return self.dmos.get_mass_splittings()
 
-        elif self.tool == "prob3" :
+        elif self.solver == "prob3" :
             return ( self._prob3_settings["deltam21"], self._prob3_settings["deltam31"] )
 
 
@@ -568,7 +567,7 @@ class OscCalculator(object) :
         Use standard oscillations (e.g. disable any BSM effects)
         '''
 
-        if self.tool == "nusquids" :
+        if self.solver == "nusquids" :
             self.set_calc_basis(DEFAULT_CALC_BASIS)
 
             if self._nusquids_variant == "nuSQUIDSDecoh" :
@@ -588,17 +587,17 @@ class OscCalculator(object) :
 
     def set_calc_basis(self, basis) :
 
-        if self.tool == "nusquids" :
+        if self.solver == "nusquids" :
             assert basis == "nxn" #TODO is this correct?
 
-        elif self.tool == "deimos" :
+        elif self.solver == "deimos" :
             self._calc_basis = basis # Store for use later
 
-        elif self.tool == "prob3" :
+        elif self.solver == "prob3" :
             pass # Basis not relevent here, not solving Linblad master equation
 
         else :
-            raise Exception("`%s` does not support setting calculation basis" % self.tool)
+            raise Exception("`%s` does not support setting calculation basis" % self.solver)
 
 
     def _get_flavor_index(self,flavor) :
@@ -696,7 +695,7 @@ class OscCalculator(object) :
         Return the PMNS matrix
         '''
 
-        if self.tool == "nusquids" :
+        if self.solver == "nusquids" :
             if self.num_neutrinos == 2 :
                 theta = [ self.nusquids.Get_MixingAngle(0,1) ]
             elif self.num_neutrinos == 3 :
@@ -707,15 +706,15 @@ class OscCalculator(object) :
             return get_pmns_matrix( theta=theta, dcp=deltacp )
 
 
-        elif self.tool == "deimos" :
-            return self.solver.PMNS
+        elif self.solver == "deimos" :
+            return self.dmos.PMNS
             
 
     #
     # Neutrino flux functions
     #
 
-    def get_neutrino_flux(self, energy_GeV, coszen, source, tool=None, grid=False, overwrite_cache=False) :
+    def get_neutrino_flux(self, energy_GeV, coszen, source, model=None, grid=False, overwrite_cache=False) :
         '''
         Function to return the atmospheric neutrino flux, for a given model or calculation method
 
@@ -740,22 +739,22 @@ class OscCalculator(object) :
             assert self.atmospheric, "Must be in atmospheric mode"
             assert self.num_neutrinos > 2, "Atmospheric flux not defined for 2nu system"
 
-            # Default tool
-            if tool is None :
-                tool = "mceq"
+            # Default model
+            if model is None :
+                model = "mceq"
 
-            # Toggle tool used to generate flux
-            if tool.lower() == "honda" :
-                raise NotImplemented("TODO: Honda flux")
+            # Toggle model used to generate flux
+            if model.lower() == "honda" :
+                raise NotImplementedError("TODO: Honda flux")
 
-            elif tool.lower() == "daemon" :
-                raise NotImplemented("TODO: Daemon flux")
+            elif model.lower() == "daemon" :
+                raise NotImplementedError("TODO: Daemon flux")
 
-            elif tool.lower() == "mceq" :
+            elif model.lower() == "mceq" :
                 return self._get_atmo_neutrino_flux_mceq(energy_GeV=energy_GeV, coszen=coszen, grid=grid, overwrite_cache=overwrite_cache)
 
             else :
-                raise NotImplemented("Unknown tool for atmospheric flux")
+                raise NotImplementedError("Unknown model for atmospheric flux")
 
 
         else :
@@ -768,12 +767,12 @@ class OscCalculator(object) :
             assert self.atmospheric, "Must be in atmospheric mode"
             assert self.num_neutrinos > 2, "Atmospheric flux not defined for 2nu system"
 
-            # Default tool
-            if tool is None :
-                tool = "spl"
+            # Default model
+            if model is None :
+                model = "spl"
 
-            # Toggle tool used to generate flux
-            if tool in [ "spl", "single_power_law" ] :
+            # Toggle model used to generate flux
+            if model in [ "spl", "single_power_law" ] :
 
                 # Generate a basic single power law using roughly the spectral index from IceCube observations
                 # Not rigorous, good for quick checks though
@@ -930,14 +929,14 @@ class OscCalculator(object) :
 
     # def set_decoherence_D_matrix_basis(self, basis) :
 
-    #     if self.tool == "nusquids" :
+    #     if self.solver == "nusquids" :
     #         assert basis == "sun"
 
-    #     elif self.tool == "deimos" :
+    #     elif self.solver == "deimos" :
     #         self._decoherence_D_matrix_basis = basis # Store for use later
 
     #     else :
-    #         raise Exception("`%s` does not support setting decoherence gamma matrix basis" % self.tool)
+    #         raise Exception("`%s` does not support setting decoherence gamma matrix basis" % self.solver)
 
 
     def set_decoherence_D_matrix(self,
@@ -971,14 +970,14 @@ class OscCalculator(object) :
         # Set values
         #
 
-        if self.tool == "nusquids" :
+        if self.solver == "nusquids" :
             assert self._nusquids_variant == "nuSQUIDSDecoh"
             assert np.allclose(D_matrix_eV.imag, 0.), "nuSQuIDS decoherence implementation currently does not support imaginary gamma matrix"
             self.nusquids.Set_DecoherenceGammaMatrix(D_matrix_eV.real * self.units.eV)
             self.nusquids.Set_DecoherenceGammaEnergyDependence(n)
             self.nusquids.Set_DecoherenceGammaEnergyScale(E0_eV)
 
-        elif self.tool == "deimos" :
+        elif self.solver == "deimos" :
             self._decoh_model_kw = {
                 "D_matrix0_eV" : D_matrix_eV, # Put 0 in this line!
                 "n" : n,
@@ -1068,7 +1067,7 @@ class OscCalculator(object) :
 
         from deimos.utils.model.lightcone_fluctuations.lightcone_fluctuation_model import get_lightcone_decoherence_D_matrix
 
-        if self.tool == "nusquids" :
+        if self.solver == "nusquids" :
             print("NotImplemented. This is placeholder code:")
             damping_power = 2
             D_matrix = np.diag([0,1,1,0,1,1,1,1,0])
@@ -1082,7 +1081,7 @@ class OscCalculator(object) :
             self.nusquids.Set_DampingPower(damping_power)
 
 
-        elif self.tool == "deimos" :
+        elif self.solver == "deimos" :
             self._lightcone_model_kw = {
                 "dL0_km" : dL0_km,
                 "L0_km" : L0_km,
@@ -1150,12 +1149,12 @@ class OscCalculator(object) :
         # Set values
         #
 
-        if self.tool == "nusquids" :
+        if self.solver == "nusquids" :
             assert directional, "Istropic SME not implemented in nuSQuIDS yet"
             assert basis == "mass", "Only mass basis SME implemented in nuSQuIDS currently"
             self.nusquids.Set_LIVCoefficient(a_eV, c, e, ra_rad, dec_rad)
 
-        elif self.tool == "deimos" :
+        elif self.solver == "deimos" :
             if directional :
                 self._sme_model_kw = {
                     "directional" : True,
@@ -1176,7 +1175,7 @@ class OscCalculator(object) :
                 }
 
         else :
-            raise NotImplemented("SME not yet wrapped for %s" % self.tool) #TODO this is already supported by prob3, just need to wrap it
+            raise NotImplementedError("SME not yet wrapped for %s" % self.solver) #TODO this is already supported by prob3, just need to wrap it
 
 
 
@@ -1263,7 +1262,7 @@ class OscCalculator(object) :
 
         # Error handling
         else :
-            raise NotImplemented("Unknown detector : %s" % name)
+            raise NotImplementedError("Unknown detector : %s" % name)
 
 
 
@@ -1340,14 +1339,14 @@ class OscCalculator(object) :
         #
 
         # Call sub-function for relevent solver
-        if self.tool == "nusquids" :
+        if self.solver == "nusquids" :
             osc_probs = self._calc_osc_prob_nusquids( initial_flavor=initial_flavor, initial_state=initial_state, energy_GeV=energy_GeV, distance_km=distance_km, coszen=coszen, nubar=nubar, **kw ) #TODO use single E value for single E mode
 
-        elif self.tool == "deimos" :
-            assert initial_flavor is not None, "must provide `initial_flavor` (`initial_state` not currently supported for %s" % self.tool
+        elif self.solver == "deimos" :
+            assert initial_flavor is not None, "must provide `initial_flavor` (`initial_state` not currently supported for %s" % self.solver
             osc_probs = self._calc_osc_prob_deimos( initial_flavor=initial_flavor, nubar=nubar, energy_GeV=energy_GeV, distance_km=distance_km, coszen=coszen, **kw )
        
-        elif self.tool == "prob3" :
+        elif self.solver == "prob3" :
             osc_probs = self._calc_osc_prob_prob3( initial_flavor=initial_flavor, energy_GeV=energy_GeV, distance_km=distance_km, coszen=coszen, nubar=nubar, **kw )
 
 
@@ -1524,7 +1523,7 @@ class OscCalculator(object) :
                     # Regular (1D) case
                     #
 
-                    raise NotImplemented("Non-atmospheric case not yet implemented for celestial coords")
+                    raise NotImplementedError("Non-atmospheric case not yet implemented for celestial coords")
 
 
                 # Merge into the overall output array
@@ -1955,7 +1954,7 @@ class OscCalculator(object) :
 
         # Run solver
         # 'results' has shape [N energy, N distance, N flavor]
-        results = self.solver.calc_osc_probs(
+        results = self.dmos.calc_osc_probs(
             E_GeV=energy_GeV,
             L_km=distance_km,
             initial_state=initial_flavor,
@@ -1982,7 +1981,7 @@ class OscCalculator(object) :
         energy_GeV,
         coszen,
         nubar=False,
-        tool=None,
+        model=None,
     ) :
         '''
         Propagate an initial flux to a final flux, accounting for oscillations, matter, etc
@@ -2003,7 +2002,7 @@ class OscCalculator(object) :
         #
 
         # Get the initital flux before any propagation  #TODO ideally let user provide any flux of their choosing, but run into issues with nusquids since it needs the flux values at its nodes
-        get_neutrino_flux_kw = dict(grid=True, source=source, tool=tool, overwrite_cache=False)
+        get_neutrino_flux_kw = dict(grid=True, source=source, model=model, overwrite_cache=False)
         initial_flux = self.get_neutrino_flux(energy_GeV=energy_GeV, coszen=coszen, **get_neutrino_flux_kw)
 
         # Remove nubar dim
@@ -2015,8 +2014,8 @@ class OscCalculator(object) :
         # Handle differently for different solvers
         #
 
-        # Check tool
-        if self.tool == "nusquids" :
+        # Check solver
+        if self.solver == "nusquids" :
 
 
             #
@@ -2039,7 +2038,7 @@ class OscCalculator(object) :
 
         else :
 
-            raise NotImplemented("TODO: calc_final_flux not implemented for %s" % self.tool)
+            raise NotImplementedError("TODO: calc_final_flux not implemented for %s" % self.solver)
 
 
         #
@@ -2301,7 +2300,7 @@ class OscCalculator(object) :
         Plot the CP(T) asymmetry
         '''
 
-        raise NotImplemented("TODO")
+        raise NotImplementedError("TODO")
 
 
     def plot_oscillogram(

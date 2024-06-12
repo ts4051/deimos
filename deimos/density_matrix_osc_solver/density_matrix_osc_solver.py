@@ -367,8 +367,8 @@ class DensityMatrixOscSolver(object) :
         rtol=1.e-12,
         atol=1.e-12,
         mxstep=10000000, # Crank this up if get "Solver failed : Excess work done on this call (perhaps wrong Dfun type)" errors
-        solver_name=None,
-        solver_method=None,
+        ode_solver=None,
+        ode_solver_method=None,
     ) :
 
         # Store args
@@ -376,19 +376,19 @@ class DensityMatrixOscSolver(object) :
         self.rtol = rtol
         self.atol = atol
         self.mxstep = mxstep
-        self.solver_name = solver_name
-        self.solver_method = solver_method
+        self.ode_solver = ode_solver
+        self.ode_solver_method = ode_solver_method
         
         # Init and check solver definition
-        if self.solver_name is None :
-            self.solver_name = "odeintw"
-        assert self.solver_name in ["solve_ivp", "odeintw"], "solver not implemented. Use either 'solve_ivp' or 'odeintw'. "
+        if self.ode_solver is None :
+            self.ode_solver = "odeintw"
+        assert self.ode_solver in ["solve_ivp", "odeintw"], "solver not implemented. Use either 'solve_ivp' or 'odeintw'. "
             
-        if self.solver_name == "solve_ivp" :
-            if self.solver_method is None :
-                self.solver_method = 'RK45'
+        if self.ode_solver == "solve_ivp" :
+            if self.ode_solver_method is None :
+                self.ode_solver_method = 'RK45'
         else :
-            assert self.solver_method is None, "`solver_method` arg not valid for %s" %Cself.solver_name
+            assert self.ode_solver_method is None, "`ode_solver_method` arg not valid for %s" % self.ode_solver
             
         # Init some internal states
         self.matter_potential_flav_eV = None
@@ -486,7 +486,7 @@ class DensityMatrixOscSolver(object) :
         #
 
         # This depends a little on the solver in question
-        if self.solver_name == "odeintw" :
+        if self.ode_solver == "odeintw" :
 
             #
             # odeintw
@@ -509,7 +509,7 @@ class DensityMatrixOscSolver(object) :
             assert infodict["message"] == "Integration successful.", "Solver failed : %s" % infodict["message"]
 
 
-        elif self.solver_name == "solve_ivp" :
+        elif self.ode_solver == "solve_ivp" :
 
             #
             # solve ivp
@@ -527,7 +527,7 @@ class DensityMatrixOscSolver(object) :
                 L_range, # range for which to solve ODE
                 initial_rho_mass.flatten(), # rho(0) - shape is (L_size,), where N is number of L values    #TODO is the N correct?
                 t_eval=L, # Define values of L for which want specific solutions
-                method=self.solver_method,
+                method=self.ode_solver_method,
                 args=(D_matrix_basis, D_matrix, True), # Args to pass to `derive` (other than `L, rho`). Note that `True` here means "flatten arrays"
                 rtol=self.rtol,
                 atol=self.atol,  # atol + rtol * abs(y)
@@ -541,7 +541,7 @@ class DensityMatrixOscSolver(object) :
             solved_rho_mass = np.transpose(solved_rho_mass.y).reshape(L.size, self.num_states, self.num_states)
 
         else :
-            raise Exception("Unknown solver : %s" % self.solver_name)
+            raise Exception("Unknown solver : %s" % self.ode_solver)
 
         # Track the entropy of the system
         #TODO
@@ -778,7 +778,7 @@ class DensityMatrixOscSolver(object) :
         #TODO Could I just solve for energy rather than distance in this case?
         L_nodes = L
         pad_L = False
-        if self.solver_name == 'odeintw':
+        if self.ode_solver == 'odeintw':
             pad_L = L.size == 1
             if pad_L :
                 L_nodes = np.array( [0., L[0]] )

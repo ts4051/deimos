@@ -17,8 +17,6 @@ from deimos.utils.constants import *
 # Globals
 #
 
-SOLVER = "deimos"
-
 E0_eV = 1.e9
 
 MODELS_COLORS = collections.OrderedDict()
@@ -39,14 +37,12 @@ MODELS_COLORS["neutrino_loss"] = "green"
 
 MODELS = list(MODELS_COLORS.keys())
 
-NUM_SCAN_POINTS = 1000
-
 
 #
 # Plot functions
 #
 
-def plot_models() :
+def plot_models(solver, num_points=1000) :
     '''
     Plot a comparison of the various decoherence models tested
 
@@ -60,9 +56,8 @@ def plot_models() :
 
     # Create calculator
     calculator = OscCalculator(
-        tool=SOLVER,
+        solver=solver,
         atmospheric=False,
-        num_neutrinos=3,
     )
 
     # Use vacuum
@@ -81,7 +76,7 @@ def plot_models() :
         "final_flavor" : 1,
         "nubar" : False,
         "L_km" : NOvA_BASELINE_km,
-        "E_GeV" : np.linspace(0.5, 5., num=NUM_SCAN_POINTS),
+        "E_GeV" : np.linspace(0.5, 5., num=num_points),
         "gamma0_eV" : 1e-22 * 1e9,
         "n" : 0.,
         "ylim" : [0., 1.], 
@@ -92,7 +87,7 @@ def plot_models() :
         "final_flavor" : 0,
         "nubar" : True,
         "L_km" : 1.7, # Furthest detector
-        "E_GeV" : np.linspace(1e-3, 10.e-3, num=NUM_SCAN_POINTS),
+        "E_GeV" : np.linspace(1e-3, 10.e-3, num=num_points),
         "gamma0_eV" : 1e-20 * 1e9,
         "n" : 0.,
         "ylim" : [0.8, 1.], 
@@ -159,24 +154,20 @@ def plot_models() :
             )
 
 
-
-
-
 #
 # Main
 #
 
 if __name__ == "__main__" :
 
-    #
-    # Run plotters
-    #
 
-    plot_models()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-s", "--solver", type=str, required=False, default="deimos", help="Solver name")
+    parser.add_argument("-n", "--num-points", type=int, required=False, default=1000, help="Num scan point")
+    args = parser.parse_args()
 
-    #
-    # Done
-    #
+    plot_models(solver=args.solver, num_points=args.num_points)
 
     print("")
     dump_figures_to_pdf( __file__.replace(".py",".pdf") )

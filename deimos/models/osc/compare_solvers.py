@@ -38,10 +38,10 @@ def compare_osc_solvers(solver_defs) :
         start_time = datetime.datetime.now()
 
         # Extract properties
-        tool = solver_opts["tool"]
+        solver = solver_opts["solver"]
         color = solver_opts["color"]
         linestyle = solver_opts["linestyle"]
-        solver_name = solver_opts.get("solver_name", None)
+        ode_solver = solver_opts.get("ode_solver", None)
 
 
         #
@@ -50,14 +50,14 @@ def compare_osc_solvers(solver_defs) :
 
         # Tool-specific options
         kw = {}
-        if tool == "deimos" :
-            kw["solver_name"] = solver_name
-        elif tool == "nusquids" :
+        if solver == "deimos" :
+            kw["ode_solver"] = ode_solver
+        elif solver == "nusquids" :
             kw["energy_nodes_GeV"] = np.geomspace(1e-3, 1e3, num=1000) # Very wide range, covering reactor -> atmo (if have issues, might have to set nodes per experiment)
 
         # Create calculator
         calculator = OscCalculator(
-            tool=tool,
+            solver=solver,
             atmospheric=False,
             **kw
         )
@@ -196,19 +196,19 @@ if __name__ == "__main__" :
     solver_defs = collections.OrderedDict()
 
     solver_defs["deimos"] = {
-        "tool" : "deimos",
+        "solver" : "deimos",
         "color" : "blue",
         "linestyle" : "-",
     }
 
     solver_defs["nusquids"] = {
-        "tool" : "nusquids",
+        "solver" : "nusquids",
         "color" : "red",
         "linestyle" : "--",
     }
 
     # solver_defs["prob3"] = {
-    #     "tool" : "prob3",
+    #     "solver" : "prob3",
     #     "color" : "seagreen",
     #     "linestyle" : ":",
     # }
@@ -220,23 +220,25 @@ if __name__ == "__main__" :
     # Compare different ODE solvers within DEIMOS
     #
 
-    solver_defs = collections.OrderedDict()
+    if False : # Can enable this if desired, but slow
 
-    solver_defs["deimos (odeintw)"] = {
-        "tool" : "deimos",
-        "solver_name" : "odeintw",
-        "color" : "blue",
-        "linestyle" : "-",
-    }
+        solver_defs = collections.OrderedDict()
 
-    solver_defs["deimos (solve_ivp)"] = {
-        "tool" : "deimos",
-        "solver_name" : "solve_ivp",
-        "color" : "red",
-        "linestyle" : "--",
-    }
+        solver_defs["deimos (odeintw)"] = {
+            "solver" : "deimos",
+            "ode_solver" : "odeintw",
+            "color" : "blue",
+            "linestyle" : "-",
+        }
 
-    compare_osc_solvers(solver_defs)
+        solver_defs["deimos (solve_ivp)"] = {
+            "solver" : "deimos",
+            "ode_solver" : "solve_ivp",
+            "color" : "red",
+            "linestyle" : "--",
+        }
+
+        compare_osc_solvers(solver_defs)
 
 
     #

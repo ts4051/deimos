@@ -15,28 +15,27 @@ from matplotlib import cm
 
 
 #
-# Main
+# Plot functions
 #
 
-if __name__ == "__main__" :
+def plot_propagated_flux(solver, E_values_GeV=None, coszen_values=None, nubar=False, matter=None, plot_2D=False) :
 
     #
-    # Parameter space
+    # Handle args
     #
 
-    plot_2D = True
-
-    E_values_GeV = np.geomspace(1., 1e5, num=100)
-    coszen_values = np.linspace(-1., +1., num=100)
-
-    nubar = False
+    # Defaults
+    if E_values_GeV is None :
+        E_values_GeV = np.geomspace(1., 1e5, num=100)
+    if coszen_values is None :
+        coszen_values = np.linspace(-1., +1., num=100)
+    if matter is None :
+        matter = "earth"
 
 
     #
     # Create model
     #
-
-    solver = "nusquids"
     
     # Tool specific configuration
     kw = {}
@@ -46,13 +45,13 @@ if __name__ == "__main__" :
 
     # Create calculator
     calculator = OscCalculator(
-        tool=solver,
+        solver=solver,
         atmospheric=True,
         **kw
     )
 
-    # Use Earth model
-    calculator.set_matter("earth")
+    # Set matter
+    calculator.set_matter(matter)
 
 
     #
@@ -60,11 +59,11 @@ if __name__ == "__main__" :
     #
 
     cases = collections.OrderedDict()
-    cases["Atmo"] = ("atmo", "mceq", 3.)
-    cases["Astro"] = ("astro", None, 2.)
+    cases["Atmospheric"] = ("atmo", "mceq", 3.)
+    # cases["Astrophysical"] = ("astro", None, 2.)
 
     # Loop over cases
-    for flux_label, (flux_source, flux_tool, flux_E_power) in cases.items() :
+    for flux_label, (flux_source, flux_model, flux_E_power) in cases.items() :
 
 
         #
@@ -74,7 +73,7 @@ if __name__ == "__main__" :
         # Propagate the atmospheric flux
         initial_flux, final_flux = calculator.calc_final_flux(
             source=flux_source,
-            tool=flux_tool,
+            model=flux_model,
             energy_GeV=E_values_GeV,
             coszen=coszen_values,
             nubar=nubar,
@@ -82,7 +81,7 @@ if __name__ == "__main__" :
 
 
         #
-        # Plot initital flux
+        # Plot initital & final flux
         #
 
         # Plot steering
@@ -173,40 +172,27 @@ if __name__ == "__main__" :
         fig_2D.tight_layout()
 
 
-    # #
-    # # Plot propagated flux
-    # #
 
-    # initial_state = np.full( (coszen_values.size, E_values_GeV.size, calculator.num_neutrinos), np.NaN )
+#
+# Main
+#
 
-    # for (flavor, nubar), flux in initial_flux.items() :
+if __name__ == "__main__" :
 
-    #     if nubar == False : #TODO
 
+    #
+    # Plotting
+    #
     
+    # Steering
+    solver = "nusquids"
+    nubar = False 
+    matter = "earth"
 
-    #         # Determine shape of initial state vector in nuSQuIDS
-    #         state_shape = [ self.nusquids.GetNumCos(), self.nusquids.GetNumE() ]
-    #         state_shape.append( 2 ) # nu/nubar
-    #         state_shape.append( final_flavors.size )
-    #         state_shape = tuple(state_shape)
+    # Plot (1D and 2D)
+    plot_propagated_flux(solver=solver, nubar=nubar, matter=matter, plot_2D=False)
+    plot_propagated_flux(solver=solver, nubar=nubar, matter=matter, plot_2D=True)
 
-    #         # Define initial state if not provided, otherwise verify the one provided
-    #         if initial_state is None :
-    #             initial_state = np.full( state_shape, 0. )
-    #             initial_state[ :, :, rho, initial_flavor ] = 1. # dims = [ cz node, E node, nu(bar), flavor ]
-    #         else :
-    #             assert initial_state.shape == state_shape, "Incompatible shape for initial state : Expected %s, found %s" % (state_shape, initial_state.shape)
-
-    #         # Set the intial
-
-
-
-
-
-    #
-    # Done
-    #
-
+    # Save
     print("")
     dump_figures_to_pdf( __file__.replace(".py",".pdf") )

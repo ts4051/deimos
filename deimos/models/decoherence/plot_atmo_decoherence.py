@@ -18,18 +18,28 @@ from deimos.utils.plotting import *
 if __name__ == "__main__" :
 
     #
+    # Steering
+    #
+
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-s", "--solver", type=str, required=False, default="deimos", help="Solver name")
+    parser.add_argument("-n", "--num-points", type=int, required=False, default=1000, help="Num scan point")
+    args = parser.parse_args()
+
+
+    #
     # Create model
     #
 
     # Create calculator
     calculator = OscCalculator(
-        tool="deimos",
+        solver=args.solver,
         atmospheric=True,
-        num_neutrinos=3,
     )
 
     # Use vacuum
-    calculator.set_matter("vacuum")
+    calculator.set_matter("vacuum") #TODO option to add matter
 
     # Define decoherence matrix
     gamma0_eV = 1e-20
@@ -54,7 +64,7 @@ if __name__ == "__main__" :
     # Define neutrino
     initial_flavor, nubar = 1, False # muon neutrino
     E_GeV = 1e4
-    coszen = np.linspace(-1., +1., num=100)
+    coszen = np.linspace(-1., +1., num=args.num_points)
 
     # Calc osc probs and plot, without decoherence
     calculator.set_std_osc()
@@ -70,10 +80,8 @@ if __name__ == "__main__" :
     #
 
     # Need a grid in atmo. space
-    grid_dim = 250
-    coszen = np.linspace(-1., +1., num=grid_dim)
-    E_GeV = np.geomspace(1., 1e5, num=grid_dim)
-    # E_GeV = np.linspace(1., 100., num=grid_dim)
+    coszen = np.linspace(-1., +1., num=args.num_points)
+    E_GeV = np.geomspace(1., 1e5, num=args.num_points)
 
     # Define final flavor (doesn't scan over all)
     final_flavor = initial_flavor # muon neutrino survival
