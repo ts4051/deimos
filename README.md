@@ -2,34 +2,87 @@
 
 A simple python-based neutrino oscillation solver using the density matrix formalism.
 
-Author: Tom Stuttard (stuttard@icecube.wisc.edu)
+Primary author: Tom Stuttard (stuttard@icecube.wisc.edu)
+Other contributors: Johann Nikolaides, Simon Hilding-Nørkjær and Martin Langgård Ravn.
+
 
 ## Installation
 
-1) Clone this repository locally in the usual manner, e.g.
+DEIMOS can be installed from source on a Linux system following the instructions below. We recommend installing DEIMOS within a conda env or similar.
+
+1) **Clone repository:**
 
 ```
 cd <path/to/install/location>
 git clone https://github.com/ts4051/deimos.git
 ```
 
-2) Install anaconda3 (see https://www.anaconda.com/download), if not already installed.
+2) **Add to python env**:
 
-3) Install DEIMOS and its dependencies using the installation script in this repository, as follows. Note that this will create a dedicated conda env for this software.
+There are two options to add DEIMOS to your python env:
+
+*2a. Using `pip`*
 
 ```
 cd <path/to/install/location>/deimos
-python install.py -ad <path/to/anaconda/top/directory> [-ow]
+python -m pip install --upgrade -e . [--user]
 ```
 
-where:
-* `-ad` is the path to the directory containing your anaconda installation, e.g. the directory containing the `bin` directory
-* `-ow` can optionally be used to force overwritr on any existing DEMIOS installation and associated conda env
+or 
 
-This process will generate a script `setup_deimos.sh` that can be used to active the DEIMOS environment. Do this as foloows (must be done for each new shell session):
+
+*2b. Using `PYTHONPATH`*
 
 ```
-source setup_deimos.sh
+export PYTHONPATH=<path/to/install/location>/deimos:$PYTHONPATH
 ```
 
-Note that this installation process only supports unix-based systems (linux, OSX).
+
+## Integrating external tools
+
+*Note that this section is optional.*
+
+DEIMOS includes a class `OscCalculator` that connects several oscillation probability calculators under a common interface, as well as other useful tools. These are:
+
+* `nuSQuIDS` [link](https://github.com/arguelles/nuSQuIDS) - alternative density matrix based oscillation solver
+** Note that a [fork/branch](https://github.com/ts4051/nuSQuIDS/tree/bsm) of nuSQuIDS with comparable model implementations to DEIMOS is available.
+* `Prob3` [link](https://github.com/rogerwendell/Prob3plusplusS) - alternative oscillation solver - **coming soon...**
+* `MCEq` [link](https://github.com/mceq-project/MCEq) - atmopsheric neutrino flux calculator
+
+DEIMOS will activate support for these features (at run-time) if they are available (e.g. if it find it can import the packages). Therefore, to use these features within DEIMOS, simpy install these packages as per the instructions provided by the package developers, making sure to add them to your python environment.
+
+### External tool installation helper script
+
+Alternatively, a script for installing these external tools within a conda environment is available and can be run as follows. However, note that this is in beta, and may not work for all operating systems or tool/package versions (in which, manually installing the external tools as per their documentation is recommended).
+
+```
+cd <path/to/install/location>/deimos
+python ./install.py
+python -c "import deimos ; import MCEq ; import nuSQuIDS" # This is to test the packages were sauccesfully installed and added to the python env
+```
+
+
+## Project overview:
+
+The core components of the DEIMOS project are as follows:
+
+* `density_matrix_osc_solver` - core density matrix solver
+* `deimos/models` - implementation of new physics models, and scripts for generatintg oscillation probability plots
+** `osc` - standard neutrino oscillations [plotting scripts only]
+** `decoherence` - quantum gravity inspired neutrino decoherence [model implementations and plotting scripts]
+** `liv` - Lorentz Invariance violating neutrino oscillations, using the Standard Model Extension (SME) [model implementations and plotting scripts]
+* `deimos/wrapper` - contains a class `OscCalculator` that pulls together various oscillation solvers and related tools into a single interface, and provides useful helper functios for e.g. detector definition, flux calcualtion, plotting, etc
+
+## Examples:
+
+* Standard oscillations
+** `deimos/models/osc/plot_std_osc.py` - basic oscillation probability plots for long baseline, atmospheric and reactor neutrino scenarios (assuming vacuum in all cases)
+** `deimos/models/osc/plot_atmo_osc.py` - plot atmopsheric neutrino oscillogram
+** `deimos/models/osc/plot_matter_effects.py` - plot impact of matter effects on neutrino oscillations
+** `deimos/models/osc/plot_flux.py` - propagate a neutrino flux across the Earth
+** `deimos/models/osc/compare_solvers.py` - compare oscillation calculations between solvers (e.g. DEIMOS and nuSQuIDS)
+
+* Decoherence
+** `deimos/models/decoherence/plot_reactor_and_lbl_decoherence.py` - plot decoherence in long-baseline and reactor experiments
+** `deimos/models/decoherence/plot_atmo_decoherence.py` - plot decoherence in atmospheric neutrinos (2D oscillogram)
+
