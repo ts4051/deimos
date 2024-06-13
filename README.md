@@ -3,6 +3,7 @@
 A simple python-based neutrino oscillation solver using the density matrix formalism.
 
 Primary author: Tom Stuttard (stuttard@icecube.wisc.edu)
+
 Other contributors: Johann Nikolaides, Simon Hilding-Nørkjær and Martin Langgård Ravn.
 
 
