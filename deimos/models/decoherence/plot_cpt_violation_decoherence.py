@@ -1,5 +1,5 @@
 '''
-Plotting osc probls resulting from CPT-violating decoherence terms
+Plotting osc probs resulting from CPT-violating decoherence terms
 
 These are "everything in" plots showing all modelled 
 physics.
@@ -14,23 +14,16 @@ import numpy as np
 
 from deimos.wrapper.osc_calculator import OscCalculator
 from deimos.utils.constants import *
-# from deimos.model.decoherence_operators import oscillation_averaged_transition_probability, convert_gamma_eV_to_gamma_inv_m, convert_gamma_inv_m_to_gamma_eV, convert_gamma_eV_to_gamma_0_eV, convert_gamma0_to_zeta_planck
 from deimos.models.decoherence.nuVBH_model import *
 from deimos.utils.plotting import *
 
-#
-# Globals
-#
-
-# Choose a reference gamma value to use
-# REF_GAMMA_eV = convert_gamma_inv_m_to_gamma_eV(REF_COHERENCE_LENGTH_m)
 
 #
 # Plotting functions
 #
 
 def plot_arxiv_1807_07823(
-    tool,
+    solver,
     num_points=1000,
 ) :
     '''
@@ -39,43 +32,38 @@ def plot_arxiv_1807_07823(
 
     print("\n>>> arXiv 1807.07823")
 
-    #
-    # Create calculator
-    #
-
-    # assert tool != "nusquids", "2-flavor not supported by nuSQuIDS" - TODO I think I added this...
-
-    calculator = OscCalculator(
-        tool=tool,
-        atmospheric=False,
-        num_neutrinos=2,
-    )
-
-    calculator.set_calc_basis("nxn")
-    calculator.set_matter("vacuum")
-
-    n = 0
-    E0_eV = 1e9
+    # Checks
+    assert solver != "nusquids", "2-flavor not supported by nuSQuIDS"
 
 
     #
-    # DeepCore case
+    # Fig 1: Atmospheric neutrinos (DeepCore energy range)
     #
 
-    # Reproducing Fig 1
-
-    # Params
+    # Define neutrino system
+    flavors = ["mu", "tau"] # Atmospheric parameter space, 2-flavor
     sin2_theta23 = 0.51
     theta23_rad = np.arcsin(np.sqrt(sin2_theta23))
     dm32_eV2 = 2.5e-3 #TODO convert to 31?
-    gamma_eV = 4e-24 * 1e9
-    gamma3_eV = 7.9e-24 * 1e9
-    alpha_eV = 3.8e-24 * 1e9
-    deltacp = 0.
+    matter = "vacuum"
 
-    # Set them
-    calculator.set_mass_splittings(dm32_eV2)
-    calculator.set_mixing_angles(theta23_rad, deltacp=deltacp)
+    # Create calculator
+    calculator = OscCalculator(
+        solver=solver,
+        atmospheric=False,
+        flavors=flavors,
+        mixing_angles_rad=[theta23_rad],
+        mass_splittings_eV2=[dm32_eV2],
+    )
+    calculator.set_matter(matter)
+
+    # Define decoherence
+    gamma3_eV = 7.9e-24 * 1e9
+    gamma_eV = 4e-24 * 1e9
+    alpha_eV = 3.8e-24 * 1e9
+    n = 0
+    E0_eV = 1e9
+    calculator.set_calc_basis("nxn")
 
     # Decoherence matrix
     D_matrix_eV = np.array([ # eqn 8
@@ -102,6 +90,7 @@ def plot_arxiv_1807_07823(
 
     # Create the fig
     fig, ax = plt.subplots( figsize=(6, 4) )
+    ax.set_title("1807.07823 Fig. 1")
 
     # Std oscillations
     calculator.set_std_osc()
@@ -112,9 +101,8 @@ def plot_arxiv_1807_07823(
             energy_GeV=E_GeV,
             distance_km=L_km,
         )
-        label = calculator.get_transition_prob_tex(initial_flavor=initial_flavor, final_flavor=final_flavor, nubar=nubar)
-        ax.plot( E_GeV, osc_probs[:,0,final_flavor], color=std_osc_color, linewidth=4, label=label, linestyle=linestyles[i_nubar] )
-
+        label = r"$%s$ (std osc)" % calculator.get_transition_prob_tex(initial_flavor=initial_flavor, final_flavor=final_flavor, nubar=nubar)
+        ax.plot( E_GeV, osc_probs[:,final_flavor], color=std_osc_color, linewidth=4, label=label, linestyle=linestyles[i_nubar] )
 
     # Decoherence
     calculator.set_decoherence_D_matrix(D_matrix_eV=D_matrix_eV, n=n, E0_eV=E0_eV)
@@ -125,25 +113,26 @@ def plot_arxiv_1807_07823(
             energy_GeV=E_GeV,
             distance_km=L_km,
         )
-        label = calculator.get_transition_prob_tex(initial_flavor=initial_flavor, final_flavor=final_flavor, nubar=nubar)
-        ax.plot( E_GeV, osc_probs[:,0,final_flavor], color=decoh_color, linewidth=4, label=label, linestyle=linestyles[i_nubar] )
+        label = label = r"$%s$ (decoherence)" % calculator.get_transition_prob_tex(initial_flavor=initial_flavor, final_flavor=final_flavor, nubar=nubar)
+        ax.plot( E_GeV, osc_probs[:,final_flavor], color=decoh_color, linewidth=4, label=label, linestyle=linestyles[i_nubar] )
 
     # Format
     ax.set_xlabel(r"$E$ [GeV]")
     ax.set_xlim(E_GeV[0],E_GeV[-1])
     ax.set_ylim(0.,1.)
     ax.grid(True)
+    ax.legend(fontsize=10)
     fig.tight_layout()
 
 
     #
-    # DUNE case
+    # Fig. 2 : DUNE 
     #
 
-    #TODO
+    #TODO (rememeber this is [e,mu], not [mu,tau])
 
 
-def plot_arxiv_1811_04982(tool, num_points=1000) :
+def plot_arxiv_1811_04982(solver, num_points=1000) :
     '''
     Reproduce plots from arXiv 1811.04982 (DUNE)
 
@@ -161,15 +150,16 @@ def plot_arxiv_1811_04982(tool, num_points=1000) :
     # Energy range
     E_GeV = np.geomspace( 0.1, 20., num=num_points)
 
-    init_kw = {}
-    if tool == "nusquids" :
-        init_kw["energy_nodes_GeV"] = E_GeV # Put nodes on the E scan points (faster)
+    # Solver specific configuration
+    kw = {}
+    if args.solver == "nusquids" :
+        kw["energy_nodes_GeV"] = E_GeV
+        kw["nusquids_variant"] = "decoherence" # Use nuSQuIDS with decohrence operator implemented
 
     calculator = OscCalculator(
-        tool=tool,
+        solver=solver,
         atmospheric=False,
-        num_neutrinos=3,
-        **init_kw
+        **kw
     )
 
     # Define system (Tabe III)
@@ -306,7 +296,7 @@ def plot_arxiv_1811_04982(tool, num_points=1000) :
 
 
 def plot_atmospheric_1d(
-    tool,
+    solver,
     num_points=1000,
 ) :
     '''
@@ -325,13 +315,13 @@ def plot_atmospheric_1d(
     E_GeV = np.logspace(0., 5., num=num_points)
 
     init_kw = {}
-    if tool == "nusquids" :
+    if solver == "nusquids" :
         init_kw["energy_nodes_GeV"] = E_GeV # Put nodes on the E scan points (faster)
+        init_kw["nusquids_variant"] = "decoherence"
 
     calculator = OscCalculator(
-        tool=tool,
+        solver=solver,
         atmospheric=False,
-        num_neutrinos=3,
         **init_kw
     )
 
@@ -484,16 +474,16 @@ if __name__ == "__main__" :
     # Steering
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("-t", "--tool", type=str, default="deimos", help="Name of tool/solver/backend")
+    parser.add_argument("-s", "--solver", type=str, default="deimos", help="Name of solver")
     parser.add_argument("-n", "--num-points", type=int, default=100, help="Number of points in the solver")
     args = parser.parse_args()
 
     # Run each plotting function
-    # plot_arxiv_1807_07823(tool=args.tool, num_points=args.num_points)
-    # plot_arxiv_1811_04982(tool=args.tool, num_points=args.num_points)
-    plot_atmospheric_1d(tool=args.tool, num_points=args.num_points)
+    plot_arxiv_1807_07823(solver=args.solver, num_points=args.num_points)
+    # plot_arxiv_1811_04982(solver=args.solver, num_points=args.num_points)
+    # plot_atmospheric_1d(solver=args.solver, num_points=args.num_points)
 
     # Dump figures
     print("")
-    output_file = __file__.split(".py")[0] + "_" + args.tool + ".pdf"
+    output_file = __file__.split(".py")[0] + "_" + args.solver + ".pdf"
     dump_figures_to_pdf(output_file)

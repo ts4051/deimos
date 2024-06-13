@@ -42,7 +42,7 @@ def format_oscillogram_ax(ax, E_GeV, coszen) :
 #
 
 def plot_different_models(
-    tool,
+    solver,
     num_points=10,
 ) :
 
@@ -54,18 +54,20 @@ def plot_different_models(
     coszen = np.linspace(-1., +1., num=num_points)
     E_GeV = np.logspace(0., 5., num=num_points)
 
-    # Handle tool-specific stuff
-    init_kw = {}
-    if tool == "nusquids" :
-        init_kw["energy_nodes_GeV"] = E_GeV # Put nodes on the scan points (faster)
-        init_kw["coszen_nodes"] = coszen # Put nodes on the scan points (faster)
+    # Handle solver-specific stuff
+    kw = {}
+    if solver == "nusquids" :
+        kw["energy_nodes_GeV"] = E_GeV # Put nodes on the scan points (faster)
+        kw["coszen_nodes"] = coszen # Put nodes on the scan points (faster)
+        kw["interactions"] = True
+        kw["nusquids_variant"] = "decoherence"
 
     # Create calculator
     calculator = OscCalculator(
-        tool=tool,
+        solver=solver,
         atmospheric=True,
         num_neutrinos=3,
-        **init_kw
+        **kw
     )
 
     # Define system
@@ -287,14 +289,14 @@ if __name__ == "__main__" :
     # Steering
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("-t", "--tool", type=str, default="deimos", help="Name of tool/solver/backend")
+    parser.add_argument("-s", "--solver", type=str, default="deimos", help="Name of solver")
     parser.add_argument("-n", "--num-points", type=int, default=100, help="Number of points in the solver")
     args = parser.parse_args()
 
     # Run each plotting function
-    plot_different_models(tool=args.tool, num_points=args.num_points)
+    plot_different_models(solver=args.solver, num_points=args.num_points)
 
     # Dump figures
     print("")
-    output_file = __file__.split(".py")[0] + "_" + args.tool + ".pdf"
+    output_file = __file__.split(".py")[0] + "_" + args.solver + ".pdf"
     dump_figures_to_pdf(output_file)
