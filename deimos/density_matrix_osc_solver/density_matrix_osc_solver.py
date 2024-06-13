@@ -67,7 +67,7 @@ def get_pmns_matrix(theta, dcp=0.) :
     """ Get the PMNS matrix (rotation from mass to flavor basis)"""
     #TODO Majorana phases
     if len(theta) == 1 :
-        assert (dcp is None) or np.isclose(dcp, 0.)
+        assert (dcp is None) or np.isclose(dcp, 0.), "CP phase not defined for 2-flavor systems"
         # This is just the standard unitary rotation matrix in 2D
         pmns = np.array( [ [np.cos(theta[0]),np.sin(theta[0])], [-np.sin(theta[0]),np.cos(theta[0])] ], dtype=np.complex128 )
     elif len(theta) == 3 :
