@@ -45,7 +45,7 @@ export PYTHONPATH=<path/to/install/location>/deimos:$PYTHONPATH
 DEIMOS includes a class `OscCalculator` that connects several oscillation probability calculators under a common interface, as well as other useful tools. These are:
 
 * `nuSQuIDS` [link](https://github.com/arguelles/nuSQuIDS) - alternative density matrix based oscillation solver
-** Note that a [fork/branch](https://github.com/ts4051/nuSQuIDS/tree/bsm) of nuSQuIDS with comparable model implementations to DEIMOS is available.
+  * Note that a [fork/branch](https://github.com/ts4051/nuSQuIDS/tree/bsm) of nuSQuIDS with comparable model implementations to DEIMOS is available.
 * `Prob3` [link](https://github.com/rogerwendell/Prob3plusplusS) - alternative oscillation solver - **coming soon...**
 * `MCEq` [link](https://github.com/mceq-project/MCEq) - atmopsheric neutrino flux calculator
 
@@ -61,28 +61,35 @@ python ./install.py
 python -c "import deimos ; import MCEq ; import nuSQuIDS" # This is to test the packages were sauccesfully installed and added to the python env
 ```
 
-
 ## Project overview:
 
 The core components of the DEIMOS project are as follows:
 
 * `density_matrix_osc_solver` - core density matrix solver
 * `deimos/models` - implementation of new physics models, and scripts for generatintg oscillation probability plots
-** `osc` - standard neutrino oscillations [plotting scripts only]
-** `decoherence` - quantum gravity inspired neutrino decoherence [model implementations and plotting scripts]
-** `liv` - Lorentz Invariance violating neutrino oscillations, using the Standard Model Extension (SME) [model implementations and plotting scripts]
+  * `osc` - standard neutrino oscillations [plotting scripts only]
+  * `decoherence` - quantum gravity inspired neutrino decoherence [model implementations and plotting scripts]
+  * `liv` - Lorentz Invariance violating neutrino oscillations, using the Standard Model Extension (SME) [model implementations and plotting scripts]
 * `deimos/wrapper` - contains a class `OscCalculator` that pulls together various oscillation solvers and related tools into a single interface, and provides useful helper functios for e.g. detector definition, flux calcualtion, plotting, etc
+
 
 ## Examples:
 
-* Standard oscillations
-** `deimos/models/osc/plot_std_osc.py` - basic oscillation probability plots for long baseline, atmospheric and reactor neutrino scenarios (assuming vacuum in all cases)
-** `deimos/models/osc/plot_atmo_osc.py` - plot atmopsheric neutrino oscillogram
-** `deimos/models/osc/plot_matter_effects.py` - plot impact of matter effects on neutrino oscillations
-** `deimos/models/osc/plot_flux.py` - propagate a neutrino flux across the Earth
-** `deimos/models/osc/compare_solvers.py` - compare oscillation calculations between solvers (e.g. DEIMOS and nuSQuIDS)
+See the following examples to guide how to use DEIMOS and the assoicated wrapper code.
 
-* Decoherence
-** `deimos/models/decoherence/plot_reactor_and_lbl_decoherence.py` - plot decoherence in long-baseline and reactor experiments
-** `deimos/models/decoherence/plot_atmo_decoherence.py` - plot decoherence in atmospheric neutrinos (2D oscillogram)
+* Standard oscillations
+  * `deimos/models/osc/plot_std_osc.py` - basic oscillation probability plots for long baseline, atmospheric and reactor neutrino scenarios (assuming vacuum in all cases)
+  * `deimos/models/osc/plot_atmo_osc.py` - plot atmopsheric neutrino oscillogram
+  * `deimos/models/osc/plot_matter_effects.py` - plot impact of matter effects on neutrino oscillations
+  * `deimos/models/osc/plot_flux.py` - propagate a neutrino flux across the Earth
+  * `deimos/models/osc/compare_solvers.py` - compare oscillation calculations between solvers (e.g. DEIMOS and nuSQuIDS)
+
+* Decoherence (see formalism in arXiv:2007.00068)
+  * `deimos/models/decoherence/plot_reactor_and_lbl_decoherence.py` - plot decoherence in long-baseline and reactor experiments
+  * `deimos/models/decoherence/plot_atmo_decoherence.py` - plot decoherence in atmospheric neutrinos (2D oscillogram)
+
+* Lorentz Invariance Violation
+  * `deimos/models/liv/plot_sme.py` - plot modified oscillations due to isotropic Standard Model Extension coefficients
+  * `deimos/models/liv/plot_sme_sidereal.py` - plot modified oscillations due to non-isotropic Standard Model Extension coefficients, such as sidereal modulations
+
 

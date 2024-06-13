@@ -991,7 +991,7 @@ class OscCalculator(object) :
         '''
 
         from deimos.models.decoherence.nuVBH_model import get_randomize_phase_decoherence_D_matrix, get_randomize_state_decoherence_D_matrix, get_neutrino_loss_decoherence_D_matrix
-        from deimos.models.decoherence.decoherence_operators import get_generic_model_decoherence_D_matrix
+        from deimos.models.decoherence.decoherence_tools import get_generic_model_decoherence_D_matrix
 
         #
         # Unpack args

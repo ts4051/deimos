@@ -42,7 +42,7 @@ DEFAULT_GAMMA_ENERGY_SCALE_eV = 1.e9
 # gamma enegy dependence
 #
 
-def get_gamma(gamma0_eV, E_eV, E0_eV, n) : #TODO Integrate into DMOS?
+def get_gamma(gamma0_eV, E_eV, E0_eV, n) :
     '''
     Compute gamma(E)
     '''

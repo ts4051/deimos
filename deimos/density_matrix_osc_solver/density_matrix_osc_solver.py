@@ -23,14 +23,13 @@ except :
 # DEIMOS basic tools
 from deimos.utils.constants import *
 from deimos.utils.matrix_algebra import *
-from deimos.models.decoherence.decoherence_operators import get_complete_sun_matrix, get_decoherence_operator_nxn_basis, get_model_D_matrix
+from deimos.models.decoherence.decoherence_operators import get_complete_sun_matrix, get_decoherence_operator_nxn_basis
 from deimos.utils.coordinates import *
 
 # Import new physics models
-from deimos.models.decoherence.decoherence_operators import get_complete_sun_matrix, get_decoherence_operator_nxn_basis, get_model_D_matrix
+from deimos.models.decoherence.decoherence_operators import get_complete_sun_matrix, get_decoherence_operator_nxn_basis
 from deimos.models.liv.sme import get_sme_hamiltonian_isotropic, get_sme_hamiltonian_directional
 
-#TODO Write some tests for these functions that can be run with an arg or whatever...
 
 #
 # Globals
@@ -263,7 +262,7 @@ def get_rho_dot(H, rho, calc_basis, D_matrix=None, D_matrix_basis=None) :
 
     if calc_basis == "nxn" :
 
-        # Checks on rho (basically just sanity checking for myself that these conditio s are real proeprties of a density matrix)
+        # Checks on rho (basically just sanity checking for myself that these conditions are real properties of a density matrix)
         if False :
             for i, j in [ [0, 1], [0, 2], [1, 2]] :
                 assert np.isclose(rho[i,j].real, rho[j,i].real), "rho[%i,%i].real != rho[%i,%i].real (%0.3g != %0.3g)" % (i,j, j,i, rho[i,j].real, rho[j,i].real)
@@ -301,7 +300,7 @@ def get_rho_dot(H, rho, calc_basis, D_matrix=None, D_matrix_basis=None) :
         M_D = -1. * gamma_matrix_sun
 
         # Get expanded Hamiltonian matrix
-        # Have two separate methods here, need to sort this out a bit, am a bit confused...
+        # Have two separate methods here, need to sort this out a bit...
         M_H = np.zeros_like(M_D)
         if True :
             # See 2001.09250 eq 2.7
@@ -341,7 +340,6 @@ def get_rho_dot(H, rho, calc_basis, D_matrix=None, D_matrix_basis=None) :
         raise Exception("Unknown `calc_basis` '%s', choose from ['nxn','sun']" % calc_basis)
 
     return rho_dot
-
 
 
 class DensityMatrixOscSolver(object) :
@@ -434,7 +432,6 @@ class DensityMatrixOscSolver(object) :
     def time_evolution_operator(self, H, L):
         return np.exp(-1j*H*L)
     
-
 
     def _solve(self,
         # Standard neutrino solver 

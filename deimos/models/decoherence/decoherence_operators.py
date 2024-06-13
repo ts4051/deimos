@@ -140,8 +140,7 @@ def get_decoherence_operator_nxn_basis(rho, D_matrix, D_matrix_basis, L=None) :
     # Distance dependence
     #
 
-    #TODO document
-
+    assert L is None, "Distance-dependent D[rho] not yet implemented" #TODO need to reimplement this for lightcone fluctatuation model
     # if L is not None :
     #     D_rho *= L
 
@@ -155,44 +154,44 @@ def get_decoherence_operator_nxn_basis(rho, D_matrix, D_matrix_basis, L=None) :
     return D_rho
 
 
-def get_decoherence_operator_full_lindblad(
-    rho,
-    d_operators,
-    require_unitarity=False,
-    require_increasing_entropy=False,
-    require_energy_conservation=False,
-) :
-    '''
-    Get the decoherence operator, D[rho]
+# def get_decoherence_operator_full_lindblad(
+#     rho,
+#     d_operators,
+#     require_unitarity=False,
+#     require_increasing_entropy=False,
+#     require_energy_conservation=False,
+# ) :
+#     '''
+#     Get the decoherence operator, D[rho]
 
-    In this case, get the full Lindblad master equation form, no simplicatioms
-    '''
+#     In this case, get the full Lindblad master equation form, no simplicatioms
+#     '''
 
-    raise NotImplemented("Needs testing/fixing")
+#     raise NotImplementedError("Needs testing/fixing")
 
 
-    # Check the d operators
-    num_states = rho.size[0]
-    num_terms = np.square(num_states) - 1
-    assert len(d_operators) == num_terms
-    for dk in d_operators :
-        assert dk.shape == rho.shape
+#     # Check the d operators
+#     num_states = rho.size[0]
+#     num_terms = np.square(num_states) - 1
+#     assert len(d_operators) == num_terms
+#     for dk in d_operators :
+#         assert dk.shape == rho.shape
 
-    # Physicality checks, if required
-    #TODO Not totally convinced these mathmetical are bullet-proof guarantees to the expected 
-    for dk in d_operators :
-        if require_unitarity or require_increasing_entropy :
-            assert np.allclose(dk, dagger(dk), atol=1.e-20), "dk != dk^dagger :\n%s\n%s" % (dk, dagger(dk)) # This means: dk must be symmetric
-        if require_energy_conservation :
-            assert np.allclose(commutator(H, dk), np.zeros(dk.shape), atol=1.e-20), "[H,dk] != 0 :\n%s" % dk
+#     # Physicality checks, if required
+#     #TODO Not totally convinced these mathmetical are bullet-proof guarantees to the expected 
+#     for dk in d_operators :
+#         if require_unitarity or require_increasing_entropy :
+#             assert np.allclose(dk, dagger(dk), atol=1.e-20), "dk != dk^dagger :\n%s\n%s" % (dk, dagger(dk)) # This means: dk must be symmetric
+#         if require_energy_conservation :
+#             assert np.allclose(commutator(H, dk), np.zeros(dk.shape), atol=1.e-20), "[H,dk] != 0 :\n%s" % dk
 
-    # Compute the operator
-    #TODO check the maths here
-    #TODO trying two eqautions here from literature that I think are equivalent but seem not to be, why?
-    D_rho = np.sum([ anticommutator(rho, np.multiply(dk, dagger(dk))) - 2.*np.multiply(dk, np.multiply(rho, dagger(dk))) for dk in D ], axis=0)
-    # D_rho = 0.5 * np.sum([ commutator(dk, np.multiply(rho, dagger(dk))) + commutator(np.multiply(dk, rho), dagger(dk)) for dk in D ], axis=0)
+#     # Compute the operator
+#     #TODO check the maths here
+#     #TODO trying two eqautions here from literature that I think are equivalent but seem not to be, why?
+#     D_rho = np.sum([ anticommutator(rho, np.multiply(dk, dagger(dk))) - 2.*np.multiply(dk, np.multiply(rho, dagger(dk))) for dk in D ], axis=0)
+#     # D_rho = 0.5 * np.sum([ commutator(dk, np.multiply(rho, dagger(dk))) + commutator(np.multiply(dk, rho), dagger(dk)) for dk in D ], axis=0)
 
-    return D_rho
+#     return D_rho
 
 
 def get_complete_sun_matrix(num_states, sun_matrix) :
@@ -586,255 +585,6 @@ def check_decoherence_D_matrix(num_neutrinos, D) :
         # Error handling
         # raise NotImplementedError("Checks on decoherence D matrix inequalities not yet implemented for a %i neutrino system" % num_neutrinos)
         print("WARNING : Checks on decoherence D matrix inequalities not yet implemented for a %i neutrino system, so no checks performed" % num_neutrinos)
-
-
-
-
-#
-# Interface to decoherence models
-#
-
-def get_model_D_matrix(model_name, num_states, **kw) :
-    '''
-    Top-level function to get one of the models defined in this script using a string name
-    '''
-
-    #TODO Not currenrly consistent between models about how E-dependence is implemented (e.g. within the D matrix here, or externally). Make this more consistent once have figured out the best way to implement lightcone fluctuations in nuSQuIDS
-
-    from deimos.utils.model.nuVBH_interactions.nuVBH_model import get_randomize_phase_decoherence_D_matrix, get_randomize_state_decoherence_D_matrix, get_neutrino_loss_decoherence_D_matrix
-    from deimos.utils.model.lightcone_fluctuations.lightcone_fluctuation_model import get_lightcone_decoherence_D_matrix
-
-    if model_name == "randomize_phase" :
-        return get_randomize_phase_decoherence_D_matrix(num_states=num_states, **kw)
-
-    elif model_name == "randomize_state" :
-        return get_randomize_state_decoherence_D_matrix(num_states=num_states, **kw)
-
-    elif model_name == "neutrino_loss" :
-        return get_neutrino_loss_decoherence_D_matrix(num_states=num_states, **kw)
-
-    elif model_name == "lightcone" :
-        return get_lightcone_decoherence_D_matrix(num_states=num_states, **kw)
-
-    else :
-        raise Exception("Unknown model : %s" % model_name)
-
-
-
-
-#
-# Simple oscillation calculation
-#
-
-#TODO factor out into another script?
-
-def calc_osc_prob(PMNS, mass_splittings_eV2, L_km, E_GeV, initial_flavor, final_flavor, Lcoh_km=None, L_index=None) :
-    '''
-    Oscillation probability calculation, with decoherence
-
-    https://en.wikipedia.org/wiki/Neutrino_oscillation
-
-    https://arxiv.org/pdf/1805.09818.pdf eqn 14
-    '''
-
-    raise Exception("Doesn't quite give the correct frequency (although pretty close), needs debugging")
-
-    # Checks
-    num_states = PMNS.shape[0]
-    assert num_states in [2, 3]
-    assert is_square(PMNS)
-    assert mass_splittings_eV2.size == ( 1 if num_states == 2 else 3)
-
-    # Units
-    E = si_to_natural_units( E_GeV*ureg["GeV"] ).m_as("eV")
-    L = si_to_natural_units( L_km*ureg["km"] ).m_as("1/eV")
-    if Lcoh_km is not None :
-        Lcoh = si_to_natural_units( Lcoh_km*ureg["km"] ).m_as("1/eV")
-        assert L_index is not None
-
-    # Do the calc...
-    kronecker_delta = float(initial_flavor == final_flavor)
-    osc_prob = kronecker_delta
-
-    for i in range(num_states) :
-
-        for j in range(i+1, PMNS.shape[0]) :
-
-            PMNS_product = np.conj(PMNS[initial_flavor,i]) * PMNS[final_flavor,i] * PMNS[initial_flavor,j] * np.conj(PMNS[final_flavor,j])
-
-            frequency_term = (mass_splittings_eV2[i] * L) / (2. * E)
-            # frequency_term = (2. * OSC_FREQUENCY_UNIT_CONVERSION * mass_splittings_eV2[i] * L_km / E_GeV)
-            
-            if Lcoh_km is not None :
-                damping_term = np.exp( -1. * ( (L/Lcoh[i]) )**(2.*L_index) ) #TODO not working, fix this...
-            else :
-                damping_term = 1.
-
-            osc_prob_term = -2. * np.real(PMNS_product)
-
-            osc_prob_term += 2. * damping_term * np.real(PMNS_product) * np.cos(frequency_term)
-            
-            osc_prob_term += 2. * damping_term * np.imag(PMNS_product) * np.sin(frequency_term)
-
-            osc_prob += osc_prob_term
-
-    
-    return osc_prob
-
-
-
-#
-# Space-time metric
-#
-
-# Define relevent metrics
-FLAT_SPACETIME_METRIC_TENSOR = np.array([ # Minkowski
-    [ -1., 0., 0., 0., ], #TODO c ?
-    [  0., 1., 0., 0., ],
-    [  0., 0., 1., 0., ],
-    [  0., 0., 0., 1., ],
-])
-
-def get_ds_from_metric_tensor(dx, g=FLAT_SPACETIME_METRIC_TENSOR) :
-    '''
-    Compute the distance/displacement step, ds, corresponding to some time/spatial dimension steps, dx, 
-    for a given space-time metric tensor, g.
-
-    For 4-D space-time, dx = [dt, dx, dy, dz], and the metric tensor is 4x4
-
-    See https://www.mv.helsinki.fi/home/syrasane/cosmo/lect2018_02.pdf
-
-    Note that off-diagonal metric tensor components represent non-orthogonal coordinate systems,
-    which are not common so rarely use these.
-    '''
-
-    #TODO also do integral to get overall distance here?
-
-    dim = dx.size
-    assert g.shape == (dim, dim)
-
-    ds2 = 0.
-    for mu in range(dim) :
-        for nu in range(dim) :
-            ds2 += ( g[mu, nu] * dx[mu] * dx[nu] )
-
-    return np.sqrt(ds2)
-
-
-def get_fluctuated_metric_tensor(a1, a2, a3, a4) :
-    '''
-    Using the definition of metric fluctuations From hep-ph/0606048
-
-    Specificially eqn 2.4 (derived from 2.2, 2.3)
-
-    This is 1+1D ([t, x]) metric tensor with fluctuations characterised by static coefficients ai that are Gaussian random variables with <ai> = 0
-    Can choose x to lie along particle direction
-    
-    ai are Gaussian random variables with <ai> = 0 and sigmai
-
-    a4 characterises the distance-only flucutation
-
-    Note that the analytic g expression below is a fluctuation of flat space-time (e.g. Minkowski metric tensor). Could in princip
-    '''
-
-    # Check that fluctuations are small or at least comaprable to the overall metric structure
-    # This is an assumption used in this model (and a very reasonable one)
-    # If have e.g. a4 < -1, ds starts to rise again  with decreasing a4 due to the sqrt( (a4+1)^2 ) term, which is
-    # clearly nonsense (and thus a limitations of the parameterisation)
-    assert np.all( np.abs(a1) <= 1. ), "Metric perturbation cannot be larger in scale than the unfluctuated metric (parameterisation assumes that the pertubations are small)"
-    assert np.all( np.abs(a2) <= 1. ), "Metric perturbation cannot be larger in scale than the unfluctuated metric (parameterisation assumes that the pertubations are small)"
-    assert np.all( np.abs(a3) <= 1. ), "Metric perturbation cannot be larger in scale than the unfluctuated metric (parameterisation assumes that the pertubations are small)"
-    assert np.all( np.abs(a4) <= 1. ), "Metric perturbation cannot be larger in scale than the unfluctuated metric (parameterisation assumes that the pertubations are small)"
-
-    # Define metric
-    # This is specifically for flat space-time + perturbation
-    g = np.array([
-        [    ( -1. * np.square(a1 + 1) ) + np.square(a2)     ,     ( -1. * a3 * (a1 + 1) ) +  ( a2 * (a4 + 1) )    ],
-        [    ( -1. * a3 * (a1 + 1) ) +  ( a2 * (a4 + 1) )    ,     ( -1. * np.square(a3) ) +  np.square(a4 + 1)    ],
-    ])
-
-
-    # Optionally, verify the derivation (see eqns 2.2 and 2.3)
-    if False :
-
-        O = np.array([ # This is the fundamental perurbation
-            [ a1+1., a2, ],
-            [ a3, a4+1, ],
-        ])
-
-        eta = np.array([ # Note: Could use a different metric here if desired (this is flat space-time)
-            [ -1., 0., ],
-            [ 0., 1., ],
-        ])
-
-        g_v2 = np.matmul( O, np.matmul(eta, O.T) )
-
-        assert np.array_equal(g, g_v2)
-
-    # Done
-    return g
-
-
-#
-# Model implementations
-#
-
-def get_generic_model_decoherence_D_matrix(name, gamma) :
-    '''
-    Return the D matrix for a given generic model, using the definitions in https://arxiv.org/abs/2306.14699
-    '''
-
-    #
-    # Get the texture
-    #
-
-    if name == "A" :
-        gamma21 = gamma
-        gamma31 = gamma
-        gamma32 = gamma
-
-    elif name == "B" :
-        gamma21 = gamma
-        gamma31 = gamma
-        gamma32 = 0.
-
-    elif name == "C" :
-        gamma21 = gamma
-        gamma31 = 0.
-        gamma32 = gamma
-
-    elif name == "D" :
-        gamma21 = 0.
-        gamma31 = gamma
-        gamma32 = gamma
-
-    elif name == "E" :
-        gamma21 = gamma
-        gamma31 = 0.
-        gamma32 = 0.
-
-    elif name == "F" :
-        gamma21 = 0.
-        gamma31 = gamma
-        gamma32 = 0.
-
-    elif name == "G" :
-        gamma21 = 0.
-        gamma31 = 0.
-        gamma32 = gamma
-
-    else :
-        raise Exception("Unknown model")
-
-
-    #
-    # Form the D matrix
-    #
-
-    D = np.diag([0., gamma21, gamma21, 0., gamma31, gamma31, gamma32, gamma32, 0.])
-
-    return D
-
 
 
 #
