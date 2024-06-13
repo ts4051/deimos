@@ -139,12 +139,12 @@ if __name__ == "__main__" :
                 kw = {}
                 if solver == "nusquids" :
                     kw["energy_nodes_GeV"] = E_GeV # Faster to set the nodes at the values we will calc osc probs for (and thus avoid interpolation)
-                    kw["interactions"] = False # Not available in other solvers in general
+                    kw["interactions"] = False # Only available in nuSQuIDs
                     kw["nusquids_variant"] = "decoherence"
 
                 # Create calculator
                 calculator = OscCalculator(
-                    tool=solver,
+                    solver=solver,
                     atmospheric=False,
                     mixing_angles_rad=mixing_angles_rad,
                     deltacp_rad=deltacp_rad,

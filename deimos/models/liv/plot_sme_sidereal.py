@@ -24,6 +24,8 @@ if __name__ == "__main__" :
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("-s", "--solver", type=str, required=False, default="deimos", help="Solver name")
+    parser.add_argument("-n", "--num-points", type=int, required=False, default=1000, help="Num scan point")
+    parser.add_argument("-d", "--detector", type=str, required=False, default="IceCube", help="Detector name (ussed for latitude/longitude)")
     args = parser.parse_args()
 
 
@@ -38,9 +40,7 @@ if __name__ == "__main__" :
     ref_time = datetime.datetime(2021, 1, 1, 0, 0, 0, 0) # Midnight, Jan 1st 2021
     ref_ra_deg, ref_dec_deg = 30., 45. 
 
-    E_GeV_scan = np.geomspace(1e2, 1e5, num=100)
-
-    detector_name = "IceCube" # IceCube DUNE ARCA
+    E_GeV_scan = np.geomspace(1e2, 1e5, num=args.num_points)
 
 
     #
@@ -55,7 +55,7 @@ if __name__ == "__main__" :
 
     # Create calculator
     calculator = OscCalculator(
-        tool=args.solver,
+        solver=args.solver,
         atmospheric=True,
         **kw
     )
@@ -64,7 +64,7 @@ if __name__ == "__main__" :
     calculator.set_matter("vacuum")
 
     # Define detector position
-    calculator.set_detector(detector_name)
+    calculator.set_detector(args.detector)
 
 
 
@@ -87,7 +87,7 @@ if __name__ == "__main__" :
     #
 
     # Define neutrino
-    ra_deg_values = np.linspace(0., 360., num=100) # Scan
+    ra_deg_values = np.linspace(0., 360., num=args.num_points) # Scan
     dec_deg = ref_dec_deg
     dec_deg_values = np.full_like(ra_deg_values, dec_deg)
     time = ref_time
@@ -151,7 +151,7 @@ if __name__ == "__main__" :
     E_GeV = ref_E_GeV
 
     # Time scan
-    hr_values = np.linspace(0., 24., num=48) # TODO sidereal is <24 hrs
+    hr_values = np.linspace(0., (365.24/366.24)*24., num=48) # One sidereal day
     time_values = [ ref_time + datetime.timedelta(hours=hr)  for hr in hr_values ]
 
     # Define common args to osc prob calc
@@ -177,8 +177,8 @@ if __name__ == "__main__" :
     # Make fig
     fig, ax = plt.subplots( nrows=2, figsize=(6, 6) )
 
-    fig.suptitle(detector_name)
-    # fig.suptitle( r"$E$ = %0.3g GeV // $\delta$ = %0.3g deg // %s" % (detector_name, E_GeV, dec_deg, date), fontsize=12 )  #TODO text box
+    fig.suptitle(args.detector)
+    # fig.suptitle( r"$E$ = %0.3g GeV // $\delta$ = %0.3g deg // %s" % (args.detector, E_GeV, dec_deg, date), fontsize=12 )  #TODO text box
     
     # Plot osc probs
     ax[0].plot(hr_values, P_std, color="black", linestyle="-", label="Std. osc.")
@@ -234,8 +234,8 @@ if __name__ == "__main__" :
     # Make fig
     fig, ax = plt.subplots( figsize=(6, 4) )
 
-    fig.suptitle(detector_name)
-    # fig.suptitle( r"$E$ = %0.3g GeV // $\delta$ = %0.3g deg // %s" % (detector_name, E_GeV, dec_deg, date), fontsize=12 )  #TODO text box
+    fig.suptitle(args.detector)
+    # fig.suptitle( r"$E$ = %0.3g GeV // $\delta$ = %0.3g deg // %s" % (args.detector, E_GeV, dec_deg, date), fontsize=12 )  #TODO text box
     
     # Plot osc probs
     ax.plot(E_GeV_scan, P_std, color="black", linestyle="-", label="Std. osc.")

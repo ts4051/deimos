@@ -54,10 +54,17 @@ def plot_models(solver, num_points=1000) :
     # Init calc
     #
 
+    # Solver specific configuration
+    kw = {}
+    if solver == "nusquids" :
+        kw["energy_nodes_GeV"] = np.geomspace(1e-3, 1e1, num=100)
+        kw["nusquids_variant"] = "decoherence" # Use nuSQuIDS with decohrence operator implemented
+
     # Create calculator
     calculator = OscCalculator(
         solver=solver,
         atmospheric=False,
+        **kw
     )
 
     # Use vacuum

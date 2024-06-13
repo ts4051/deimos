@@ -1,5 +1,5 @@
 '''
-Plo neutrino oscillations with SME parameters activated
+Plot neutrino oscillations with (isotropic) SME parameters activated
 
 Tom Stuttard
 '''
@@ -25,6 +25,7 @@ if __name__ == "__main__" :
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("-s", "--solver", type=str, required=False, default="deimos", help="Solver name")
+    parser.add_argument("-n", "--num-points", type=int, required=False, default=1000, help="Num scan point")
     args = parser.parse_args()
 
 
@@ -33,7 +34,7 @@ if __name__ == "__main__" :
     #
 
     initial_flavor, nubar = 1, False # muon neutrino
-    E_GeV = np.geomspace(1., 1e4, num=1000)
+    E_GeV = np.geomspace(1., 1e4, num=args.num_points)
     coszen = -1.
 
 
@@ -44,11 +45,12 @@ if __name__ == "__main__" :
     # For nuSQuIDS case, need to specify energy nodes covering full space
     kw = {}
     if args.solver == "nusquids" :
-        kw["energy_nodes_GeV"] = np.geomspace(E_GeV[0], E_GeV[-1], num=100)
+        kw["energy_nodes_GeV"] = E_GeV
+        kw["nusquids_variant"] = "sme"
 
     # Create calculator
     calculator = OscCalculator(
-        tool=args.solver,
+        solver=args.solver,
         atmospheric=False,
         **kw
     )
