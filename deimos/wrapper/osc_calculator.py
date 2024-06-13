@@ -576,7 +576,7 @@ class OscCalculator(object) :
 
             elif self._nusquids_variant == "nuSQUIDSLIV" :
                 null_matrix = np.zeros((3,self.num_neutrinos,self.num_neutrinos))
-                self.set_sme(directional=True, basis="mass", a_eV=null_matrix, c=null_matrix, e=null_matrix, ra_rad=0., dec_rad=0.)
+                self.set_sme(directional=True, basis="mass", a_eV=null_matrix, c=null_matrix, ra_rad=0., dec_rad=0.)
         
         else :
             self._decoh_model_kw = None
@@ -588,7 +588,7 @@ class OscCalculator(object) :
     def set_calc_basis(self, basis) :
 
         if self.solver == "nusquids" :
-            assert basis == "nxn" #TODO is this correct?
+            assert basis == "nxn"
 
         elif self.solver == "deimos" :
             self._calc_basis = basis # Store for use later
@@ -1099,7 +1099,7 @@ class OscCalculator(object) :
         basis=None,       # string: "mass" or "flavor"
         a_eV=None,        # 3 x Num_Nu x Num_nu
         c=None,           # 3 x Num_Nu x Num_nu
-        e=None,           # 3 x Num_Nu x Num_nu
+        # e=None,           # 3 x Num_Nu x Num_nu   #TODO implement e term
         ra_rad=None,
         dec_rad=None,
     ) :
@@ -1121,12 +1121,12 @@ class OscCalculator(object) :
                 a_eV = np.zeros(operator_shape)
             if c is None:
                 c = np.zeros(operator_shape)
-            if e is None :
-                e = np.zeros(operator_shape)
+            # if e is None :
+            #     e = np.zeros(operator_shape)
 
             assert isinstance(a_eV, np.ndarray) and (a_eV.shape == operator_shape)
             assert isinstance(c, np.ndarray) and (c.shape == operator_shape) 
-            assert isinstance(e, np.ndarray) and (e.shape == operator_shape) 
+            # assert isinstance(e, np.ndarray) and (e.shape == operator_shape) 
 
             assert (ra_rad is not None) and (dec_rad is not None), "Must provide ra and dec when using directional SME"
 
@@ -1140,7 +1140,6 @@ class OscCalculator(object) :
 
             assert isinstance(a_eV, np.ndarray) and (a_eV.shape == operator_shape)
             assert isinstance(c, np.ndarray) and (c.shape == operator_shape) 
-            assert e is None, "e not implemented yet for isotropic SME"
 
             assert (ra_rad is None) and (dec_rad is None), "ra and dec not relevent for isotropic SME"
 
@@ -1152,7 +1151,7 @@ class OscCalculator(object) :
         if self.solver == "nusquids" :
             assert directional, "Istropic SME not implemented in nuSQuIDS yet"
             assert basis == "mass", "Only mass basis SME implemented in nuSQuIDS currently"
-            self.nusquids.Set_LIVCoefficient(a_eV, c, e, ra_rad, dec_rad)
+            self.nusquids.Set_LIVCoefficient(a_eV, c, ra_rad, dec_rad)
 
         elif self.solver == "deimos" :
             if directional :
@@ -1161,7 +1160,7 @@ class OscCalculator(object) :
                     "basis" : basis,
                     "a_eV" : a_eV,
                     "c" : c,
-                    "e": e,
+                    # "e": e,
                     "ra_rad" : ra_rad,
                     "dec_rad" : dec_rad,
                 }
@@ -1477,7 +1476,7 @@ class OscCalculator(object) :
                     basis=basis,
                     a_eV=a_eV,
                     c=c,
-                    e=e,
+                    # e=e,
                     ra_rad=ra_rad,
                     dec_rad=dec_rad,
                 )
@@ -1514,7 +1513,6 @@ class OscCalculator(object) :
                         coszen=coszen,
                         **kw # Pass down kwargs
                     )
-
 
 
                 else :
