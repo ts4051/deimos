@@ -584,7 +584,8 @@ def check_decoherence_D_matrix(num_neutrinos, D) :
     else :
 
         # Error handling
-        raise NotImplementedError("Checks on decoherence D matrix inequalities not yet implemented for a %i neutrino system" % num_neutrinos)
+        # raise NotImplementedError("Checks on decoherence D matrix inequalities not yet implemented for a %i neutrino system" % num_neutrinos)
+        print("WARNING : Checks on decoherence D matrix inequalities not yet implemented for a %i neutrino system, so no checks performed" % num_neutrinos)
 
 
 
