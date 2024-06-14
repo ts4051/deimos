@@ -714,8 +714,8 @@ class DensityMatrixOscSolver(object) :
             assert "c" in sme_opts
             sme_c = sme_opts.pop("c") # dimensionless
             if sme_is_directional : # e term only implemented for direction SME currently
-                assert "e" in sme_opts
-                sme_e = sme_opts.pop("e") # dimensionless
+                # assert "e" in sme_opts
+                # sme_e = sme_opts.pop("e") # dimensionless
                 assert "ra_rad" in sme_opts
                 ra_rad = sme_opts.pop("ra_rad")
                 assert "dec_rad" in sme_opts
@@ -723,7 +723,8 @@ class DensityMatrixOscSolver(object) :
 
             # Check shapes
             if sme_is_directional :
-                for operator in [sme_a, sme_c, sme_e] :
+                # for operator in [sme_a, sme_c, sme_e] :
+                for operator in [sme_a, sme_c] :
                     assert isinstance(operator, np.ndarray)
                     assert operator.shape == (3, self.num_states, self.num_states) # First dimension is directional coordinate (x,y,z), next two are flavor/mass basis structure
             else :
@@ -733,15 +734,15 @@ class DensityMatrixOscSolver(object) :
             # Handle antineutrinos
             if nubar:
                 sme_a = - sme_a
-                if sme_is_directional :
-                    sme_e = - sme_e
+                # if sme_is_directional :
+                #     sme_e = - sme_e
                 warnings.warn("Solver assumes that the CPT-odd parameters are specified for neutrinos and changes sign.")
                 
             # Unpack parameters into directional components
             if sme_is_directional :
                 sme_a_x, sme_a_y, sme_a_z = sme_a
                 sme_c_tx, sme_c_ty, sme_c_tz = sme_c
-                sme_e_m_x, sme_e_m_y, sme_e_m_z = sme_e
+                # sme_e_m_x, sme_e_m_y, sme_e_m_z = sme_e
 
             # Get neutrino direction in celestial coords
             if sme_is_directional :
