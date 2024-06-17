@@ -19,7 +19,7 @@ def get_sme_hamiltonian_isotropic(
     Calculate the effective Hamiltonian for the isotropic model of the Standard Model Extension (SME).
     '''
 
-    H_eff = a_eV + (E * c)   #TODO higher order
+    H_eff = a_eV - (E * c)   #TODO higher order
 
     return H_eff
 
