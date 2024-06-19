@@ -51,11 +51,12 @@ if __name__ == "__main__":
     # Define SME parameters
     sme_basis = "mass" # "mass" or "flavor"
     flavor_structure = np.array([0.0, 0.0, 1.0]) # diagonal elements of the SME matrix
-    direction_structure = np.array([0.0, 1.0, 0.0]) # x, y, z
+    a_eV_direction_structure = np.array([0.0, 0.0, 1.0, 0.0]) # t, x, y, z
+    c_direction_structure = np.array([[0.0, 1.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]]) # 2D structure 
     a_magnitude_eV = 0
     c_magnitude = 0
-    a_eV = np.array([a_magnitude_eV * n * np.diag(flavor_structure) for n in direction_structure])
-    ct = np.array([c_magnitude * n * np.diag(flavor_structure) for n in direction_structure])
+    a_eV = np.array([a_magnitude_eV * n * np.diag(flavor_structure) for n in a_eV_direction_structure])
+    ct = np.array([c_magnitude * n * np.diag(flavor_structure) for n in c_direction_structure])
     
     ### END OF SETUP ###
 

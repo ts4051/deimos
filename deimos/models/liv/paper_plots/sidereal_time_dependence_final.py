@@ -25,11 +25,13 @@ def main():
     # Define SME parameters
     sme_basis = "mass" # "mass" or "flavor"
     flavor_structure = np.array([0.0, 0.0, 1.0]) # diagonal elements of the SME matrix
-    direction_structure = np.array([0.0, 1.0, 0.0]) # x, y, z
+    a_eV_direction_structure = np.array([0.0, 0.0, 1.0, 0.0]) # t, x, y, z
+    c_direction_structure = np.array([[0.0, 1.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]]) # 2D structure 
     a_magnitude_eV = 5e-14
     c_magnitude = 0
-    a_eV = np.array([a_magnitude_eV * n * np.diag(flavor_structure) for n in direction_structure])
-    ct = np.array([c_magnitude * n * np.diag(flavor_structure) for n in direction_structure])   
+    a_eV = np.array([a_magnitude_eV * n * np.diag(flavor_structure) for n in a_eV_direction_structure])
+    for n in c_direction_structure:
+        ct = np.array([c_magnitude * m * np.diag(flavor_structure) for m in n]).reshape(4, 4, 3, 3)
 
     # Create oscillation calculators
     kw = {"energy_nodes_GeV": E_GeV, "nusquids_variant": "sme"} if solver == "nusquids" else {}
@@ -74,12 +76,12 @@ def main():
         for time_index, time in enumerate(time_array):
             print(f"Progress: {dec_index}/{len(dec_deg)} {time_index}/{len(time_array)}", end="\r")
             P_ARCA_value, coszen_ARCA_value, _ = calculatorARCA.calc_osc_prob_sme(
-                basis=sme_basis, a_eV=a_eV, time=time, **calc_kw)
+                basis=sme_basis, a_eV=a_eV, c=ct, time=time, **calc_kw)
             cosz_ARCA[dec_index, time_index] = coszen_ARCA_value
             P_ARCA[:, dec_index, time_index] = P_ARCA_value[E_node, :]
 
         P_IC_value, coszen_IC_value, _ = calculatorIC.calc_osc_prob_sme(
-            basis=sme_basis, a_eV=a_eV, time=time_array[0], **calc_kw)
+            basis=sme_basis, a_eV=a_eV, c=ct, time=time_array[0], **calc_kw)
         cosz_IC[dec_index] = coszen_IC_value
         P_IC[:, dec_index] = P_IC_value[E_node, :]
 
