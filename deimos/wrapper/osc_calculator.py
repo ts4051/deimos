@@ -1144,9 +1144,17 @@ class OscCalculator(object) :
         #
 
         if self.solver == "nusquids" :
-            assert directional, "Istropic SME not implemented in nuSQuIDS yet"
             assert basis == "mass", "Only mass basis SME implemented in nuSQuIDS currently"
-            self.nusquids.Set_LIVCoefficient(a_eV, c, ra_rad, dec_rad)
+            if directional :
+                self.nusquids.Set_LIVCoefficient(a_eV, c, ra_rad, dec_rad)
+            else :
+                a_eV_isotropic= np.zeros((4, self.num_neutrinos, self.num_neutrinos))
+                c_isotropic = np.zeros((4, 4, self.num_neutrinos, self.num_neutrinos))
+                a_eV_isotropic[0] = a_eV
+                c_isotropic[0,0] = c
+                dec_rad = np.pi/2
+                ra_rad = 0
+                self.nusquids.Set_LIVCoefficient(a_eV_isotropic, c_isotropic, ra_rad, dec_rad)
 
         elif self.solver == "deimos" :
             if directional :
