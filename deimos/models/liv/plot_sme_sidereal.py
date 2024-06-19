@@ -75,11 +75,16 @@ if __name__ == "__main__" :
     cases = collections.OrderedDict()
 
     a_magnitude_eV = 1e-13 # Overall strength of a component
-    # c_magnitude = 1e-26 # Overall strength of c component
-    flavor_structure = np.array([0., 0., 1.])    #TODO support off-diagonal
-    direction_structure = np.array([1., 0., 0.]) # Orient field in x direction     TODO define by RA/dec instead
-    a_eV = np.array([ a_magnitude_eV*n*np.diag(flavor_structure) for n in direction_structure ])##
+    c_magnitude = 0 # Overall strength of c component
     sme_basis = "mass"
+    flavor_structure = np.array([0.0, 0.0, 1.0]) # diagonal elements of the SME matrix
+    a_eV_direction_structure = np.array([0.0, 1.0, 0.0, 0.0]) # t, x, y, z
+    c_direction_structure = np.array([[0.0, 1.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]]) # 2D structure 
+
+    a_eV = np.array([a_magnitude_eV * n * np.diag(flavor_structure) for n in a_eV_direction_structure])
+    for n in c_direction_structure:
+        ct = np.array([c_magnitude * m * np.diag(flavor_structure) for m in n]).reshape(4, 4, 3, 3)
+
 
 
     #

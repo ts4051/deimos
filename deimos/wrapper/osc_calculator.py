@@ -1099,7 +1099,6 @@ class OscCalculator(object) :
         basis=None,       # string: "mass" or "flavor"
         a_eV=None,        # 3 x Num_Nu x Num_nu
         c=None,           # 3 x Num_Nu x Num_nu
-        # e=None,           # 3 x Num_Nu x Num_nu   #TODO implement e term
         ra_rad=None,
         dec_rad=None,
     ) :
@@ -1116,17 +1115,13 @@ class OscCalculator(object) :
         assert basis in ["flavor", "mass"]
 
         if directional :   #TODO Maybe not relevant anymore? (Non-directional does currently not work in nuSQuIDS)
-            operator_shape = (3, self.num_neutrinos, self.num_neutrinos) # shape is (num spatial dims, N, N), where N is num neutrino states
             if a_eV is None: 
-                a_eV = np.zeros(operator_shape)
+                a_eV = np.zeros((4, self.num_neutrinos, self.num_neutrinos)) # shape is (num spatial dims, N, N), where N is num neutrino states
             if c is None:
-                c = np.zeros(operator_shape)
-            # if e is None :
-            #     e = np.zeros(operator_shape)
+                c = np.zeros((4, 4, self.num_neutrinos, self.num_neutrinos))
 
-            assert isinstance(a_eV, np.ndarray) and (a_eV.shape == operator_shape)
-            assert isinstance(c, np.ndarray) and (c.shape == operator_shape) 
-            # assert isinstance(e, np.ndarray) and (e.shape == operator_shape) 
+            assert isinstance(a_eV, np.ndarray) and (a_eV.shape == (4, self.num_neutrinos, self.num_neutrinos))
+            assert isinstance(c, np.ndarray) and (c.shape == (4, 4, self.num_neutrinos, self.num_neutrinos)) 
 
             assert (ra_rad is not None) and (dec_rad is not None), "Must provide ra and dec when using directional SME"
 
@@ -1149,9 +1144,17 @@ class OscCalculator(object) :
         #
 
         if self.solver == "nusquids" :
-            assert directional, "Istropic SME not implemented in nuSQuIDS yet"
             assert basis == "mass", "Only mass basis SME implemented in nuSQuIDS currently"
-            self.nusquids.Set_LIVCoefficient(a_eV, c, ra_rad, dec_rad)
+            if directional :
+                self.nusquids.Set_LIVCoefficient(a_eV, c, ra_rad, dec_rad)
+            else :
+                a_eV_isotropic= np.zeros((4, self.num_neutrinos, self.num_neutrinos))
+                c_isotropic = np.zeros((4, 4, self.num_neutrinos, self.num_neutrinos))
+                a_eV_isotropic[0] = a_eV
+                c_isotropic[0,0] = c
+                dec_rad = np.pi/2
+                ra_rad = 0
+                self.nusquids.Set_LIVCoefficient(a_eV_isotropic, c_isotropic, ra_rad, dec_rad)
 
         elif self.solver == "deimos" :
             if directional :
@@ -1160,7 +1163,6 @@ class OscCalculator(object) :
                     "basis" : basis,
                     "a_eV" : a_eV,
                     "c" : c,
-                    # "e": e,
                     "ra_rad" : ra_rad,
                     "dec_rad" : dec_rad,
                 }
@@ -1170,7 +1172,6 @@ class OscCalculator(object) :
                     "basis" : basis,
                     "a_eV" : a_eV,
                     "c" : c,
-                    # "e": e,
                 }
 
         else :
@@ -1395,7 +1396,6 @@ class OscCalculator(object) :
         basis=None,
         a_eV=None,
         c=None,
-        e=None,
         # Args to pass down to the standard osc prob calc
         **kw
     ) :
@@ -1443,8 +1443,6 @@ class OscCalculator(object) :
             assert basis is None
             assert a_eV is None
             assert c is None
-            assert e is None
-
 
         #
         # Loop over directions
@@ -1476,11 +1474,9 @@ class OscCalculator(object) :
                     basis=basis,
                     a_eV=a_eV,
                     c=c,
-                    # e=e,
                     ra_rad=ra_rad,
                     dec_rad=dec_rad,
                 )
-
 
             # 
             # Loop over times
