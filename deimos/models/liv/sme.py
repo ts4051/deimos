@@ -43,6 +43,8 @@ def get_sme_hamiltonian_directional(
     c_yy=0,
     c_yz=0,
     c_zz=0,
+    # System properties
+    num_states=3, # 3-nu system by default
 ):
     """
     Calculate the effective Hamiltonian for the vector model of the Standard Model Extension (SME).
@@ -65,6 +67,29 @@ def get_sme_hamiltonian_directional(
     References:
         - arXiv:hep-ph/0406255
     """
+
+    # Check inputs
+    operator_shape = (num_states, num_states)
+    assert np.shape(a_eV_t) == operator_shape
+    assert np.shape(a_eV_x) == operator_shape
+    assert np.shape(a_eV_y) == operator_shape
+    assert np.shape(a_eV_z) == operator_shape
+    assert np.shape(c_tt) == operator_shape
+    assert np.shape(c_tx) == operator_shape
+    assert np.shape(c_ty) == operator_shape
+    assert np.shape(c_tz) == operator_shape
+    assert np.shape(c_xt) == operator_shape
+    assert np.shape(c_xx) == operator_shape
+    assert np.shape(c_xy) == operator_shape
+    assert np.shape(c_xz) == operator_shape
+    assert np.shape(c_yt) == operator_shape
+    assert np.shape(c_yx) == operator_shape
+    assert np.shape(c_yy) == operator_shape
+    assert np.shape(c_yz) == operator_shape
+    assert np.shape(c_zt) == operator_shape
+    assert np.shape(c_zx) == operator_shape
+    assert np.shape(c_zy) == operator_shape
+    assert np.shape(c_zz) == operator_shape
 
     # Convert celestial coordinates to spherical coordinates
     theta = np.pi / 2 - dec  # Colatitude
