@@ -126,7 +126,7 @@ def rho_flavor_prob(rho_flav,flav) :
     psi_flav = np.zeros( rho_flav.shape[0], dtype=np.complex128 ) # Create empty flvor vector, using rho shape to get num flavors
     psi_flav[flav] = 1. + 0.j # Set the desired flavor to 1
     #flav_prob = np.dot( psi_flav.T, np.dot(rho_flav,psi_flav) )
-    flav_prob = np.trace( np.dot(rho_flav,get_rho(psi_flav)) )
+    flav_prob = np.abs(np.trace( np.dot(rho_flav,get_rho(psi_flav)) ))
     #assert np.isreal(flav_prob), "Falvor probability must be real, something has gone wrong (P=%s)"%flav_prob
     assert np.isclose(flav_prob.imag,0.), "Flavor probability must be real, something has gone wrong (P=%s)"%flav_prob #np.isreal doesn't work here, as struggles with ~0 values (results from numerical integration precision)
     flav_prob = flav_prob.real
@@ -713,20 +713,18 @@ class DensityMatrixOscSolver(object) :
             sme_a = sme_opts.pop("a_eV")
             assert "c" in sme_opts
             sme_c = sme_opts.pop("c") # dimensionless
-            if sme_is_directional : # e term only implemented for direction SME currently
-                # assert "e" in sme_opts
-                # sme_e = sme_opts.pop("e") # dimensionless
+            if sme_is_directional :
                 assert "ra_rad" in sme_opts
                 ra_rad = sme_opts.pop("ra_rad")
                 assert "dec_rad" in sme_opts
                 dec_rad = sme_opts.pop("dec_rad")
 
-            # Check shapes
+            # Check shapes 
+            # THIS is redundant, already being checked in the wrapper
             if sme_is_directional :
-                # for operator in [sme_a, sme_c, sme_e] :
-                for operator in [sme_a, sme_c] :
-                    assert isinstance(operator, np.ndarray)
-                    assert operator.shape == (3, self.num_states, self.num_states) # First dimension is directional coordinate (x,y,z), next two are flavor/mass basis structure
+                assert isinstance(sme_a, np.ndarray) and (sme_a.shape == (4, self.num_neutrinos, self.num_neutrinos))
+                assert isinstance(sme_c, np.ndarray) and (sme_c.shape == (4, 4, self.num_neutrinos, self.num_neutrinos)) 
+            # THIS is redundant, already being checked in the wrapper
             else :
                 for operator in [sme_a, sme_c] :
                     assert operator.shape == (self.num_states, self.num_states) # Flavor/mass basis structure
@@ -740,9 +738,18 @@ class DensityMatrixOscSolver(object) :
                 
             # Unpack parameters into directional components
             if sme_is_directional :
-                sme_a_x, sme_a_y, sme_a_z = sme_a
-                sme_c_tx, sme_c_ty, sme_c_tz = sme_c
-                # sme_e_m_x, sme_e_m_y, sme_e_m_z = sme_e
+                sme_a_t, sme_a_x, sme_a_y, sme_a_z = sme_a
+                sme_c_tt= sme_c[0,0,:,:]
+                sme_c_tx= sme_c[0,1,:,:]
+                sme_c_ty= sme_c[0,2,:,:]
+                sme_c_tz= sme_c[0,3,:,:]
+                sme_c_xx= sme_c[1,1,:,:]
+                sme_c_xy= sme_c[1,2,:,:]
+                sme_c_xz= sme_c[1,3,:,:]
+                sme_c_yy= sme_c[2,2,:,:]
+                sme_c_yz= sme_c[2,3,:,:]
+                sme_c_zz= sme_c[3,3,:,:]
+
 
             # Get neutrino direction in celestial coords
             if sme_is_directional :
@@ -907,15 +914,20 @@ class DensityMatrixOscSolver(object) :
                     H_eff = get_sme_hamiltonian_directional(
                         ra=ra_rad,
                         dec=dec_rad,
+                        a_eV_t=sme_a_t,
                         a_eV_x=sme_a_x,
                         a_eV_y=sme_a_y,
                         a_eV_z=sme_a_z,
+                        c_tt=sme_c_tt,
                         c_tx=sme_c_tx,
                         c_ty=sme_c_ty,
                         c_tz=sme_c_tz,
-                        # e_m_x=sme_e_m_x,
-                        # e_m_y=sme_e_m_y,
-                        # e_m_z=sme_e_m_z,
+                        c_xx=sme_c_xx,
+                        c_xy=sme_c_xy,
+                        c_xz=sme_c_xz,
+                        c_yy=sme_c_yy,
+                        c_yz=sme_c_yz,
+                        c_zz=sme_c_zz,
                         E=E_val,
                     )
                 else :
