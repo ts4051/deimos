@@ -64,7 +64,6 @@ def get_sme_hamiltonian_directional(
 
     References:
         - arXiv:hep-ph/0406255
-        - arXiv:1010.4096 (note: known issues with this paper)
     """
 
     # Convert celestial coordinates to spherical coordinates
