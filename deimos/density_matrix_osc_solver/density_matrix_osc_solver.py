@@ -929,6 +929,7 @@ class DensityMatrixOscSolver(object) :
                         c_yz=sme_c_yz,
                         c_zz=sme_c_zz,
                         E=E_val,
+                        num_states=self.num_states,
                     )
                 else :
                     H_eff = get_sme_hamiltonian_isotropic(
