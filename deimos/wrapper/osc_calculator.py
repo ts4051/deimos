@@ -572,8 +572,7 @@ class OscCalculator(object) :
                 self.set_decoherence_D_matrix(D_matrix_eV=np.zeros((self.num_sun_basis_vectors,self.num_sun_basis_vectors)), n=0, E0_eV=1.)
 
             elif self._nusquids_variant == "nuSQUIDSLIV" :
-                self.set_sme_isotropic(basis="mass")
-                self.set_sme_directional(basis="mass", ra_rad=0., dec_rad=0.)
+                self.set_sme_directional(basis="mass", ra_rad=0., dec_rad=0.) # Sets all SME params
         
         else :
             self._decoh_model_kw = None
@@ -1175,6 +1174,80 @@ class OscCalculator(object) :
 
 
 
+    # def set_sme_isotropic(
+    #     self,
+    #     basis=None,       # string: "mass" or "flavor"
+    #     a_eV=None,        # This is a^x (NxN matrix, where N is num neutrino states)
+    #     c=None,           # This is c^{xx} (NxN matrix, where N is num neutrino states)
+    # ) :
+    #     '''
+    #     Set the isotropic (time-like) parameters of the SME
+    #     '''
+
+    #     #TODO this duplicates set_sme_directional, maybe call set_sme_directional from here instead...
+
+    #     #
+    #     # Check inputs
+    #     #
+
+    #     # Check basis thre a/c matrices are defined in, and set defaukt
+    #     if basis is None :
+    #         basis = "mass"
+    #     assert basis in ["flavor", "mass"]
+
+    #     # Check operator shape, and set defaults
+    #     expected_shape = (self.num_neutrinos, self.num_neutrinos) # shape is (N, N), where N is num neutrino states
+    #     if a_eV is None: 
+    #         a_eV = np.zeros(expected_shape)
+    #     if c is None:
+    #         c = np.zeros(expected_shape)
+    #     assert isinstance(a_eV, np.ndarray) and (a_eV.shape == expected_shape)
+    #     assert isinstance(c, np.ndarray) and (c.shape == expected_shape) 
+
+
+    #     #
+    #     # Write to solver
+    #     #
+
+    #     if self.solver == "nusquids" :
+
+    #         assert basis == "mass", "Only mass basis SME implemented in nuSQuIDS currently"
+
+    #         # In nuSQuIDS, SME operator dimensions are:
+    #         #    a : [4, N, N], where N is number neutrino states and 4 is the number of space-time dimensions (4-vector indices)
+    #         #    c : [4, 4, N, N], where N is number neutrino states and 4 is the number of space-time dimensions (4-vector indices)
+    #         # For the isotropic case, we only set the 0th elements w.r.t. 4-vector indices (e.g. time-like, so A_t and c_{tt})
+
+    #         # Make the full isotropic a and c arrays (in the format nuSQuIDS expects)
+    #         a_nsq = np.zeros( (4, self.num_neutrinos, self.num_neutrinos) )
+    #         np.copyto(src=a_eV, dst=a_nsq[0,...])
+
+    #         c_nsq = np.zeros( (4, 4, self.num_neutrinos, self.num_neutrinos) )
+    #         np.copyto(src=c, dst=c_nsq[0,0,...])
+
+    #         # Pass to nuSQuIDS
+    #         self.nusquids.Set_LIVCoefficient(
+    #             a_nsq, 
+    #             c_nsq, 
+    #             0., # RA (not used for time-like operators) 
+    #             0., # dec (not used for time-like operators)
+    #         )
+
+    #     elif self.solver == "deimos" :
+
+    #         # Stash params for run-time
+    #         self._sme_model_kw = {
+    #             "basis" : basis,
+    #             "a_t_eV" : a_eV, # time-like
+    #             "c_tt" : c, # fully time-like
+    #             "ra_rad" : 0., # Not used
+    #             "dec_rad" : 0., # Not used
+    #         }
+
+    #     else :
+    #         raise NotImplementedError("SME not yet wrapped for %s" % self.solver) #TODO this is already supported by prob3, just need to wrap it
+
+
     def set_sme_isotropic(
         self,
         basis=None,       # string: "mass" or "flavor"
@@ -1185,66 +1258,19 @@ class OscCalculator(object) :
         Set the isotropic (time-like) parameters of the SME
         '''
 
-        #
-        # Check inputs
-        #
-
-        # Check basis thre a/c matrices are defined in, and set defaukt
-        if basis is None :
-            basis = "mass"
-        assert basis in ["flavor", "mass"]
-
-        # Check operator shape, and set defaults
-        expected_shape = (self.num_neutrinos, self.num_neutrinos) # shape is (N, N), where N is num neutrino states
-        if a_eV is None: 
-            a_eV = np.zeros(expected_shape)
-        if c is None:
-            c = np.zeros(expected_shape)
-        assert isinstance(a_eV, np.ndarray) and (a_eV.shape == expected_shape)
-        assert isinstance(c, np.ndarray) and (c.shape == expected_shape) 
+        # Call the underlying set_sme_directional functions which sets all matrix values,
+        # but only using the time-like components here
 
 
-        #
-        # Write to solver
-        #
+        #TODO this duplicates set_sme_directional, maybe call set_sme_directional from here instead...
 
-        if self.solver == "nusquids" :
-
-            assert basis == "mass", "Only mass basis SME implemented in nuSQuIDS currently"
-
-            # In nuSQuIDS, SME operator dimensions are:
-            #    a : [4, N, N], where N is number neutrino states and 4 is the number of space-time dimensions (4-vector indices)
-            #    c : [4, 4, N, N], where N is number neutrino states and 4 is the number of space-time dimensions (4-vector indices)
-            # For the isotropic case, we only set the 0th elements w.r.t. 4-vector indices (e.g. time-like, so A_t and c_{tt})
-
-            # Make the full isotropic a and c arrays (in the format nuSQuIDS expects)
-            a_nsq = np.zeros( (4, self.num_neutrinos, self.num_neutrinos) )
-            np.copyto(src=a_eV, dst=a_nsq[0,...])
-
-            c_nsq = np.zeros( (4, 4, self.num_neutrinos, self.num_neutrinos) )
-            np.copyto(src=c, dst=c_nsq[0,0,...])
-
-            # Pass to nuSQuIDS
-            self.nusquids.Set_LIVCoefficient(
-                a_nsq, 
-                c_nsq, 
-                0., # RA (not used for time-like operators) 
-                0., # dec (not used for time-like operators)
-            )
-
-        elif self.solver == "deimos" :
-
-            # Stash params for run-time
-            self._sme_model_kw = {
-                "basis" : basis,
-                "a_t_eV" : a_eV, # time-like
-                "c_tt" : c, # fully time-like
-                "ra_rad" : 0., # Not used
-                "dec_rad" : 0., # Not used
-            }
-
-        else :
-            raise NotImplementedError("SME not yet wrapped for %s" % self.solver) #TODO this is already supported by prob3, just need to wrap it
+        return self.set_sme_directional(
+            ra_rad=0., # Not relevent for isotropic case
+            dec_rad=0., # # Not relevent for isotropic case
+            basis=basis,
+            a_t_eV=a_eV, # time-like
+            c_tt=c, # time-like
+        )
 
 
 
@@ -1257,6 +1283,16 @@ class OscCalculator(object) :
         a_x_eV=None, # NxN matrix (state/flavor space)
         a_y_eV=None, # NxN matrix (state/flavor space)
         a_z_eV=None, # NxN matrix (state/flavor space)
+        c_tt=None, # NxN matrix (state/flavor space)
+        c_tx=None, # NxN matrix (state/flavor space)
+        c_ty=None, # NxN matrix (state/flavor space)
+        c_tz=None, # NxN matrix (state/flavor space)
+        c_xx=None, # NxN matrix (state/flavor space)
+        c_xy=None, # NxN matrix (state/flavor space)
+        c_xz=None, # NxN matrix (state/flavor space)
+        c_yy=None, # NxN matrix (state/flavor space)
+        c_yz=None, # NxN matrix (state/flavor space)
+        c_zz=None, # NxN matrix (state/flavor space)
     ) :
         '''
         Set the directional (x,y,z-like) parameters of the SME
@@ -1287,7 +1323,36 @@ class OscCalculator(object) :
             a_z_eV = np.zeros(expected_shape)
         assert isinstance(a_z_eV, np.ndarray) and (a_z_eV.shape == expected_shape)
 
-
+        if c_tt is None: 
+            c_tt = np.zeros(expected_shape)
+        assert isinstance(c_tt, np.ndarray) and (c_tt.shape == expected_shape)
+        if c_tx is None: 
+            c_tx = np.zeros(expected_shape)
+        assert isinstance(c_tx, np.ndarray) and (c_tx.shape == expected_shape)
+        if c_ty is None: 
+            c_ty = np.zeros(expected_shape)
+        assert isinstance(c_ty, np.ndarray) and (c_ty.shape == expected_shape)
+        if c_tz is None: 
+            c_tz = np.zeros(expected_shape)
+        assert isinstance(c_tz, np.ndarray) and (c_tz.shape == expected_shape)
+        if c_xx is None: 
+            c_xx = np.zeros(expected_shape)
+        assert isinstance(c_xx, np.ndarray) and (c_xx.shape == expected_shape)
+        if c_xy is None: 
+            c_xy = np.zeros(expected_shape)
+        assert isinstance(c_xy, np.ndarray) and (c_xy.shape == expected_shape)
+        if c_xz is None: 
+            c_xz = np.zeros(expected_shape)
+        assert isinstance(c_xz, np.ndarray) and (c_xz.shape == expected_shape)
+        if c_yy is None: 
+            c_yy = np.zeros(expected_shape)
+        assert isinstance(c_yy, np.ndarray) and (c_yy.shape == expected_shape)
+        if c_yz is None: 
+            c_yz = np.zeros(expected_shape)
+        assert isinstance(c_yz, np.ndarray) and (c_yz.shape == expected_shape)
+        if c_zz is None: 
+            c_zz = np.zeros(expected_shape)
+        assert isinstance(c_zz, np.ndarray) and (c_zz.shape == expected_shape)
 
         #
         # Write to solver
@@ -1297,29 +1362,42 @@ class OscCalculator(object) :
 
             assert basis == "mass", "Only mass basis SME implemented in nuSQuIDS currently"
 
-            # # The a/c matrices are the t/0 components of the full 4-vector SME
-            # a_eV_full = 
+            # In nuSQuIDS, SME operator dimensions are:
+            #    a : [4, N, N], where N is number neutrino states and 4 is the number of space-time dimensions (4-vector indices)
+            #    c : [4, 4, N, N], where N is number neutrino states and 4 is the number of space-time dimensions (4-vector indices)
 
-                # sme_a_t, sme_a_x, sme_a_y, sme_a_z = sme_a
-                # sme_c_tt= sme_c[0,0,:,:]
-                # sme_c_tx= sme_c[0,1,:,:]
-                # sme_c_ty= sme_c[0,2,:,:]
-                # sme_c_tz= sme_c[0,3,:,:]
-                # sme_c_xx= sme_c[1,1,:,:]
-                # sme_c_xy= sme_c[1,2,:,:]
-                # sme_c_xz= sme_c[1,3,:,:]
-                # sme_c_yy= sme_c[2,2,:,:]
-                # sme_c_yz= sme_c[2,3,:,:]
-                # sme_c_zz= sme_c[3,3,:,:]
+            # Make the full a and c arrays (in the format nuSQuIDS expects)
+            a_nsq = np.zeros( (4, self.num_neutrinos, self.num_neutrinos) )
+            np.copyto(src=a_t_eV, dst=a_nsq[0,...])
+            np.copyto(src=a_x_eV, dst=a_nsq[1,...])
+            np.copyto(src=a_z_eV, dst=a_nsq[2,...])
+            np.copyto(src=a_z_eV, dst=a_nsq[3,...])
 
+            c_nsq = np.zeros( (4, 4, self.num_neutrinos, self.num_neutrinos) )
+            np.copyto(src=c_tt, dst=c_nsq[0,0,...])
+            np.copyto(src=c_tx, dst=c_nsq[0,1,...])
+            np.copyto(src=c_ty, dst=c_nsq[0,2,...])
+            np.copyto(src=c_tz, dst=c_nsq[0,3,...])
+            np.copyto(src=c_xx, dst=c_nsq[1,1,...])
+            np.copyto(src=c_xy, dst=c_nsq[1,2,...])
+            np.copyto(src=c_xz, dst=c_nsq[1,3,...])
+            np.copyto(src=c_yy, dst=c_nsq[2,2,...])
+            np.copyto(src=c_yz, dst=c_nsq[2,3,...])
+            np.copyto(src=c_zz, dst=c_nsq[3,3,...])
 
-            # a_eV_isotropic= np.zeros((4, self.num_neutrinos, self.num_neutrinos))
-            # c_isotropic = np.zeros((4, 4, self.num_neutrinos, self.num_neutrinos))
-            # a_eV_isotropic[0] = a_eV
-            # c_isotropic[0,0] = c
-            # dec_rad = np.pi/2
-            ra_rad = 0
-            self.nusquids.Set_LIVCoefficient(a_eV_isotropic, c_isotropic, ra_rad, dec_rad)
+            #TODO need to do anyting about the elements across the diagonal? or should nuSQuIDS internally handle that?
+
+            # nuSQuIDS currently doesn't handle imaginary SME operators
+            assert np.all( a_nsq.imag == 0. ), "Cannot handle imaginary SME a matrix values in nuSQuIDS currently"
+            assert np.all( c_nsq.imag == 0. ), "Cannot handle imaginary SME a matrix values in nuSQuIDS currently"
+
+            # Pass to nuSQuIDS
+            self.nusquids.Set_LIVCoefficient(
+                a_nsq, 
+                c_nsq, 
+                0., # RA (not used for time-like operators) 
+                0., # dec (not used for time-like operators)
+            )
 
         elif self.solver == "deimos" :
 
@@ -1330,6 +1408,16 @@ class OscCalculator(object) :
                 "a_x_eV" : a_x_eV,
                 "a_y_eV" : a_y_eV,
                 "a_z_eV" : a_z_eV,
+                "c_tt" : c_tt,
+                "c_tx" : c_tx,
+                "c_ty" : c_ty,
+                "c_tz" : c_tz,
+                "c_xx" : c_xx,
+                "c_xy" : c_xy,
+                "c_xz" : c_xz,
+                "c_yy" : c_yy,
+                "c_yz" : c_yz,
+                "c_zz" : c_zz,
                  "ra_rad" : ra_rad,
                 "dec_rad" : dec_rad,
             }
