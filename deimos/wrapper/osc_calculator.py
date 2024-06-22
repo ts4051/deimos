@@ -1195,14 +1195,13 @@ class OscCalculator(object) :
         assert basis in ["flavor", "mass"]
 
         # Check operator shape, and set defaults
-        operator_shape = (self.num_neutrinos, self.num_neutrinos) # shape is (N, N), where N is num neutrino states
+        expected_shape = (self.num_neutrinos, self.num_neutrinos) # shape is (N, N), where N is num neutrino states
         if a_eV is None: 
-            a_eV = np.zeros(operator_shape)
+            a_eV = np.zeros(expected_shape)
         if c is None:
-            c = np.zeros(operator_shape)
-        assert isinstance(a_eV, np.ndarray) and (a_eV.shape == operator_shape)
-        assert isinstance(c, np.ndarray) and (c.shape == operator_shape) 
-
+            c = np.zeros(expected_shape)
+        assert isinstance(a_eV, np.ndarray) and (a_eV.shape == expected_shape)
+        assert isinstance(c, np.ndarray) and (c.shape == expected_shape) 
 
 
         #
@@ -1213,29 +1212,25 @@ class OscCalculator(object) :
 
             assert basis == "mass", "Only mass basis SME implemented in nuSQuIDS currently"
 
-            # # The a/c matrices are the t/0 components of the full 4-vector SME
-            # a_eV_full = 
+            # In nuSQuIDS, SME operator dimensions are:
+            #    a : [4, N, N], where N is number neutrino states and 4 is the number of space-time dimensions (4-vector indices)
+            #    c : [4, 4, N, N], where N is number neutrino states and 4 is the number of space-time dimensions (4-vector indices)
+            # For the isotropic case, we only set the 0th elements w.r.t. 4-vector indices (e.g. time-like, so A_t and c_{tt})
 
-                # sme_a_t, sme_a_x, sme_a_y, sme_a_z = sme_a
-                # sme_c_tt= sme_c[0,0,:,:]
-                # sme_c_tx= sme_c[0,1,:,:]
-                # sme_c_ty= sme_c[0,2,:,:]
-                # sme_c_tz= sme_c[0,3,:,:]
-                # sme_c_xx= sme_c[1,1,:,:]
-                # sme_c_xy= sme_c[1,2,:,:]
-                # sme_c_xz= sme_c[1,3,:,:]
-                # sme_c_yy= sme_c[2,2,:,:]
-                # sme_c_yz= sme_c[2,3,:,:]
-                # sme_c_zz= sme_c[3,3,:,:]
+            # Make the full isotropic a and c arrays (in the format nuSQuIDS expects)
+            a_nsq = np.zeros( (4, self.num_neutrinos, self.num_neutrinos) )
+            np.copyto(src=a_eV, dst=a_nsq[0,...])
 
+            c_nsq = np.zeros( (4, 4, self.num_neutrinos, self.num_neutrinos) )
+            np.copyto(src=c, dst=c_nsq[0,0,...])
 
-            # a_eV_isotropic= np.zeros((4, self.num_neutrinos, self.num_neutrinos))
-            # c_isotropic = np.zeros((4, 4, self.num_neutrinos, self.num_neutrinos))
-            # a_eV_isotropic[0] = a_eV
-            # c_isotropic[0,0] = c
-            # dec_rad = np.pi/2
-            ra_rad = 0
-            self.nusquids.Set_LIVCoefficient(a_eV_isotropic, c_isotropic, ra_rad, dec_rad)
+            # Pass to nuSQuIDS
+            self.nusquids.Set_LIVCoefficient(
+                a_nsq, 
+                c_nsq, 
+                0., # RA (not used for time-like operators) 
+                0., # dec (not used for time-like operators)
+            )
 
         elif self.solver == "deimos" :
 
@@ -1278,19 +1273,19 @@ class OscCalculator(object) :
         assert basis in ["flavor", "mass"]
 
         # Check operator shape, and set defaults
-        operator_shape = (self.num_neutrinos, self.num_neutrinos) # shape is (N, N), where N is num neutrino states
+        expected_shape = (self.num_neutrinos, self.num_neutrinos) # shape is (N, N), where N is num neutrino states
         if a_t_eV is None: 
-            a_t_eV = np.zeros(operator_shape)
-        assert isinstance(a_t_eV, np.ndarray) and (a_t_eV.shape == operator_shape)
+            a_t_eV = np.zeros(expected_shape)
+        assert isinstance(a_t_eV, np.ndarray) and (a_t_eV.shape == expected_shape)
         if a_x_eV is None: 
-            a_x_eV = np.zeros(operator_shape)
-        assert isinstance(a_x_eV, np.ndarray) and (a_x_eV.shape == operator_shape)
+            a_x_eV = np.zeros(expected_shape)
+        assert isinstance(a_x_eV, np.ndarray) and (a_x_eV.shape == expected_shape)
         if a_y_eV is None: 
-            a_y_eV = np.zeros(operator_shape)
-        assert isinstance(a_y_eV, np.ndarray) and (a_y_eV.shape == operator_shape)
+            a_y_eV = np.zeros(expected_shape)
+        assert isinstance(a_y_eV, np.ndarray) and (a_y_eV.shape == expected_shape)
         if a_z_eV is None: 
-            a_z_eV = np.zeros(operator_shape)
-        assert isinstance(a_z_eV, np.ndarray) and (a_z_eV.shape == operator_shape)
+            a_z_eV = np.zeros(expected_shape)
+        assert isinstance(a_z_eV, np.ndarray) and (a_z_eV.shape == expected_shape)
 
 
 
