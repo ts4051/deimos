@@ -14,7 +14,6 @@ Tom Stuttard
 
 import numpy as np
 from scipy.integrate import solve_ivp
-import warnings
 try :
     from odeintw import odeintw
 except :
@@ -28,7 +27,7 @@ from deimos.utils.coordinates import *
 
 # Import new physics models
 from deimos.models.decoherence.decoherence_operators import get_complete_sun_matrix, get_decoherence_operator_nxn_basis
-from deimos.models.liv.sme import get_sme_hamiltonian_isotropic, get_sme_hamiltonian_directional
+from deimos.models.liv.sme import get_sme_hamiltonian
 
 
 #
@@ -683,11 +682,6 @@ class DensityMatrixOscSolver(object) :
         # SME (LIV) parameters
         #
 
-        sme_a = None
-        sme_c = None
-        ra = None
-        dec = None
-
         include_sme = False
 
         if sme_opts is not None :
@@ -698,68 +692,45 @@ class DensityMatrixOscSolver(object) :
             # Copy the opts to avoid modifying
             sme_opts = copy.deepcopy(sme_opts)
 
-            # Handle isotropic vs directional
-            assert "directional" in sme_opts
-            sme_is_directional = sme_opts.pop("directional")
-
             # Handle basis in which flavor/mass structure is defined
             assert "basis" in sme_opts
             sme_basis = sme_opts.pop("basis")
             assert sme_basis in ["mass", "flavor"]
             sme_basis_is_flavor = sme_basis == "flavor" # Bool fast checking during solving
 
-            # User provides a(3) and c(4) coefficients, plus a possible mass-dependent non-renomalizable term
-            assert "a_eV" in sme_opts
-            sme_a = sme_opts.pop("a_eV")
-            assert "c" in sme_opts
-            sme_c = sme_opts.pop("c") # dimensionless
-            if sme_is_directional :
-                assert "ra_rad" in sme_opts
-                ra_rad = sme_opts.pop("ra_rad")
-                assert "dec_rad" in sme_opts
-                dec_rad = sme_opts.pop("dec_rad")
+            # User provides a^(3) and c^(4) coefficients
+            sme_a_t = sme_opts.pop("a_t_eV", None)
+            sme_a_x = sme_opts.pop("a_x_eV", None)
+            sme_a_y = sme_opts.pop("a_y_eV", None)
+            sme_a_z = sme_opts.pop("a_z_eV", None)
+            sme_c_tt = sme_opts.pop("c_tt", None)
+            sme_c_tx = sme_opts.pop("c_tx", None)
+            sme_c_ty = sme_opts.pop("c_ty", None)
+            sme_c_tz = sme_opts.pop("c_tz", None)
+            sme_c_xx = sme_opts.pop("c_xx", None)
+            sme_c_xy = sme_opts.pop("c_xy", None)
+            sme_c_xz = sme_opts.pop("c_xz", None)
+            sme_c_yy = sme_opts.pop("c_yy", None)
+            sme_c_yz = sme_opts.pop("c_yz", None)
+            sme_c_zz = sme_opts.pop("c_zz", None)
 
-            # Check shapes 
-            # THIS is redundant, already being checked in the wrapper
-            if sme_is_directional :
-                assert isinstance(sme_a, np.ndarray) and (sme_a.shape == (4, self.num_neutrinos, self.num_neutrinos))
-                assert isinstance(sme_c, np.ndarray) and (sme_c.shape == (4, 4, self.num_neutrinos, self.num_neutrinos)) 
-            # THIS is redundant, already being checked in the wrapper
-            else :
-                for operator in [sme_a, sme_c] :
-                    assert operator.shape == (self.num_states, self.num_states) # Flavor/mass basis structure
-            
+            # Get neutrino direction (only required for directional/sidereal LIV)
+            ra_rad = sme_opts.pop("ra_rad", None)
+            dec_rad = sme_opts.pop("dec_rad", None)
+
             # Handle antineutrinos
             if nubar:
-                sme_a = - sme_a
-                # if sme_is_directional :
-                #     sme_e = - sme_e
-                warnings.warn("Solver assumes that the CPT-odd parameters are specified for neutrinos and changes sign.")
-                
-            # Unpack parameters into directional components
-            if sme_is_directional :
-                sme_a_t, sme_a_x, sme_a_y, sme_a_z = sme_a
-                sme_c_tt= sme_c[0,0,:,:]
-                sme_c_tx= sme_c[0,1,:,:]
-                sme_c_ty= sme_c[0,2,:,:]
-                sme_c_tz= sme_c[0,3,:,:]
-                sme_c_xx= sme_c[1,1,:,:]
-                sme_c_xy= sme_c[1,2,:,:]
-                sme_c_xz= sme_c[1,3,:,:]
-                sme_c_yy= sme_c[2,2,:,:]
-                sme_c_yz= sme_c[2,3,:,:]
-                sme_c_zz= sme_c[3,3,:,:]
+                if sme_a_t is not None :
+                    sme_a_t *= -1.
+                if sme_a_x is not None :
+                    sme_a_x *= -1.
+                if sme_a_y is not None :
+                    sme_a_y *= -1.
+                if sme_a_z is not None :
+                    sme_a_z *= -1.
 
-
-            # Get neutrino direction in celestial coords
-            if sme_is_directional :
-                assert np.isscalar(ra_rad)
-                assert np.isscalar(dec_rad)
-                assert (ra_rad >= 0) and (ra_rad <= 2 * np.pi)
-                assert (dec_rad >= -np.pi / 2) and (dec_rad <= np.pi / 2)
-            
             # Check for additional SME arguments
-            assert len(sme_opts) == 0, "Unused SME arguments!?!"
+            assert len(sme_opts) == 0, "Unused SME arguments!?! : %s" % list(sme_opts.keys())
 
 
         #
@@ -910,33 +881,26 @@ class DensityMatrixOscSolver(object) :
 
             # Add/subtract SME term to Hamiltonian     #TODO what about antineutrinos?
             if include_sme : 
-                if sme_is_directional :
-                    H_eff = get_sme_hamiltonian_directional(
-                        ra=ra_rad,
-                        dec=dec_rad,
-                        a_eV_t=sme_a_t,
-                        a_eV_x=sme_a_x,
-                        a_eV_y=sme_a_y,
-                        a_eV_z=sme_a_z,
-                        c_tt=sme_c_tt,
-                        c_tx=sme_c_tx,
-                        c_ty=sme_c_ty,
-                        c_tz=sme_c_tz,
-                        c_xx=sme_c_xx,
-                        c_xy=sme_c_xy,
-                        c_xz=sme_c_xz,
-                        c_yy=sme_c_yy,
-                        c_yz=sme_c_yz,
-                        c_zz=sme_c_zz,
-                        E=E_val,
-                        num_states=self.num_states,
-                    )
-                else :
-                    H_eff = get_sme_hamiltonian_isotropic(
-                        a_eV=sme_a,
-                        c=sme_c,
-                        E=E_val,
-                    )
+                H_eff = get_sme_hamiltonian(
+                    ra=ra_rad,
+                    dec=dec_rad,
+                    a_eV_t=sme_a_t,
+                    a_eV_x=sme_a_x,
+                    a_eV_y=sme_a_y,
+                    a_eV_z=sme_a_z,
+                    c_tt=sme_c_tt,
+                    c_tx=sme_c_tx,
+                    c_ty=sme_c_ty,
+                    c_tz=sme_c_tz,
+                    c_xx=sme_c_xx,
+                    c_xy=sme_c_xy,
+                    c_xz=sme_c_xz,
+                    c_yy=sme_c_yy,
+                    c_yz=sme_c_yz,
+                    c_zz=sme_c_zz,
+                    E=E_val,
+                    num_states=self.num_states,
+                )
                 if sme_basis_is_flavor :
                     H_eff = rho_flav_to_mass_basis(H_eff, PMNS) # Rotate to mass basis
                 H += H_eff

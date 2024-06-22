@@ -43,6 +43,7 @@ from deimos.utils.constants import *
 from deimos.density_matrix_osc_solver.density_matrix_osc_solver import DensityMatrixOscSolver, get_pmns_matrix, get_matter_potential_flav
 from deimos.utils.oscillations import calc_path_length_from_coszen
 from deimos.utils.coordinates import *
+from deimos.utils.constants import *
 
 
 #
@@ -135,10 +136,6 @@ class OscCalculator(object) :
         self.set_calc_basis(DEFAULT_CALC_BASIS)
         # self.set_decoherence_D_matrix_basis(DEFAULT_DECOHERENCE_GAMMA_BASIS)
 
-        # Init some variables related to astrohysical coordinates   #TODO are thes DEIMOS-specific? If so, init in _init_deimos()
-        self.detector_coords = None
-        self._neutrino_source_kw = None
-
         # Caching
         if self.cache_dir is None :
             self.cache_dir = os.path.realpath( os.path.join( os.path.dirname(__file__), "..", "..", ".cache" ) )
@@ -223,7 +220,7 @@ class OscCalculator(object) :
         self.units = nsq.Const()
 
         # Get neutrino type
-        # Alwys do both, not the most efficient but simplifies things
+        # Always do both, not the most efficient but simplifies things
         nu_type = nsq.NeutrinoType.both 
 
         # Toggle between atmo. vs regular modes
@@ -575,14 +572,13 @@ class OscCalculator(object) :
                 self.set_decoherence_D_matrix(D_matrix_eV=np.zeros((self.num_sun_basis_vectors,self.num_sun_basis_vectors)), n=0, E0_eV=1.)
 
             elif self._nusquids_variant == "nuSQUIDSLIV" :
-                null_matrix = np.zeros((3,self.num_neutrinos,self.num_neutrinos))
-                self.set_sme(directional=True, basis="mass", a_eV=null_matrix, c=null_matrix, ra_rad=0., dec_rad=0.)
+                self.set_sme_isotropic(basis="mass")
+                self.set_sme_directional(basis="mass", ra_rad=0., dec_rad=0.)
         
         else :
             self._decoh_model_kw = None
             self._lightcone_model_kw = None
             self._sme_model_kw = None
-            self._neutrino_source_kw = None
 
 
     def set_calc_basis(self, basis) :
@@ -1094,88 +1090,258 @@ class OscCalculator(object) :
     # SME member functions
     #
 
-    def set_sme(self,
-        directional, # bool
+    # def set_sme(self,
+    #     directional, # bool
+    #     basis=None,       # string: "mass" or "flavor"
+    #     a_eV=None,        # 3 x Num_Nu x Num_nu
+    #     c=None,           # 3 x Num_Nu x Num_nu
+    #     ra_rad=None,
+    #     dec_rad=None,
+    # ) :
+    #     '''
+    #     TODO
+    #     '''
+
+    #     #
+    #     # Check inputs
+    #     #
+
+    #     if basis is None :
+    #         basis = "mass"
+    #     assert basis in ["flavor", "mass"]
+
+    #     if directional :   #TODO Maybe not relevant anymore? (Non-directional does currently not work in nuSQuIDS)
+    #         if a_eV is None: 
+    #             a_eV = np.zeros((4, self.num_neutrinos, self.num_neutrinos)) # shape is (num spatial dims, N, N), where N is num neutrino states
+    #         if c is None:
+    #             c = np.zeros((4, 4, self.num_neutrinos, self.num_neutrinos))
+
+    #         assert isinstance(a_eV, np.ndarray) and (a_eV.shape == (4, self.num_neutrinos, self.num_neutrinos))
+    #         assert isinstance(c, np.ndarray) and (c.shape == (4, 4, self.num_neutrinos, self.num_neutrinos)) 
+
+    #         assert (ra_rad is not None) and (dec_rad is not None), "Must provide ra and dec when using directional SME"
+
+    #     else :
+    #         operator_shape = (self.num_neutrinos, self.num_neutrinos) # shape is (N, N), where N is num neutrino states
+
+    #         if a_eV is None: 
+    #             a_eV = np.zeros(operator_shape)
+    #         if c is None:
+    #             c = np.zeros(operator_shape)
+
+    #         assert isinstance(a_eV, np.ndarray) and (a_eV.shape == operator_shape)
+    #         assert isinstance(c, np.ndarray) and (c.shape == operator_shape) 
+
+    #         assert (ra_rad is None) and (dec_rad is None), "ra and dec not relevent for isotropic SME"
+
+
+    #     #
+    #     # Set values
+    #     #
+
+    #     if self.solver == "nusquids" :
+    #         assert basis == "mass", "Only mass basis SME implemented in nuSQuIDS currently"
+    #         if directional :
+    #             self.nusquids.Set_LIVCoefficient(a_eV, c, ra_rad, dec_rad)
+    #         else :
+    #             a_eV_isotropic= np.zeros((4, self.num_neutrinos, self.num_neutrinos))
+    #             c_isotropic = np.zeros((4, 4, self.num_neutrinos, self.num_neutrinos))
+    #             a_eV_isotropic[0] = a_eV
+    #             c_isotropic[0,0] = c
+    #             dec_rad = np.pi/2
+    #             ra_rad = 0
+    #             self.nusquids.Set_LIVCoefficient(a_eV_isotropic, c_isotropic, ra_rad, dec_rad)
+
+    #     elif self.solver == "deimos" :
+    #         if directional :
+    #             self._sme_model_kw = {
+    #                 "directional" : True,
+    #                 "basis" : basis,
+    #                 "a_eV" : a_eV,
+    #                 "c" : c,
+    #                 "ra_rad" : ra_rad,
+    #                 "dec_rad" : dec_rad,
+    #             }
+    #         else :
+    #             self._sme_model_kw = {
+    #                 "directional" : False,
+    #                 "basis" : basis,
+    #                 "a_eV" : a_eV,
+    #                 "c" : c,
+    #             }
+
+    #     else :
+    #         raise NotImplementedError("SME not yet wrapped for %s" % self.solver) #TODO this is already supported by prob3, just need to wrap it
+
+
+
+    def set_sme_isotropic(
+        self,
         basis=None,       # string: "mass" or "flavor"
-        a_eV=None,        # 3 x Num_Nu x Num_nu
-        c=None,           # 3 x Num_Nu x Num_nu
-        ra_rad=None,
-        dec_rad=None,
+        a_eV=None,        # This is a^x (NxN matrix, where N is num neutrino states)
+        c=None,           # This is c^{xx} (NxN matrix, where N is num neutrino states)
     ) :
         '''
-        TODO
+        Set the isotropic (time-like) parameters of the SME
         '''
 
         #
         # Check inputs
         #
 
+        # Check basis thre a/c matrices are defined in, and set defaukt
         if basis is None :
             basis = "mass"
         assert basis in ["flavor", "mass"]
 
-        if directional :   #TODO Maybe not relevant anymore? (Non-directional does currently not work in nuSQuIDS)
-            if a_eV is None: 
-                a_eV = np.zeros((4, self.num_neutrinos, self.num_neutrinos)) # shape is (num spatial dims, N, N), where N is num neutrino states
-            if c is None:
-                c = np.zeros((4, 4, self.num_neutrinos, self.num_neutrinos))
+        # Check operator shape, and set defaults
+        operator_shape = (self.num_neutrinos, self.num_neutrinos) # shape is (N, N), where N is num neutrino states
+        if a_eV is None: 
+            a_eV = np.zeros(operator_shape)
+        if c is None:
+            c = np.zeros(operator_shape)
+        assert isinstance(a_eV, np.ndarray) and (a_eV.shape == operator_shape)
+        assert isinstance(c, np.ndarray) and (c.shape == operator_shape) 
 
-            assert isinstance(a_eV, np.ndarray) and (a_eV.shape == (4, self.num_neutrinos, self.num_neutrinos))
-            assert isinstance(c, np.ndarray) and (c.shape == (4, 4, self.num_neutrinos, self.num_neutrinos)) 
-
-            assert (ra_rad is not None) and (dec_rad is not None), "Must provide ra and dec when using directional SME"
-
-        else :
-            operator_shape = (self.num_neutrinos, self.num_neutrinos) # shape is (N, N), where N is num neutrino states
-
-            if a_eV is None: 
-                a_eV = np.zeros(operator_shape)
-            if c is None:
-                c = np.zeros(operator_shape)
-
-            assert isinstance(a_eV, np.ndarray) and (a_eV.shape == operator_shape)
-            assert isinstance(c, np.ndarray) and (c.shape == operator_shape) 
-
-            assert (ra_rad is None) and (dec_rad is None), "ra and dec not relevent for isotropic SME"
 
 
         #
-        # Set values
+        # Write to solver
         #
 
         if self.solver == "nusquids" :
+
             assert basis == "mass", "Only mass basis SME implemented in nuSQuIDS currently"
-            if directional :
-                self.nusquids.Set_LIVCoefficient(a_eV, c, ra_rad, dec_rad)
-            else :
-                a_eV_isotropic= np.zeros((4, self.num_neutrinos, self.num_neutrinos))
-                c_isotropic = np.zeros((4, 4, self.num_neutrinos, self.num_neutrinos))
-                a_eV_isotropic[0] = a_eV
-                c_isotropic[0,0] = c
-                dec_rad = np.pi/2
-                ra_rad = 0
-                self.nusquids.Set_LIVCoefficient(a_eV_isotropic, c_isotropic, ra_rad, dec_rad)
+
+            # # The a/c matrices are the t/0 components of the full 4-vector SME
+            # a_eV_full = 
+
+                # sme_a_t, sme_a_x, sme_a_y, sme_a_z = sme_a
+                # sme_c_tt= sme_c[0,0,:,:]
+                # sme_c_tx= sme_c[0,1,:,:]
+                # sme_c_ty= sme_c[0,2,:,:]
+                # sme_c_tz= sme_c[0,3,:,:]
+                # sme_c_xx= sme_c[1,1,:,:]
+                # sme_c_xy= sme_c[1,2,:,:]
+                # sme_c_xz= sme_c[1,3,:,:]
+                # sme_c_yy= sme_c[2,2,:,:]
+                # sme_c_yz= sme_c[2,3,:,:]
+                # sme_c_zz= sme_c[3,3,:,:]
+
+
+            # a_eV_isotropic= np.zeros((4, self.num_neutrinos, self.num_neutrinos))
+            # c_isotropic = np.zeros((4, 4, self.num_neutrinos, self.num_neutrinos))
+            # a_eV_isotropic[0] = a_eV
+            # c_isotropic[0,0] = c
+            # dec_rad = np.pi/2
+            ra_rad = 0
+            self.nusquids.Set_LIVCoefficient(a_eV_isotropic, c_isotropic, ra_rad, dec_rad)
 
         elif self.solver == "deimos" :
-            if directional :
-                self._sme_model_kw = {
-                    "directional" : True,
-                    "basis" : basis,
-                    "a_eV" : a_eV,
-                    "c" : c,
-                    "ra_rad" : ra_rad,
-                    "dec_rad" : dec_rad,
-                }
-            else :
-                self._sme_model_kw = {
-                    "directional" : False,
-                    "basis" : basis,
-                    "a_eV" : a_eV,
-                    "c" : c,
-                }
+
+            # Stash params for run-time
+            self._sme_model_kw = {
+                "basis" : basis,
+                "a_t_eV" : a_eV, # time-like
+                "c_tt" : c, # fully time-like
+                "ra_rad" : 0., # Not used
+                "dec_rad" : 0., # Not used
+            }
 
         else :
             raise NotImplementedError("SME not yet wrapped for %s" % self.solver) #TODO this is already supported by prob3, just need to wrap it
+
+
+
+    def set_sme_directional(
+        self,
+        ra_rad, # Right Ascension of neutrino (equatorial coordinates) [rad]
+        dec_rad, # Declination of neutrino (equatorial coordinates) [rad]
+        basis=None, # string: "mass" or "flavor"
+        a_t_eV=None, # NxN matrix (state/flavor space)
+        a_x_eV=None, # NxN matrix (state/flavor space)
+        a_y_eV=None, # NxN matrix (state/flavor space)
+        a_z_eV=None, # NxN matrix (state/flavor space)
+    ) :
+        '''
+        Set the directional (x,y,z-like) parameters of the SME
+        This produces sidereal effects in terrestrial detectors
+        '''
+
+        #
+        # Check inputs
+        #
+
+        # Check basis thre a/c matrices are defined in, and set defaukt
+        if basis is None :
+            basis = "mass"
+        assert basis in ["flavor", "mass"]
+
+        # Check operator shape, and set defaults
+        operator_shape = (self.num_neutrinos, self.num_neutrinos) # shape is (N, N), where N is num neutrino states
+        if a_t_eV is None: 
+            a_t_eV = np.zeros(operator_shape)
+        assert isinstance(a_t_eV, np.ndarray) and (a_t_eV.shape == operator_shape)
+        if a_x_eV is None: 
+            a_x_eV = np.zeros(operator_shape)
+        assert isinstance(a_x_eV, np.ndarray) and (a_x_eV.shape == operator_shape)
+        if a_y_eV is None: 
+            a_y_eV = np.zeros(operator_shape)
+        assert isinstance(a_y_eV, np.ndarray) and (a_y_eV.shape == operator_shape)
+        if a_z_eV is None: 
+            a_z_eV = np.zeros(operator_shape)
+        assert isinstance(a_z_eV, np.ndarray) and (a_z_eV.shape == operator_shape)
+
+
+
+        #
+        # Write to solver
+        #
+
+        if self.solver == "nusquids" :
+
+            assert basis == "mass", "Only mass basis SME implemented in nuSQuIDS currently"
+
+            # # The a/c matrices are the t/0 components of the full 4-vector SME
+            # a_eV_full = 
+
+                # sme_a_t, sme_a_x, sme_a_y, sme_a_z = sme_a
+                # sme_c_tt= sme_c[0,0,:,:]
+                # sme_c_tx= sme_c[0,1,:,:]
+                # sme_c_ty= sme_c[0,2,:,:]
+                # sme_c_tz= sme_c[0,3,:,:]
+                # sme_c_xx= sme_c[1,1,:,:]
+                # sme_c_xy= sme_c[1,2,:,:]
+                # sme_c_xz= sme_c[1,3,:,:]
+                # sme_c_yy= sme_c[2,2,:,:]
+                # sme_c_yz= sme_c[2,3,:,:]
+                # sme_c_zz= sme_c[3,3,:,:]
+
+
+            # a_eV_isotropic= np.zeros((4, self.num_neutrinos, self.num_neutrinos))
+            # c_isotropic = np.zeros((4, 4, self.num_neutrinos, self.num_neutrinos))
+            # a_eV_isotropic[0] = a_eV
+            # c_isotropic[0,0] = c
+            # dec_rad = np.pi/2
+            ra_rad = 0
+            self.nusquids.Set_LIVCoefficient(a_eV_isotropic, c_isotropic, ra_rad, dec_rad)
+
+        elif self.solver == "deimos" :
+
+            # Stash params for run-time
+            self._sme_model_kw = {
+                "basis" : basis,
+                "a_t_eV" : a_t_eV,
+                "a_x_eV" : a_x_eV,
+                "a_y_eV" : a_y_eV,
+                "a_z_eV" : a_z_eV,
+                 "ra_rad" : ra_rad,
+                "dec_rad" : dec_rad,
+            }
+
+        else :
+            raise NotImplementedError("SME not yet wrapped for %s" % self.solver) #TODO this is already supported by prob3, just need to wrap it
+
 
 
 
@@ -1196,9 +1362,26 @@ class OscCalculator(object) :
         self.detector_coords = DetectorCoords(
             detector_lat=lat_deg, 
             detector_long=long_deg, 
-            detector_height_m=height_m,  #TODO consistency with detector depth in the L<->coszen calculation
+            detector_height_m=height_m,
         )
         
+
+    def set_beam_location(
+        self,
+        lat_deg,
+        long_deg, 
+        height_m,
+    ) :
+        '''
+        Define beam position
+        '''
+
+        self.beam_coords = DetectorCoords(
+            detector_lat=lat_deg, 
+            detector_long=long_deg, 
+            detector_height_m=height_m,
+        )
+
 
     def set_detector(
         self,
@@ -1225,6 +1408,13 @@ class OscCalculator(object) :
                 long_deg=-103.7513,
                 height_m=-1.5e3,
             )
+            self.set_beam_location( # Fermilab
+                lat_deg=41.83681042535779,
+                long_deg=-88.2646262914844,
+                height_m=0.,
+            )
+            baseline_km = self.detector_coords.get_beam_detector_distance(self.beam_coords)*1e-3
+            assert np.isclose(baseline_km, DUNE_BASELINE_km, atol=0, rtol=5e-2) # Check baseline matches expectation (roughly, within 5%)
 
         elif name.lower() == "arca" :
             self.set_detector_location(
@@ -1232,6 +1422,32 @@ class OscCalculator(object) :
                 long_deg="16.1 degree",
                 height_m=-1500.,
             )
+
+        elif name.lower() == "lsnd" : # Los Alamos National Lab
+            self.set_detector_location(
+                lat_deg="35.875663164 degree",
+                long_deg="-106.292332164 degree",
+                height_m=0.,
+            )
+            # self.set_beam_location( #TODO
+            #     lat_deg=XXX,
+            #     long_deg=XXX,
+            #     height_m=XXX,
+            # )
+
+        elif name.lower() == "nova" :
+            self.set_detector_location( # Far detector (Ash River MN)
+                lat_deg="48.379161828177615 degree",
+                long_deg="-92.83134042556055 degree",
+                height_m=0.,
+            )
+            self.set_beam_location( # Fermilab
+                lat_deg=41.83681042535779,
+                long_deg=-88.2646262914844,
+                height_m=0.,
+            )
+            baseline_km = self.detector_coords.get_beam_detector_distance(self.beam_coords)*1e-3
+            assert np.isclose(baseline_km, NOvA_BASELINE_km, atol=0, rtol=5e-2) # Check baseline matches expectation (roughly, within 5%)
 
 
         #
@@ -1289,49 +1505,19 @@ class OscCalculator(object) :
         #
         # Check inputs
         # 
- 
-         # Handle arrays vs single values for energy
-        if isinstance(energy_GeV, (list, np.ndarray)) :
-            single_energy, energy_size = False, len(energy_GeV)
-        else :
-            assert isinstance(energy_GeV, numbers.Number)
-            single_energy, energy_size = True, 1
 
         # Indexing
         if initial_flavor is not None :
             initial_flavor = self._get_flavor_index(initial_flavor)
 
-        #
-        # Handle atmospheric mode
-        #
-        
-        if self.atmospheric :
+        # Must specify coszen or distance
+        found_L, found_cz = (distance_km is not None), (coszen is not None)
+        assert not (found_L and found_cz), "Must specify distance_km or coszen"
+        assert not ( (not found_L) and (not found_cz) ), "Must specify distance_km or coszen"
 
-            # Want coszen, not distance
-            assert ( (coszen is not None) and (distance_km is None) ), "Must provide `coszen` (and not `distance_km`) in atmospheric mode"  #TODO option to provide distance still in atmo mode
-
-            # Handle single vs array of distances
-            if isinstance(coszen, (list, np.ndarray)) :
-                coszen = np.array(coszen)
-                assert coszen.ndim == 1
-                single_dist, dist_size = False, len(coszen)
-            else :
-                assert isinstance(coszen, numbers.Number)
-                coszen = [coszen]
-                single_dist, dist_size = True, 1
-
-        else :
-
-            # Want distance, not coszen
-            assert ( (distance_km is not None) and (coszen is None) ), "Must provide `distance_km` (and not `coszen`) in non-atmospheric mode" 
-
-            # Handle single vs array of distances
-            if isinstance(distance_km, (list, np.ndarray)) :
-                single_dist, dist_size = False, len(distance_km)
-            else :
-                assert isinstance(distance_km, numbers.Number)
-                single_dist, dist_size = True, 1
-
+        # Coszen not valid unless in atmospheric mode
+        if not self.atmospheric :
+            assert coszen is None, "Must provide `distance_km` (and not `coszen`) in non-atmospheric mode" 
 
 
         #
@@ -1354,6 +1540,23 @@ class OscCalculator(object) :
         #
         # Done
         #
+
+        # Handle arrays vs single values for energy
+        if isinstance(energy_GeV, (list, np.ndarray)) :
+            single_energy, energy_size = False, len(energy_GeV)
+        else :
+            assert isinstance(energy_GeV, numbers.Number)
+            single_energy, energy_size = True, 1
+
+
+        # Handle single vs array of distances
+        x = distance_km if found_L else coszen
+        if isinstance(x, (list, np.ndarray)) :
+            single_dist, dist_size = False, len(x)
+        else :
+            assert isinstance(x, numbers.Number)
+            single_dist, dist_size = True, 1
+
 
         # Check shape of output array
         expected_shape = ( energy_size, dist_size, self.num_neutrinos )
@@ -1378,12 +1581,14 @@ class OscCalculator(object) :
 
         # Checks
         assert np.all( np.isfinite(osc_probs) ), "Found non-finite osc probs"
+        assert np.all( osc_probs >= 0. ), "Found osc probs below 0"
+        assert np.all( osc_probs <= 1. ), "Found osc probs above 1"
 
         return osc_probs
 
 
 
-    def calc_osc_prob_sme(self,
+    def calc_osc_prob_sme_directional_atmospheric(self,
         # Neutrino properties
         energy_GeV,
         ra_rad,
@@ -1393,16 +1598,15 @@ class OscCalculator(object) :
         nubar=False,
         # SME properties
         std_osc=False, # Can toggle standard oscillations (rather than SME)
-        basis=None,
-        a_eV=None,
-        c=None,
+        sme_params=None, # Args to pass to 'set_sme_directional'
         # Args to pass down to the standard osc prob calc
         **kw
     ) :
         '''
-        Similar to calc_osc_prob, but for the specific case of the SME where there is also a RA/declination/time dependence 
+        Similar to calc_osc_prob, but for the specific case of the directional SME in the case of 
+        atmopsheric neutrinos, where there is also a RA/declination/time dependence 
 
-        Aswell as osc probs, also return the computed direction information
+        As well as osc probs, also return the computed direction information for each RA/dec/t value
         '''
 
         #TODO option to provide detector coord info (coszen, azimuth) instead of ra/dec
@@ -1412,6 +1616,11 @@ class OscCalculator(object) :
         #
         # Check inputs
         #
+
+        assert self.atmospheric, "'calc_osc_prob_sme_directional_atmospheric' is only valid is 'atmospheric' mode"
+
+        # Must have detector location
+        assert self.detector_coords is not None
 
         # Handle arrays vs single values for RA/dec     #TODO option to pass one of RA/dec as single valued and one as array
         if isinstance(ra_rad, (list, np.ndarray)) :
@@ -1438,11 +1647,10 @@ class OscCalculator(object) :
             time_values = [time]
             single_time = True
 
-        # Handle SME vs standard osc
-        if std_osc :
-            assert basis is None
-            assert a_eV is None
-            assert c is None
+        # Defaults
+        if sme_params is None :
+            sme_params = {}
+
 
         #
         # Loop over directions
@@ -1469,13 +1677,10 @@ class OscCalculator(object) :
                 self.set_std_osc()
 
             else :
-                self.set_sme(
-                    directional=True,
-                    basis=basis,
-                    a_eV=a_eV,
-                    c=c,
+                self.set_sme_directional(
                     ra_rad=ra_rad,
                     dec_rad=dec_rad,
+                    **sme_params
                 )
 
             # 
@@ -1485,40 +1690,22 @@ class OscCalculator(object) :
             for time in time_values :
 
 
+
                 #
-                # Handle atmospheric vs regular case
+                # Calc osc probs
                 #
 
-                if self.atmospheric :
+                # Get local direction coords
+                coszen, altitude, azimuth = self.detector_coords.get_coszen_altitude_and_azimuth(ra_deg=np.rad2deg(ra_rad), dec_deg=np.rad2deg(dec_rad), time=time)
 
-                    #
-                    # Atmospheric case
-                    #
-
-                    # Need to know the detector location to get coszen/azimuth from RA/dec
-                    assert self.detector_coords is not None, "Must set detector position"
-
-                    # Get local direction coords
-                    coszen, altitude, azimuth = self.detector_coords.get_coszen_altitude_and_azimuth(ra_deg=np.rad2deg(ra_rad), dec_deg=np.rad2deg(dec_rad), time=time)
-
-                    # Standard osc prob calc, so this particular direction/time
-                    _osc_probs = self.calc_osc_prob(
-                        initial_flavor=initial_flavor,
-                        nubar=nubar,
-                        energy_GeV=energy_GeV,
-                        coszen=coszen,
-                        **kw # Pass down kwargs
-                    )
-
-
-                else :
-
-                    #
-                    # Regular (1D) case
-                    #
-
-                    raise NotImplementedError("Non-atmospheric case not yet implemented for celestial coords")
-
+                # Standard osc prob calc, so this particular direction/time
+                _osc_probs = self.calc_osc_prob(
+                    initial_flavor=initial_flavor,
+                    nubar=nubar,
+                    energy_GeV=energy_GeV,
+                    coszen=coszen,
+                    **kw # Pass down kwargs
+                )
 
                 # Merge into the overall output array
                 if single_time :
@@ -1556,10 +1743,133 @@ class OscCalculator(object) :
         assert np.all( np.isfinite(osc_probs) ), "Found non-finite osc probs"
 
         # Return
-        return_values = [osc_probs]
-        if self.atmospheric :
-            return_values.extend([ coszen_values, azimuth_values ])
-        return tuple(return_values)
+        return osc_probs, coszen_values, azimuth_values
+
+
+    def calc_osc_prob_sme_directional_beam(self,
+        # Neutrino properties
+        energy_GeV,
+        distance_km,
+        time,
+        initial_flavor,
+        nubar=False,
+        # SME properties
+        std_osc=False, # Can toggle standard oscillations (rather than SME)
+        sme_params=None, # Args to pass to 'set_sme_directional'
+        # Args to pass down to the standard osc prob calc
+        **kw
+    ) :
+        '''
+        Similar to calc_osc_prob, but for the specific case of the directional SME in a beam-like 
+        scenario (LBL, SNL, reactor) where there is a time-dependence
+
+        Note that RA/dec are not specified by the user, since they are derived from the geometry 
+        and time values.
+
+        Aswell as osc probs, also return the computed RA/dec information
+        '''
+
+        #TODO option to provide detector coord info (coszen, azimuth) instead of ra/dec
+        #TODO support skymaps?
+
+
+        #
+        # Check inputs
+        #
+
+        assert not self.atmospheric, "'calc_osc_prob_sme_directional_beam' is not supported in 'atmospheric' mode"
+
+        # Must have detector and beam locations
+        assert self.detector_coords is not None
+        assert self.beam_coords is not None
+
+        # Check propagation distance does not exceed beam-detector distance (with some margin)
+        baseline_km = self.detector_coords.get_beam_detector_distance(self.beam_coords)*1e-3
+        assert np.nanmax(distance_km) <= (baseline_km*1.05), "Neutrino propagation distance exceeds beam-detector baseline"
+
+        # Handle arrays vs single values for time
+        if isinstance(time, (list, np.ndarray)) :
+            time_values = time
+            assert np.ndim(time_values) == 1
+            single_time = False
+        else :
+            time_values = [time]
+            single_time = True
+
+        # Defaults
+        if sme_params is None :
+            sme_params = {}
+
+
+
+        # 
+        # Loop over times
+        #
+
+        osc_probs = []
+        ra_values_rad, dec_value_rad = [], []
+        
+        for time in time_values :
+
+            #
+            # Set SME model params 
+            #
+
+            # Get RA/dec for this beam at this time
+            ra_rad, dec_rad = self.detector_coords.get_right_ascension_and_declination_for_beam(beam_coords=self.beam_coords, time=time)
+
+            # Set params
+            if std_osc :
+                self.set_std_osc()
+            else :
+                self.set_sme_directional(
+                    ra_rad=ra_rad,
+                    dec_rad=dec_rad,
+                    **sme_params
+                )
+
+
+            #
+            # Calc osc probs
+            #
+
+            # Standard osc prob calc
+            _osc_probs = self.calc_osc_prob(
+                initial_flavor=initial_flavor,
+                nubar=nubar,
+                energy_GeV=energy_GeV,
+                distance_km=distance_km,
+                **kw # Pass down kwargs
+            )
+
+            # Merge into the overall output array
+            if single_time :
+                osc_probs = _osc_probs
+                ra_values_rad = ra_rad
+                dec_value_rad = dec_rad
+            else :
+                osc_probs.append( _osc_probs )
+                ra_values_rad.append( ra_rad )
+                dec_value_rad.append( dec_rad )
+
+
+        #
+        # Done
+        #
+
+        # Array-ify
+        osc_probs = np.array(osc_probs)
+        ra_values_rad = np.array(ra_values_rad)
+        dec_value_rad = np.array(dec_value_rad)
+
+        # Check size
+        #TODO
+
+        # Checks
+        assert np.all( np.isfinite(osc_probs) ), "Found non-finite osc probs"
+
+        # Return
+        return osc_probs, ra_values_rad, dec_value_rad
 
 
 
@@ -1934,7 +2244,8 @@ class OscCalculator(object) :
         #
 
         # coszen -> L conversion (for atmospheric case)
-        if self.atmospheric :
+        if coszen is not None :
+            assert distance_km is None
             production_height_km = DEFAULT_ATMO_PROD_HEIGHT_km #TODO steerable, randomizable
             detector_depth_km = DEFAULT_ATMO_DETECTOR_DEPTH_km if self.detector_coords is None else self.detector_coords.detector_depth_m*1e-3 # Use detector position, if available    #TODO should we really be defining this as height?
             distance_km = calc_path_length_from_coszen(cz=coszen, h=production_height_km, d=detector_depth_km)
@@ -2184,7 +2495,7 @@ class OscCalculator(object) :
         return fig, ax, osc_probs
 
 
-    def plot_osc_prob_vs_cozen(self, coszen, *args, **kwargs) : # Alias
+    def plot_osc_prob_vs_coszen(self, coszen, *args, **kwargs) : # Alias
         return self.plot_osc_prob_vs_distance(coszen=coszen, *args, **kwargs)
 
 
@@ -2302,18 +2613,22 @@ class OscCalculator(object) :
         initial_flavor,
         final_flavor,
         energy_GeV,
-        coszen,
+        coszen=None,
+        distance_km=None,
         nubar=False,
         title=None,
         ax=None,
+        vmin=0.,
         vmax=1.,
+        cmap="jet",
     ) :
         '''
         Helper function for plotting an atmospheric neutrino oscillogram (e.g. 2D plot of P vs [E, coszen])
         '''
         from deimos.utils.plotting import plot_colormap, value_spacing_is_linear
 
-        assert self.atmospheric, "`plot_oscillogram` can only be called in atmospheric mode"
+        # assert self.atmospheric, "`plot_oscillogram` can only be called in atmospheric mode"
+
 
         #
         # Steering
@@ -2321,27 +2636,33 @@ class OscCalculator(object) :
 
         # Plot steering
         transition_prob_tex = self.get_transition_prob_tex(initial_flavor, final_flavor, nubar)
-        continuous_map = "jet" # plasma jet
-        # diverging_cmap = "seismic" # PuOr_r RdYlGn Spectral
+
+        # Distance vs coszen
+        if coszen is not None :
+            dist_kw = {"coszen" : coszen}
+            y = coszen
+            ylabel = COSZEN_LABEL
+        else :
+            dist_kw = {"distance_km" : distance_km}
+            y = distance_km
+            ylabel = DISTANCE_LABEL
 
 
         #
         # Compute osc probs
         #
 
-        # Define osc prob calc settings
-        calc_osc_prob_kw = dict(
-            initial_flavor=initial_flavor,
+        # Calc osc probs 
+        osc_probs = self.calc_osc_prob(
+        initial_flavor=initial_flavor,
             nubar=nubar,
             energy_GeV=energy_GeV,
-            coszen=coszen, 
+            **dist_kw
         )
 
-        # Calc osc probs 
-        osc_probs = self.calc_osc_prob( **calc_osc_prob_kw )
-
-        # Get chose flavor/rho
+        # Get chosen flavor
         osc_probs = osc_probs[:, :, final_flavor]
+
 
         #
         # Plot
@@ -2357,17 +2678,17 @@ class OscCalculator(object) :
             ax.set_title(title) 
 
         # Plot oscillogram
-        plot_colormap( ax=ax, x=energy_GeV, y=coszen, z=osc_probs, vmin=0., vmax=vmax, cmap=continuous_map, zlabel=r"$%s$"%transition_prob_tex )
+        plot_colormap( ax=ax, x=energy_GeV, y=y, z=osc_probs, vmin=vmin, vmax=vmax, cmap=cmap, zlabel=r"$%s$"%transition_prob_tex )
 
         # Format
         xscale = "linear" if value_spacing_is_linear(energy_GeV) else "log"
-        yscale = "linear" if value_spacing_is_linear(coszen) else "log"
+        yscale = "linear" if value_spacing_is_linear(y) else "log"
         ax.set_xscale(xscale)
         ax.set_yscale(yscale)
         ax.set_xlim(energy_GeV[0], energy_GeV[-1])
-        ax.set_ylim(coszen[0], coszen[-1])
+        ax.set_ylim(y[0], y[-1])
         ax.set_xlabel(ENERGY_LABEL)
-        ax.set_ylabel(COSZEN_LABEL)
+        ax.set_ylabel(ylabel)
         if fig is not None :
             fig.tight_layout()
 

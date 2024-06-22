@@ -8,41 +8,41 @@ import numpy as np
 from deimos.utils.matrix_algebra import dagger
 
 
-def get_sme_hamiltonian_isotropic(
-    # Neutrino properties
-    E,
-    # LIV field properties
-    a_eV,
-    c,
-) :
-    '''
-    Calculate the effective Hamiltonian for the isotropic model of the Standard Model Extension (SME).
-    '''
+# def get_sme_hamiltonian_isotropic(
+#     # Neutrino properties
+#     E,
+#     # LIV field properties
+#     a_eV,
+#     c,
+# ) :
+#     '''
+#     Calculate the effective Hamiltonian for the isotropic model of the Standard Model Extension (SME).
+#     '''
 
-    H_eff = a_eV - (E * c)   #TODO higher order
+#     H_eff = a_eV - (E * c)   #TODO higher order
 
-    return H_eff
+#     return H_eff
 
-def get_sme_hamiltonian_directional(
+def get_sme_hamiltonian(
     # Neutrino properties
     ra,
     dec,
     E,
     # LIV field properties
-    a_eV_t=0,
-    a_eV_x=0,
-    a_eV_y=0,
-    a_eV_z=0,
-    c_tt=0,
-    c_tx=0,
-    c_ty=0,
-    c_tz=0,
-    c_xx=0,
-    c_xy=0,
-    c_xz=0,
-    c_yy=0,
-    c_yz=0,
-    c_zz=0,
+    a_eV_t=None,
+    a_eV_x=None,
+    a_eV_y=None,
+    a_eV_z=None,
+    c_tt=None,
+    c_tx=None,
+    c_ty=None,
+    c_tz=None,
+    c_xx=None,
+    c_xy=None,
+    c_xz=None,
+    c_yy=None,
+    c_yz=None,
+    c_zz=None,
     # System properties
     num_states=3, # 3-nu system by default
 ):
@@ -68,27 +68,55 @@ def get_sme_hamiltonian_directional(
         - arXiv:hep-ph/0406255
     """
 
-    # Check inputs
+    # Check neutrino direction
+    assert np.isscalar(ra)
+    assert np.isscalar(dec)
+    assert (ra >= 0) and (ra <= 2 * np.pi)
+    assert (dec >= -np.pi / 2) and (dec <= np.pi / 2)
+
+    # Check operators
     operator_shape = (num_states, num_states)
+    if a_eV_t is None :
+        a_eV_t = np.zeros(operator_shape)
     assert np.shape(a_eV_t) == operator_shape
+    if a_eV_x is None :
+        a_eV_x = np.zeros(operator_shape)
     assert np.shape(a_eV_x) == operator_shape
+    if a_eV_y is None :
+        a_eV_y = np.zeros(operator_shape)
     assert np.shape(a_eV_y) == operator_shape
+    if a_eV_z is None :
+        a_eV_z = np.zeros(operator_shape)
     assert np.shape(a_eV_z) == operator_shape
+    if c_tt is None :
+        c_tt = np.zeros(operator_shape)
     assert np.shape(c_tt) == operator_shape
+    if c_tx is None :
+        c_tx = np.zeros(operator_shape)
     assert np.shape(c_tx) == operator_shape
+    if c_ty is None :
+        c_ty = np.zeros(operator_shape)
     assert np.shape(c_ty) == operator_shape
+    if c_tz is None :
+        c_tz = np.zeros(operator_shape)
     assert np.shape(c_tz) == operator_shape
-    assert np.shape(c_xt) == operator_shape
+    if c_xx is None :
+        c_xx = np.zeros(operator_shape)
     assert np.shape(c_xx) == operator_shape
+    if c_xy is None :
+        c_xy = np.zeros(operator_shape)
     assert np.shape(c_xy) == operator_shape
+    if c_xz is None :
+        c_xz = np.zeros(operator_shape)
     assert np.shape(c_xz) == operator_shape
-    assert np.shape(c_yt) == operator_shape
-    assert np.shape(c_yx) == operator_shape
+    if c_yy is None :
+        c_yy = np.zeros(operator_shape)
     assert np.shape(c_yy) == operator_shape
+    if c_yz is None :
+        c_yz = np.zeros(operator_shape)
     assert np.shape(c_yz) == operator_shape
-    assert np.shape(c_zt) == operator_shape
-    assert np.shape(c_zx) == operator_shape
-    assert np.shape(c_zy) == operator_shape
+    if c_zz is None :
+        c_zz = np.zeros(operator_shape)
     assert np.shape(c_zz) == operator_shape
 
     # Convert celestial coordinates to spherical coordinates
@@ -109,3 +137,24 @@ def get_sme_hamiltonian_directional(
     )
 
     return H_eff
+
+
+
+def get_sme_state_matrix(
+    p11=0., # or e_e
+    p12=0., # or e_mu
+    p13=0., # or e_tau
+    p22=0., # or mu_mu
+    p23=0., # or mu_tau
+    p33=0., # or tau_tau
+) :
+    '''
+    Return the SME flavor/mass state matrix structure
+    '''
+
+    return np.array([
+        [ p11,            p12,           p13 ], 
+        [ np.conj(p12),   p22,           p23 ], 
+        [ np.conj(p13),   np.conj(p23),  p33 ], 
+    ])
+

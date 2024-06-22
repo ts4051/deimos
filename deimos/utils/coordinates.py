@@ -45,8 +45,8 @@ class DetectorCoords(object):
         #TODO extract Earth radius from EarthLocation for use in OscWrapper
 
         # Init state variables
-        self.observer_frame = None
-        self.datetime_obj = None
+        # self.observer_frame = None
+        # self.datetime_obj = None
 
 
     @property
@@ -177,11 +177,18 @@ class DetectorCoords(object):
         icrs_frame_observed = ICRS()
         nu_dir_icrs = nu_dir_alt_az.transform_to(icrs_frame_observed)
     
-        # Get right ascension and declination in degrees
-        right_ascension = nu_dir_icrs.ra.degree
-        declination = nu_dir_icrs.dec.degree
-    
+        # Get right ascension and declination
+        right_ascension = nu_dir_icrs.ra
+        declination = nu_dir_icrs.dec
+        if deg :
+            right_ascension = right_ascension.degree
+            declination = declination.degree
+        else :
+            right_ascension = right_ascension.rad
+            declination = declination.rad
+
         return right_ascension, declination
+
 
 
     def calc_path_length_from_coszen(self, coszen, production_height_km=DEFAULT_ATMO_PROD_HEIGHT_km) :
@@ -191,6 +198,57 @@ class DetectorCoords(object):
         detector_depth_km = self.detector_depth_m.value * 1e3 #TODO use proper unit handling methods
         L_km = calc_path_length_from_coszen(cz=coszen, h=production_height_km, d=detector_depth_km)
         return L_km
+
+
+    def get_right_ascension_and_declination_for_beam(self, beam_coords, time):
+        """
+        Get the RA/dec of a particle beam betwen a specified beam location to this detector location, at the specified time
+        """
+
+        # Check beam origin coordinates (re-using DetectorCoords class for this)
+        assert isinstance(beam_coords, DetectorCoords)
+
+        # Get vector between beam and detector
+        dx, dy, dz = self.detector_location.to_geocentric()  #TODO How is this coord system determined? Is azimuth correct below?
+        bx, by, bz = beam_coords.detector_location.to_geocentric()
+        ux, uy, uz = dx-bx, dy-by, dz-bz
+
+        # Convert to zenith/azimuth
+        azimuth_rad = 0. if ux.value == 0 else np.arctan(uy / ux).to(u.rad).value
+        zenith_rad = np.arctan( np.sqrt( np.square(ux) + np.square(uy) ) / uz ).to(u.rad).value
+        coszen = np.cos(zenith_rad)
+
+        # Now covert to RA/dec
+        ra, dec = self.get_right_ascension_and_declination(coszen=coszen, azimuth=azimuth_rad, time=time, deg=False)
+
+        # print("\n\n")
+        # print("Beam : %s" % beam_coords.detector_location)
+        # print("Detector : %s" % self.detector_location)
+        # print("Beam direction from detector : x, y, z = %s, %s, %s" % (ux, uy, uz))
+        # print("Beam direction from detector : coszen, azimuth = %s, %s" % (coszen,  azimuth_rad))
+        # print("Beam RA,dec = %s, %s" % (ra, dec))
+        # print("\n")
+
+        return ra, dec
+
+
+    def get_beam_detector_distance(self, beam_coords):
+        """
+        Get the straight line (not following Earth's surface) between beam and detector (e.g. baseline)
+        """
+
+        # Check beam origin coordinates (re-using DetectorCoords class for this)
+        assert isinstance(beam_coords, DetectorCoords)
+
+        # Get vector between beam and detector
+        dx, dy, dz = self.detector_location.to_geocentric()  #TODO How is this coord system determined? Is azimuth correct below?
+        bx, by, bz = beam_coords.detector_location.to_geocentric()
+        ux, uy, uz = dx-bx, dy-by, dz-bz
+
+        # Get magnitude
+        dist = np.sqrt( np.square(ux) + np.square(uy) + np.square(uz) )
+
+        return dist/u.m
 
 
 def get_neutrino_direction_vector(ra_deg, dec_deg, deg=True) :
@@ -204,6 +262,7 @@ def get_neutrino_direction_vector(ra_deg, dec_deg, deg=True) :
     else:
         c = SkyCoord(ra=ra_deg*u.rad, dec=dec_deg*u.rad)
     ux, uy, uz = -c.cartesian.x, -c.cartesian.y, -c.cartesian.z    
+
     # Test it
     assert np.isclose( np.sqrt( ux**2. + uy**2. + uz**2. ), 1. ), "Direction is not unit vector?"
 

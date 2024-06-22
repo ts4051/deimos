@@ -8,7 +8,10 @@ import sys, os, collections, datetime
 from astropy.time import Time
 
 from deimos.wrapper.osc_calculator import *
+from deimos.utils.constants import SIDEREAL_DAY_hr
 from deimos.utils.plotting import *
+
+from deimos.models.liv.sme import get_sme_state_matrix
 
 
 #
@@ -75,17 +78,18 @@ if __name__ == "__main__" :
     cases = collections.OrderedDict()
 
     a_magnitude_eV = 1e-13 # Overall strength of a component
-    c_magnitude = 0 # Overall strength of c component
+
+    # Defining SME operators in mass basis, with a single non-zero element (33)
     sme_basis = "mass"
-    flavor_structure = np.array([0.0, 0.0, 1.0]) # diagonal elements of the SME matrix
-    a_eV_direction_structure = np.array([0.0, 1.0, 0.0, 0.0]) # t, x, y, z
-    c_direction_structure = np.array([[0.0, 1.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]]) # 2D structure 
+    a_eV = get_sme_state_matrix(p33=1e-13)
 
-    a_eV = np.array([a_magnitude_eV * n * np.diag(flavor_structure) for n in a_eV_direction_structure])
-    for n in c_direction_structure:
-        ct = np.array([c_magnitude * m * np.diag(flavor_structure) for m in n]).reshape(4, 4, 3, 3)
-
-
+    # Also need to choose a direction for the LIV field
+    sme_params = {
+        "basis" : sme_basis,
+        "a_x_eV" : a_eV, # x dir
+        # "a_y_eV" : a_eV, # y dir
+        # "a_z_eV" : a_eV, # z dir
+    }
 
     #
     # Plot oscillations vs RA
@@ -113,10 +117,10 @@ if __name__ == "__main__" :
     }
 
     # Get std osc probs
-    P_std, _, _ = calculator.calc_osc_prob_sme(std_osc=True, **common_calc_kw)
+    P_std, _, _ = calculator.calc_osc_prob_sme_directional_atmospheric(std_osc=True, **common_calc_kw)
 
     # Get LIV osc probs
-    P_sme, coszen_values, azimuth_values = calculator.calc_osc_prob_sme(basis=sme_basis, a_eV=a_eV, **common_calc_kw)
+    P_sme, coszen_values, azimuth_values = calculator.calc_osc_prob_sme_directional_atmospheric(sme_params=sme_params, **common_calc_kw)
 
     # Selected chosen final flavor
     P_std = P_std[...,final_flavor]
@@ -156,7 +160,7 @@ if __name__ == "__main__" :
     E_GeV = ref_E_GeV
 
     # Time scan
-    hr_values = np.linspace(0., (365.24/366.24)*24., num=48) # One sidereal day
+    hr_values = np.linspace(0., SIDEREAL_DAY_hr, num=48) # One sidereal day
     time_values = [ ref_time + datetime.timedelta(hours=hr)  for hr in hr_values ]
 
     # Define common args to osc prob calc
@@ -170,10 +174,10 @@ if __name__ == "__main__" :
     }
 
     # Get std osc probs
-    P_std, _, _ = calculator.calc_osc_prob_sme(std_osc=True, **common_calc_kw)
+    P_std, _, _ = calculator.calc_osc_prob_sme_directional_atmospheric(std_osc=True, **common_calc_kw)
 
     # Get LIV osc probs
-    P_sme, coszen_values, azimuth_values = calculator.calc_osc_prob_sme(basis=sme_basis, a_eV=a_eV, **common_calc_kw)
+    P_sme, coszen_values, azimuth_values = calculator.calc_osc_prob_sme_directional_atmospheric(sme_params=sme_params, **common_calc_kw)
 
     # Selected chosen final flavor
     P_std = P_std[...,final_flavor]
@@ -227,10 +231,10 @@ if __name__ == "__main__" :
     }
 
     # Get std osc probs
-    P_std, _, _ = calculator.calc_osc_prob_sme(std_osc=True, **common_calc_kw)
+    P_std, _, _ = calculator.calc_osc_prob_sme_directional_atmospheric(std_osc=True, **common_calc_kw)
 
     # Get LIV osc probs
-    P_sme, coszen_values, azimuth_values = calculator.calc_osc_prob_sme(basis=sme_basis, a_eV=a_eV, **common_calc_kw)
+    P_sme, coszen_values, azimuth_values = calculator.calc_osc_prob_sme_directional_atmospheric(sme_params=sme_params, **common_calc_kw)
 
     # Selected chosen final flavor
     P_std = P_std[...,final_flavor]
