@@ -379,121 +379,13 @@ def reproduce_1907_09145(solver, num_points) :
     raise NotImplementedError("TODO")
 
 
-def reproduce_hep_ph_0406255(solver, num_points) :
-    '''
-    Sidereal LIV in LSND
-    '''
-
-
-    print("\n>>> Reproduce arXiv:hep-ph/0406255 ...")
-
-
-    #
-    # Detector steering
-    #
-
-    E_values_GeV = np.linspace(20., 60, num=num_points) * 1e-3
-    L_km = 30e-3 # LSND has 30 m baseline 
-
-
-    #
-    # Create model
-    #
-
-    # For nuSQuIDS case, need to specify energy nodes covering full space
-    kw = {}
-    if solver == "nusquids" :
-        kw["energy_nodes_GeV"] = E_values_GeV
-        kw["nusquids_variant"] = "sme"
-
-    # Create calculator
-    calculator = OscCalculator(
-        solver=solver,
-        atmospheric=False,
-        **kw
-    )
-
-    #TODO Not sure what matter they use in the paper?
-    calculator.set_matter("vacuum")
-
-    # Place detector
-    calculator.set_detector("LSND")
-
-
-    #
-    # Fig. 1
-    #
-
-    # Looking at antinue appearance
-    initial_flavor, final_flavor, nubar = 1, 0, True
-
-
-    #TODO
-    #TODO
-    #TODO
-    #TODO
-    #TODO
-    #TODO
-    ra_rad = 0.
-    dec_rad = 0.
-    #TODO
-    #TODO
-    #TODO
-    #TODO
-    #TODO
-    #TODO
-    #TODO
-
-    # Define time scan
-    start_time = datetime.datetime(2021, 1, 1, 0, 0, 0, 0) # Midnight, Jan 1st 2021  #TODO use a date LSND was actually running!
-    hr_values = np.linspace(0., SIDEREAL_DAY_hr, num=48) # One sidereal day
-    time_values = [ start_time + datetime.timedelta(hours=hr)  for hr in hr_values ]
-
-    # Get LIV osc probs
-    P_sme, coszen_values, azimuth_values = calculator.calc_osc_prob_sme_directional_beam(
-        initial_flavor=initial_flavor,
-        nubar=nubar,
-        energy_GeV=E_values_GeV,
-        ra_rad=ra_rad,
-        dec_rad=dec_rad,
-        time=time_values,
-        sme_params=sme_params, 
-    )
-
-    # Selected chosen final flavor
-    P_sme = P_sme[...,final_flavor]
-
-    # Make fig
-    fig, ax = plt.subplots( nrows=2, figsize=(6, 6) )
-
-    # fig.suptitle(args.detector)
-    # fig.suptitle( r"$E$ = %0.3g GeV // $\delta$ = %0.3g deg // %s" % (args.detector, E_GeV, dec_deg, date), fontsize=12 )  #TODO text box
-    
-    # Plot osc probs
-    # ax[0].plot(hr_values, P_std, color="black", linestyle="-", label="Std. osc.")
-    ax[0].plot(hr_values, P_sme, color="orange", linestyle="--", label="SME")
-
-    # Plot coszen
-    ax[1].plot(hr_values, coszen_values, color="blue", linestyle="-")
-
-    # Formatting
-    for this_ax in ax :
-        this_ax.set_xlabel("t [hr]")
-        this_ax.set_xlim(hr_values[0], hr_values[-1])
-        this_ax.grid(True)
-    ax[0].set_ylabel(P_label)
-    ax[0].set_ylim(-0.01, 1.01)
-    ax[0].legend(fontsize=12)
-    ax[1].set_ylabel( "coszen" )
-    ax[1].set_ylim(-1.01, 1.01)
-    fig.tight_layout()
-
-
 
 def reproduce_2309_01756(solver, num_points) :
     '''
     Sidereal LIV in NOvA
     '''
+
+    print("\n>>> Reproduce arXiv:2309.01756 ...")
 
     #
     # Detector steering
@@ -520,8 +412,13 @@ def reproduce_2309_01756(solver, num_points) :
         **kw
     )
 
-    #TODO Not sure what matter they use in the paper?
-    calculator.set_matter("vacuum")
+    # Set the oscillation params, as per Table I
+    calculator.set_mixing_angles(theta12=np.deg2rad(33.48), theta13=np.deg2rad(8.5), theta23=np.deg2rad(45.), deltacp=np.deg2rad(195.))
+    calculator.set_mass_splittings(7.55e-5, 2.50e-3)
+
+    # Doesn't say in the paper what matter they assume, but can match the standard oscillation results 
+    # better (nue appearance) if I include the Earth;s crust, so assuming they have too
+    calculator.set_matter("earth_crust")
 
     # Place detector
     calculator.set_detector("NOvA")
@@ -541,12 +438,13 @@ def reproduce_2309_01756(solver, num_points) :
     gs = fig.add_gridspec(ncols=2, nrows=2, width_ratios=(1, 3), wspace=0.2, hspace=0.5)#left=0.1, right=0.9, bottom=0.1, top=0.9, hspace=0.05)
     ax_1d = [fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[1, 0])]
     ax_2d = [fig.add_subplot(gs[0, 1]), fig.add_subplot(gs[1, 1])]
+    fig.suptitle("arXiv:2309.01756 Fig. 1")
 
     # Loop over final state (appearance and disappearance channels)
     initial_flavor, nubar = 1, False
     for y, final_flavor in enumerate([0, 1]) :
 
-        # Get LIV osc probs
+        # Get standard osc probs
         osc_prob, ra_values_rad, dec_values_rad = calculator.calc_osc_prob_sme_directional_beam(
             initial_flavor=initial_flavor,
             nubar=nubar,
@@ -562,23 +460,108 @@ def reproduce_2309_01756(solver, num_points) :
         # Plot 1D probability vs energy (select any t, since t-independent)
         ax_1d[y].plot(osc_prob[0,:], E_values_GeV, color="red", linestyle="-")
 
-        # PLot prob vs [E, t] (even though t-independent - to confirm)
-        # plot_colormap( ax=ax, x=energy_GeV, y=y, z=osc_probs, vmin=vmin, vmax=vmax, cmap=cmap, zlabel=r"$%s$"%transition_prob_tex )
+        # Plot prob vs [E, t] (even though t-independent - to confirm)
+        transition_prob_label = r"$%s$"% calculator.get_transition_prob_tex(initial_flavor, final_flavor, nubar)
+        Pmin = 0.
+        Pmax = 0.08 if y == 0 else 1.
+        plot_colormap( ax=ax_2d[y], x=hr_values, y=E_values_GeV, z=osc_prob, vmin=Pmin, vmax=Pmax, cmap="jet", zlabel=transition_prob_label )
 
-    # # Plot coszen
-    # ax[1].plot(hr_values, coszen_values, color="blue", linestyle="-")
+        # Format
+        ax_1d[y].set_xlabel(transition_prob_label)
+        ax_1d[y].set_ylabel(ENERGY_LABEL)
+        ax_1d[y].set_xlim(Pmin, Pmax)
+        ax_1d[y].set_ylim(E_values_GeV[0], E_values_GeV[-1])
+        ax_2d[y].set_xlabel("Sidereal hour")
+        ax_2d[y].set_ylabel(ENERGY_LABEL)
+        ax_2d[y].set_xlim(hr_values[0], hr_values[-1])
+        ax_2d[y].set_ylim(E_values_GeV[0], E_values_GeV[-1])
 
-    # # Formatting
-    # for this_ax in ax :
-    #     this_ax.set_xlabel("t [hr]")
-    #     this_ax.set_xlim(hr_values[0], hr_values[-1])
-    #     this_ax.grid(True)
-    # ax[0].set_ylabel(P_label)
-    # ax[0].set_ylim(-0.01, 1.01)
-    # ax[0].legend(fontsize=12)
-    # ax[1].set_ylabel( "coszen" )
-    # ax[1].set_ylim(-1.01, 1.01)
+    # Format fig
     fig.tight_layout()
+
+
+
+    #
+    # Figs 2 & 3 : Showing impact of differing LIV parameters...
+    #
+
+    # Define physics cases
+    # cases = collections.OrderedDict()
+    # cases[r"$a^x"] = { "a_eV":1e-22*1e9, "c":0., "color":"blue" }
+    # cases[r"$c^{tt}_{\mu \tau}$"] = { "a_eV":0., "c":7.5e-23, "color":"red" }
+    magnitude = 1e-23
+    cases = [
+        {"x":0, "y":0, "label":r"$a^x_{e \mu}$", "sme_params":{ "basis":"flavor", "a_x_eV":get_sme_state_matrix(p12=magnitude*1e9)} }, # GeV -> eV
+        {"x":1, "y":0, "label":r"$a^x_{e \tau}$", "sme_params":{ "basis":"flavor", "a_x_eV":get_sme_state_matrix(p13=magnitude*1e9)} }, # GeV -> eV
+        {"x":2, "y":0, "label":r"$a^x_{\mu \tau}$", "sme_params":{ "basis":"flavor", "a_x_eV":get_sme_state_matrix(p23=magnitude*1e9)} }, # GeV -> eV
+        {"x":0, "y":1, "label":r"$c^{tx}_{e \mu}$", "sme_params":{ "basis":"flavor", "c_tx":get_sme_state_matrix(p12=magnitude)} },
+        {"x":1, "y":1, "label":r"$c^{tx}_{e \tau}$", "sme_params":{ "basis":"flavor", "c_tx":get_sme_state_matrix(p13=magnitude)} },
+        {"x":2, "y":1, "label":r"$c^{tx}_{\mu \tau}$", "sme_params":{ "basis":"flavor", "c_tx":get_sme_state_matrix(p23=magnitude)} },
+        {"x":0, "y":2, "label":r"$c^{xx}_{e \mu}$", "sme_params":{ "basis":"flavor", "c_xx":get_sme_state_matrix(p12=magnitude)} },
+        {"x":1, "y":2, "label":r"$c^{xx}_{e \tau}$", "sme_params":{ "basis":"flavor", "c_xx":get_sme_state_matrix(p13=magnitude)} },
+        {"x":2, "y":2, "label":r"$c^{xx}_{\mu \tau}$", "sme_params":{ "basis":"flavor", "c_xx":get_sme_state_matrix(p23=magnitude)} },
+        {"x":0, "y":3, "label":r"$c^{xz}_{e \mu}$", "sme_params":{ "basis":"flavor", "c_xz":get_sme_state_matrix(p12=magnitude)} },
+        {"x":1, "y":3, "label":r"$c^{xz}_{e \tau}$", "sme_params":{ "basis":"flavor", "c_xz":get_sme_state_matrix(p13=magnitude)} },
+        {"x":2, "y":3, "label":r"$c^{xz}_{\mu \tau}$", "sme_params":{ "basis":"flavor", "c_xz":get_sme_state_matrix(p23=magnitude)} },
+    ]
+
+    #TODO Is the "Sun-centered celestial equatorial frame" the same as the equatorial frame we are assuming in DEIMOS? If not, x/y/z are not the same...
+
+    # Loop over final state (appearance and disappearance channels)
+    initial_flavor, nubar = 1, False
+    for final_flavor in [0, 1] :
+
+        # Make figure
+        fig, ax = plt.subplots(nrows=3, ncols=4, figsize=(18, 10))
+        fig.suptitle("arXiv:2309.01756 Fig. %i" % (final_flavor+2))
+
+        # Get standard osc probs
+        P_std, _, _ = calculator.calc_osc_prob_sme_directional_beam(
+            initial_flavor=initial_flavor,
+            nubar=nubar,
+            energy_GeV=E_values_GeV,
+            distance_km=L_km,
+            time=time_values,
+            std_osc=True, 
+        )
+        P_std = P_std[...,final_flavor]
+
+        # Loop over LIV cases
+        for case in cases :
+
+            # Get LIV osc probs
+            P_liv, _, _ = calculator.calc_osc_prob_sme_directional_beam(
+                initial_flavor=initial_flavor,
+                nubar=nubar,
+                energy_GeV=E_values_GeV,
+                distance_km=L_km,
+                time=time_values,
+                std_osc=False, 
+                sme_params=case["sme_params"],
+            )
+            P_liv = P_liv[...,final_flavor]
+
+            # Get diff
+            P_diff = P_std - P_liv
+
+            # Make a title
+            case_ax = ax[ case["x"], case["y"] ]
+            case_ax.set_title(case["label"])
+
+            # Plot
+            max_diff = 0.03 if final_flavor == 0 else 0.4
+            transition_prob_tex = calculator.get_transition_prob_tex(initial_flavor, final_flavor, nubar)
+            plot_colormap( ax=case_ax, x=hr_values, y=E_values_GeV, z=P_diff, vmin=-max_diff, vmax=max_diff, cmap="jet", zlabel=r"$%s$ (SM - LIV)"% transition_prob_tex )
+
+            # Format ax
+            case_ax.set_xlabel("Sidereal hour")
+            case_ax.set_ylabel(ENERGY_LABEL)
+            case_ax.set_xlim(hr_values[0], hr_values[-1])
+            case_ax.set_ylim(E_values_GeV[0], E_values_GeV[-1])
+
+        # Format fig
+        fig.tight_layout()
+
 
 
 
@@ -609,9 +592,8 @@ if __name__ == "__main__" :
     reproduce_2302_12005(solver=args.solver, num_points=args.num_points)
 
     # Sidereal LIV
-    # reproduce_hep_ph_0406255(solver=args.solver, num_points=args.num_points)
-    # reproduce_2309_01756(solver=args.solver, num_points=args.num_points)
+    reproduce_2309_01756(solver=args.solver, num_points=args.num_points)
 
-
+    # Dump to PDF
     print("")
     dump_figures_to_pdf( __file__.replace(".py",".pdf") )

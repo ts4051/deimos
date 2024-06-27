@@ -143,7 +143,9 @@ class OscCalculator(object) :
                 os.mkdir(self.cache_dir)
         assert os.path.isdir(self.cache_dir) 
 
-
+        # Init members
+        self.detector_coords = None
+        self.beam_coords = None
 
 
     def parse_pisa_config(self,config) :
@@ -151,7 +153,7 @@ class OscCalculator(object) :
         Parse settings from a PISA config file and apply them
         '''
 
-        pass #TODO
+        raise NotImplementedError("TODO")
 
 
     def _init_nusquids(self,
@@ -364,7 +366,7 @@ class OscCalculator(object) :
                 self._prob3_settings["matter"] = None
 
         #
-        # Earth
+        # Earth model
         #
 
         elif matter == "earth" :
@@ -380,6 +382,14 @@ class OscCalculator(object) :
 
             elif self.solver == "prob3" :
                 self._prob3_settings["matter"] = "earth"
+
+
+        #
+        # Earth's crust (e.g. long baseline accelerators)
+        #
+
+        elif matter == "earth_crust" :
+            self.set_matter("constant", matter_density_g_per_cm3=CRUST_DENSITY_g_per_cm2, electron_fraction=CRUST_ELECTRON_FRACTION) #TODO reference for numbers
 
 
         #
@@ -1089,165 +1099,6 @@ class OscCalculator(object) :
     # SME member functions
     #
 
-    # def set_sme(self,
-    #     directional, # bool
-    #     basis=None,       # string: "mass" or "flavor"
-    #     a_eV=None,        # 3 x Num_Nu x Num_nu
-    #     c=None,           # 3 x Num_Nu x Num_nu
-    #     ra_rad=None,
-    #     dec_rad=None,
-    # ) :
-    #     '''
-    #     TODO
-    #     '''
-
-    #     #
-    #     # Check inputs
-    #     #
-
-    #     if basis is None :
-    #         basis = "mass"
-    #     assert basis in ["flavor", "mass"]
-
-    #     if directional :   #TODO Maybe not relevant anymore? (Non-directional does currently not work in nuSQuIDS)
-    #         if a_eV is None: 
-    #             a_eV = np.zeros((4, self.num_neutrinos, self.num_neutrinos)) # shape is (num spatial dims, N, N), where N is num neutrino states
-    #         if c is None:
-    #             c = np.zeros((4, 4, self.num_neutrinos, self.num_neutrinos))
-
-    #         assert isinstance(a_eV, np.ndarray) and (a_eV.shape == (4, self.num_neutrinos, self.num_neutrinos))
-    #         assert isinstance(c, np.ndarray) and (c.shape == (4, 4, self.num_neutrinos, self.num_neutrinos)) 
-
-    #         assert (ra_rad is not None) and (dec_rad is not None), "Must provide ra and dec when using directional SME"
-
-    #     else :
-    #         operator_shape = (self.num_neutrinos, self.num_neutrinos) # shape is (N, N), where N is num neutrino states
-
-    #         if a_eV is None: 
-    #             a_eV = np.zeros(operator_shape)
-    #         if c is None:
-    #             c = np.zeros(operator_shape)
-
-    #         assert isinstance(a_eV, np.ndarray) and (a_eV.shape == operator_shape)
-    #         assert isinstance(c, np.ndarray) and (c.shape == operator_shape) 
-
-    #         assert (ra_rad is None) and (dec_rad is None), "ra and dec not relevent for isotropic SME"
-
-
-    #     #
-    #     # Set values
-    #     #
-
-    #     if self.solver == "nusquids" :
-    #         assert basis == "mass", "Only mass basis SME implemented in nuSQuIDS currently"
-    #         if directional :
-    #             self.nusquids.Set_LIVCoefficient(a_eV, c, ra_rad, dec_rad)
-    #         else :
-    #             a_eV_isotropic= np.zeros((4, self.num_neutrinos, self.num_neutrinos))
-    #             c_isotropic = np.zeros((4, 4, self.num_neutrinos, self.num_neutrinos))
-    #             a_eV_isotropic[0] = a_eV
-    #             c_isotropic[0,0] = c
-    #             dec_rad = np.pi/2
-    #             ra_rad = 0
-    #             self.nusquids.Set_LIVCoefficient(a_eV_isotropic, c_isotropic, ra_rad, dec_rad)
-
-    #     elif self.solver == "deimos" :
-    #         if directional :
-    #             self._sme_model_kw = {
-    #                 "directional" : True,
-    #                 "basis" : basis,
-    #                 "a_eV" : a_eV,
-    #                 "c" : c,
-    #                 "ra_rad" : ra_rad,
-    #                 "dec_rad" : dec_rad,
-    #             }
-    #         else :
-    #             self._sme_model_kw = {
-    #                 "directional" : False,
-    #                 "basis" : basis,
-    #                 "a_eV" : a_eV,
-    #                 "c" : c,
-    #             }
-
-    #     else :
-    #         raise NotImplementedError("SME not yet wrapped for %s" % self.solver) #TODO this is already supported by prob3, just need to wrap it
-
-
-
-    # def set_sme_isotropic(
-    #     self,
-    #     basis=None,       # string: "mass" or "flavor"
-    #     a_eV=None,        # This is a^x (NxN matrix, where N is num neutrino states)
-    #     c=None,           # This is c^{xx} (NxN matrix, where N is num neutrino states)
-    # ) :
-    #     '''
-    #     Set the isotropic (time-like) parameters of the SME
-    #     '''
-
-    #     #TODO this duplicates set_sme_directional, maybe call set_sme_directional from here instead...
-
-    #     #
-    #     # Check inputs
-    #     #
-
-    #     # Check basis thre a/c matrices are defined in, and set defaukt
-    #     if basis is None :
-    #         basis = "mass"
-    #     assert basis in ["flavor", "mass"]
-
-    #     # Check operator shape, and set defaults
-    #     expected_shape = (self.num_neutrinos, self.num_neutrinos) # shape is (N, N), where N is num neutrino states
-    #     if a_eV is None: 
-    #         a_eV = np.zeros(expected_shape)
-    #     if c is None:
-    #         c = np.zeros(expected_shape)
-    #     assert isinstance(a_eV, np.ndarray) and (a_eV.shape == expected_shape)
-    #     assert isinstance(c, np.ndarray) and (c.shape == expected_shape) 
-
-
-    #     #
-    #     # Write to solver
-    #     #
-
-    #     if self.solver == "nusquids" :
-
-    #         assert basis == "mass", "Only mass basis SME implemented in nuSQuIDS currently"
-
-    #         # In nuSQuIDS, SME operator dimensions are:
-    #         #    a : [4, N, N], where N is number neutrino states and 4 is the number of space-time dimensions (4-vector indices)
-    #         #    c : [4, 4, N, N], where N is number neutrino states and 4 is the number of space-time dimensions (4-vector indices)
-    #         # For the isotropic case, we only set the 0th elements w.r.t. 4-vector indices (e.g. time-like, so A_t and c_{tt})
-
-    #         # Make the full isotropic a and c arrays (in the format nuSQuIDS expects)
-    #         a_nsq = np.zeros( (4, self.num_neutrinos, self.num_neutrinos) )
-    #         np.copyto(src=a_eV, dst=a_nsq[0,...])
-
-    #         c_nsq = np.zeros( (4, 4, self.num_neutrinos, self.num_neutrinos) )
-    #         np.copyto(src=c, dst=c_nsq[0,0,...])
-
-    #         # Pass to nuSQuIDS
-    #         self.nusquids.Set_LIVCoefficient(
-    #             a_nsq, 
-    #             c_nsq, 
-    #             0., # RA (not used for time-like operators) 
-    #             0., # dec (not used for time-like operators)
-    #         )
-
-    #     elif self.solver == "deimos" :
-
-    #         # Stash params for run-time
-    #         self._sme_model_kw = {
-    #             "basis" : basis,
-    #             "a_t_eV" : a_eV, # time-like
-    #             "c_tt" : c, # fully time-like
-    #             "ra_rad" : 0., # Not used
-    #             "dec_rad" : 0., # Not used
-    #         }
-
-    #     else :
-    #         raise NotImplementedError("SME not yet wrapped for %s" % self.solver) #TODO this is already supported by prob3, just need to wrap it
-
-
     def set_sme_isotropic(
         self,
         basis=None,       # string: "mass" or "flavor"
@@ -1512,11 +1363,7 @@ class OscCalculator(object) :
                 long_deg="-106.292332164 degree",
                 height_m=0.,
             )
-            # self.set_beam_location( #TODO
-            #     lat_deg=XXX,
-            #     long_deg=XXX,
-            #     height_m=XXX,
-            # )
+            #TODO beam location
 
         elif name.lower() == "nova" :
             self.set_detector_location( # Far detector (Ash River MN)
@@ -1997,15 +1844,6 @@ class OscCalculator(object) :
 
         # Handle nubar
         rho = 1 if nubar else 0
-
-        # # Handle nubar
-        # if initial_flavor is not None :
-        #     if initial_flavor < 0 :
-        #         assert include_nubar
-        #         initial_flavor = -1* initial_flavor
-        #         rho = 1
-        #     else :
-        #         rho = 0
 
 
         #
