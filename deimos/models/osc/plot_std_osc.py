@@ -24,6 +24,7 @@ if __name__ == "__main__" :
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("-s", "--solver", type=str, required=False, default="deimos", help="Solver name")
+    parser.add_argument("-n", "--num-points", type=int, required=False, default=1000, help="Number of points in plots")
     args = parser.parse_args()
 
 
@@ -34,11 +35,11 @@ if __name__ == "__main__" :
     # Tool specific configuration
     kw = {}
     if args.solver == "nusquids" :
-        kw["energy_nodes_GeV"] = np.geomspace(0.1, 1000., num=1000) # For nuSQuIDS case, need to specify energy nodes covering full space 
+        kw["energy_nodes_GeV"] = np.geomspace(0.1, 1000., num=args.num_points) # For nuSQuIDS case, need to specify energy nodes covering full space 
 
     # Create calculator
     calculator = OscCalculator(
-        tool=args.solver,
+        solver=args.solver,
         atmospheric=False,
         flavors=["e", "mu", "tau"],
         **kw
@@ -63,7 +64,7 @@ if __name__ == "__main__" :
         initial_flavor=initial_flavor, 
         final_flavor=final_flavor, 
         nubar=nubar,
-        energy_GeV=np.linspace(0.5, 10., num=500), # Does not like E=0
+        energy_GeV=np.linspace(0.5, 10., num=args.num_points), # Does not like E=0
         distance_km=810., 
         color="black", 
         label="Standard osc",
@@ -87,7 +88,7 @@ if __name__ == "__main__" :
         initial_flavor=initial_flavor, 
         final_flavor=final_flavor, 
         nubar=nubar,
-        energy_GeV=np.geomspace(1., 200., num=500), 
+        energy_GeV=np.geomspace(1., 200., num=args.num_points), 
         distance_km=EARTH_DIAMETER_km, # coszen = -1 
         color="black", 
         label="Standard osc",
@@ -100,7 +101,7 @@ if __name__ == "__main__" :
         final_flavor=final_flavor, 
         nubar=nubar,
         energy_GeV=25., 
-        distance_km=np.linspace(0, EARTH_DIAMETER_km, num=100), # -> coszen = -1 
+        distance_km=np.linspace(0, EARTH_DIAMETER_km, num=args.num_points), # -> coszen = -1 
         color="black", 
         label="Standard osc",
         title="DeepCore",
