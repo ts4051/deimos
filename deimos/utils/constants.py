@@ -42,6 +42,10 @@ MIXING_ANGLES_rad = np.deg2rad( np.array([ 33.82, 8.60, 48.6 ]) ) # nufit v4.1, 
 DELTACP_rad =  0. #  Default to no CP violation
 # DELTACP_rad =  np.deg2rad(221.) # nufit v4.1, NO, with SK atmo data
 
+# Standard matter values
+CRUST_DENSITY_g_per_cm2 = 2.75
+CRUST_ELECTRON_FRACTION = 0.5
+
 # Planck scale
 PLANCK_MASS_eV = 1.22e28
 PLANCK_LENGTH_m = 1.62e-35 #TODO 1/M_Planck
