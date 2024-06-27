@@ -38,6 +38,17 @@ try:
 except ImportError as e:
     pass
 
+# Import OscProb
+OSCPROB_AVAIL = False
+try:
+    import ROOT
+    ROOT.gSystem.Load("libOscProb.so")
+    OSCPROB_AVAIL = True
+except ImportError as e:
+    pass
+
+
+
 # General DEIMOS imports
 from deimos.utils.constants import *
 from deimos.density_matrix_osc_solver.density_matrix_osc_solver import DensityMatrixOscSolver, get_pmns_matrix, get_matter_potential_flav
@@ -103,6 +114,8 @@ class OscCalculator(object) :
             self._init_deimos(**kw)
         elif self.solver == "prob3" :
             self._init_prob3(**kw)
+        elif self.solver == "oscprob" :
+            self._init_oscprob(**kw)
         else :
             raise Exception("Unrecognised solver : %s" % self.solver)
 
@@ -175,10 +188,11 @@ class OscCalculator(object) :
         self._nusquids_variant = nusquids_variant
 
         # Aliases
-        if self._nusquids_variant in ["decoh", "decoherence" ] :
-            self._nusquids_variant = "nuSQUIDSDecoh"
-        if self._nusquids_variant in ["liv", "LIV", "sme", "SME" ] :
-            self._nusquids_variant = "nuSQUIDSLIV"
+        if self._nusquids_variant is not None :
+            if self._nusquids_variant.lower() in ["decoh", "decoherence" ] :
+                self._nusquids_variant = "nuSQUIDSDecoh"
+            if self._nusquids_variant.lower() in ["liv", "sme" ] :
+                self._nusquids_variant = "nuSQUIDSLIV"
 
 
         #
@@ -342,6 +356,27 @@ class OscCalculator(object) :
         self._propagator = BargerPropagator()
 
 
+    def _init_oscprob(
+        self,
+        oscprob_variant=None, # Specify OscProb variants (PMNS_Fast, PMNS_Iter, PMNS_LIV, PMNS_Deco, etc)
+    ) :
+
+        assert OSCPROB_AVAIL, "OscProb not installed"
+
+        # Store args
+        self._oscprob_variant = oscprob_variant
+
+        # Handle variants
+        if self._oscprob_variant is None :
+            self._oscprob_variant = "PMNS_Fast"
+        elif self._oscprob_variant.lower() in ["decoh", "decoherence" ] :
+            self._oscprob_variant = "PMNS_Deco"
+        elif self._oscprob_variant.lower() in ["liv", "sme" ] :
+            self._oscprob_variant = "PMNS_LIV"
+
+        # Instantiate solver
+        assert hasattr(ROOT.OscProb, self._oscprob_variant), "Could not find OscProb variant : %s" % self._oscprob_variant
+        self._oscprob = getattr(ROOT.OscProb, self._oscprob_variant)()
 
 
     def set_matter(self, matter, **kw) :
@@ -349,6 +384,7 @@ class OscCalculator(object) :
         # Re-initalise any persistent matter-related setting
         # Mostly don't use this, only for "layers" mode currently 
         self._matter_settings = { "matter":matter }
+
 
         #
         # Vacuum
@@ -364,6 +400,11 @@ class OscCalculator(object) :
 
             elif self.solver == "prob3" :
                 self._prob3_settings["matter"] = None
+
+            elif self.solver == "oscprob" :
+                self._oscprob.SetDensity(0.)
+                self._oscprob.SetZoA(0.)
+
 
         #
         # Earth model
@@ -382,6 +423,9 @@ class OscCalculator(object) :
 
             elif self.solver == "prob3" :
                 self._prob3_settings["matter"] = "earth"
+
+            elif self.solver == "oscprob" :
+                raise NotImplementedError("OscProb Earth model not yet integrated into this wrapper")
 
 
         #
@@ -409,11 +453,14 @@ class OscCalculator(object) :
                 V = get_matter_potential_flav(flavors=self.flavors, matter_density_g_per_cm3=kw["matter_density_g_per_cm3"], electron_fraction=kw["electron_fraction"], nsi_matrix=None)
                 self.dmos.set_matter_potential(V)
 
-
             elif self.solver == "prob3" :
                 self._prob3_settings["matter"] = "constant"
                 self._prob3_settings["matter_density_g_per_cm3"] = kw["matter_density_g_per_cm3"]
+                #TODO electron fraction?
 
+            elif self.solver == "oscprob" :
+                self._oscprob.SetDensity(kw["matter_density_g_per_cm3"])
+                self._oscprob.SetZoA(kw["electron_fraction"])
 
 
         #
@@ -488,6 +535,16 @@ class OscCalculator(object) :
             self._prob3_settings["theta23"] = theta23
             self._prob3_settings["deltacp"] = deltacp
 
+        elif self.solver == "oscprob" :
+            self._oscprob.SetAngle(1,2, theta12)
+            if self.num_neutrinos > 2 :
+                self._oscprob.SetAngle(1,3, theta13)
+                self._oscprob.SetAngle(2,3, theta23)
+                self._oscprob.SetDelta(1,3, deltacp)
+
+        else :
+            raise Exception(f"Unknown solver : {self.solver}")
+
 
     def get_mixing_angles(self) :
 
@@ -514,16 +571,16 @@ class OscCalculator(object) :
             raise Exception("TODO")
 
 
-    def set_deltacp(self, deltacp) :
+    # def set_deltacp(self, deltacp) :
 
-        if self.solver == "nusquids" :
-            self.nusquids.Set_CPPhase( 0, 2, deltacp )
+    #     if self.solver == "nusquids" :
+    #         self.nusquids.Set_CPPhase( 0, 2, deltacp )
 
-        elif self.solver == "deimos" :
-            raise Exception("Cannot set delta CP on its own for `deimos`, use `set_mixing_angles`")
+    #     elif self.solver == "deimos" :
+    #         raise Exception("Cannot set delta CP on its own for `deimos`, use `set_mixing_angles`")
 
-        elif self.solver == "prob3" :
-            self._prob3_settings["deltacp"] = deltacp
+    #     elif self.solver == "prob3" :
+    #         self._prob3_settings["deltacp"] = deltacp
 
 
     def set_mass_splittings(self, deltam21, deltam31=None) :
@@ -549,6 +606,15 @@ class OscCalculator(object) :
         elif self.solver == "prob3" :
             self._prob3_settings["deltam21"] = deltam21
             self._prob3_settings["deltam31"] = deltam31
+
+        elif self.solver == "oscprob" :
+            self._oscprob.SetDm(2, deltam21)
+            if deltam31 is not None :
+                self._oscprob.SetDm(3, deltam31)
+
+        else :
+            raise Exception(f"Unknown solver : {self.solver}")
+
 
 
     def get_mass_splittings(self) :
@@ -599,6 +665,9 @@ class OscCalculator(object) :
             self._calc_basis = basis # Store for use later
 
         elif self.solver == "prob3" :
+            pass # Basis not relevent here, not solving Linblad master equation
+
+        elif self.solver == "oscprob" :
             pass # Basis not relevent here, not solving Linblad master equation
 
         else :
@@ -1273,8 +1342,63 @@ class OscCalculator(object) :
                 "dec_rad" : dec_rad,
             }
 
+        # elif self.solver == "prob3" : #TODO no pybinding currently for the SME class
+
+        #     assert basis == "flavor", "Only flavor basis SME implemented in prob3 currently"
+
+        #     # Only isotropic SME supported (e.g. only fully time-like components)
+        #     assert np.all( a_x_eV == 0 ), "prob3 only supports isotropic SME currently, only fully time-like components can be on-zero"
+        #     assert np.all( a_y_eV == 0 ), "prob3 only supports isotropic SME currently, only fully time-like components can be on-zero"
+        #     assert np.all( a_z_eV == 0 ), "prob3 only supports isotropic SME currently, only fully time-like components can be on-zero"
+
+        #     assert np.all( c_tx == 0 ), "prob3 only supports isotropic SME currently, only fully time-like components can be on-zero"
+        #     assert np.all( c_ty == 0 ), "prob3 only supports isotropic SME currently, only fully time-like components can be on-zero"
+        #     assert np.all( c_tz == 0 ), "prob3 only supports isotropic SME currently, only fully time-like components can be on-zero"
+        #     assert np.all( c_xx == 0 ), "prob3 only supports isotropic SME currently, only fully time-like components can be on-zero"
+        #     assert np.all( c_xy == 0 ), "prob3 only supports isotropic SME currently, only fully time-like components can be on-zero"
+        #     assert np.all( c_xz == 0 ), "prob3 only supports isotropic SME currently, only fully time-like components can be on-zero"
+        #     assert np.all( c_yy == 0 ), "prob3 only supports isotropic SME currently, only fully time-like components can be on-zero"
+        #     assert np.all( c_yz == 0 ), "prob3 only supports isotropic SME currently, only fully time-like components can be on-zero"
+        #     assert np.all( c_zz == 0 ), "prob3 only supports isotropic SME currently, only fully time-like components can be on-zero"
+
+        #     # Set array elements
+        #     for i in range(self.num_neutrinos) :
+        #         for j in range(self.num_neutrinos) :
+        #             self._propagator.SetLVMatrixEntry("A", i, j, a_t_eV[i,j].real, a_t_eV[i,j].imag)
+        #             self._propagator.SetLVMatrixEntry("C", i, j, c_tt[i,j].real, a_t_eV[i,j].imag)
+
+
+        elif self.solver == "oscprob" :
+
+            assert basis == "flavor", "Only flavor basis SME implemented in OscProb currently"
+
+            # Only isotropic SME supported (e.g. only fully time-like components)
+            assert np.all( a_x_eV == 0 ), "OscProb only supports isotropic SME currently, only fully time-like components can be on-zero"
+            assert np.all( a_y_eV == 0 ), "OscProb only supports isotropic SME currently, only fully time-like components can be on-zero"
+            assert np.all( a_z_eV == 0 ), "OscProb only supports isotropic SME currently, only fully time-like components can be on-zero"
+
+            assert np.all( c_tx == 0 ), "OscProb only supports isotropic SME currently, only fully time-like components can be on-zero"
+            assert np.all( c_ty == 0 ), "OscProb only supports isotropic SME currently, only fully time-like components can be on-zero"
+            assert np.all( c_tz == 0 ), "OscProb only supports isotropic SME currently, only fully time-like components can be on-zero"
+            assert np.all( c_xx == 0 ), "OscProb only supports isotropic SME currently, only fully time-like components can be on-zero"
+            assert np.all( c_xy == 0 ), "OscProb only supports isotropic SME currently, only fully time-like components can be on-zero"
+            assert np.all( c_xz == 0 ), "OscProb only supports isotropic SME currently, only fully time-like components can be on-zero"
+            assert np.all( c_yy == 0 ), "OscProb only supports isotropic SME currently, only fully time-like components can be on-zero"
+            assert np.all( c_yz == 0 ), "OscProb only supports isotropic SME currently, only fully time-like components can be on-zero"
+            assert np.all( c_zz == 0 ), "OscProb only supports isotropic SME currently, only fully time-like components can be on-zero"
+
+            # Not yet supporting phases (OscProb can handle it, just not added yet to this wrapper)
+            assert np.all( a_t_eV.imag == 0. ), "Cannot handle imaginary SME a matrix values in nuSQuIDS currently"
+            assert np.all( c_tt.imag == 0. ), "Cannot handle imaginary SME a matrix values in nuSQuIDS currently"
+
+            # Set arrays elements
+            for i in range(self.num_neutrinos) :
+                for j in range(i, self.num_neutrinos) : # Cannot set other side of diagonal      #TODO check not ignoring important values
+                    self._oscprob.SetaT(i, j, a_t_eV[i,j].real*1e-9, 0.) # eV -> GeV conversion #TODO support phase
+                    self._oscprob.SetcT(i, j, c_tt[i,j].real, 0.) #TODO support phase
+
         else :
-            raise NotImplementedError("SME not yet wrapped for %s" % self.solver) #TODO this is already supported by prob3, just need to wrap it
+            raise NotImplementedError("SME not yet wrapped for %s" % self.solver)
 
 
 
@@ -1465,6 +1589,8 @@ class OscCalculator(object) :
         elif self.solver == "prob3" :
             osc_probs = self._calc_osc_prob_prob3( initial_flavor=initial_flavor, energy_GeV=energy_GeV, distance_km=distance_km, coszen=coszen, nubar=nubar, **kw )
 
+        elif self.solver == "oscprob" :
+            osc_probs = self._calc_osc_prob_oscprob( initial_flavor=initial_flavor, energy_GeV=energy_GeV, distance_km=distance_km, coszen=coszen, nubar=nubar, **kw )
 
 
         #
@@ -1509,10 +1635,14 @@ class OscCalculator(object) :
         elif single_dist :
             osc_probs = osc_probs[:,0,:]
 
-        # Checks
+        # Checks for non-finite values
         assert np.all( np.isfinite(osc_probs) ), "Found non-finite osc probs"
-        assert np.all( osc_probs >= 0. ), "Found osc probs below 0"
-        assert np.all( osc_probs <= 1. ), "Found osc probs above 1"
+
+        # Check for physical probaility, e.g. within [0,1]
+        # Note that some solvers can e very slightly out of this due to tolerances, machien precision, etc, so handling this
+        tolerance = 1e-6
+        assert np.all( osc_probs > (0.-tolerance) ), "Found osc probs below 0"
+        assert np.all( osc_probs <= (1.+tolerance) ), "Found osc probs above 1"
 
         return osc_probs
 
@@ -2009,12 +2139,7 @@ class OscCalculator(object) :
         #
 
         # Check num flavors
-        assert self.num_neutrinos == 3, "prob3 wrapper only supporting 3-flavor oscillations currently" #TODO probably can add supoort for N != 3
-
-        # Note that coszen vs distance handling already done in level above
-
-        #TODO coszen->distance conversion for vacuum atmo case
-
+        assert self.num_neutrinos == 3, "prob3 wrapper only supporting 3-flavor oscillations currently" #TODO probably can add support for N != 3
 
 
         #
@@ -2073,6 +2198,9 @@ class OscCalculator(object) :
                 KNuType,
             )
 
+            # Set Hamiltonian  #TODO only for SME
+            # self._propagator.SetHamiltonian( energy_GeV[i_E] )
+
             # Loop over distance f
             for i_L in range(distance_dim) :
 
@@ -2121,6 +2249,75 @@ class OscCalculator(object) :
         return results
 
 
+
+    def _calc_osc_prob_oscprob(self,
+        initial_flavor,
+        energy_GeV,
+        distance_km=None,
+        coszen=None,
+        nubar=False,
+    ) :
+
+        #
+        # Define system
+        #
+
+        # Dertemine all final states
+        final_flavors = self.states
+
+        # Set nu/nubar
+        self._oscprob.SetIsNuBar(nubar)
+
+
+        #
+        # Loop over energy/distance
+        #
+
+        # coszen -> L conversion (for atmospheric case)
+        if coszen is not None :
+            assert distance_km is None
+            distance_km = self._convert_coszen_to_baseline_km(coszen)
+
+        # Array-ify
+        energy_GeV = np.asarray( [energy_GeV] if np.isscalar(energy_GeV) else energy_GeV )
+        distance_km = np.asarray( [distance_km] if np.isscalar(distance_km) else distance_km )
+ 
+        # Init outputs container
+        energy_dim = np.size(energy_GeV)
+        distance_dim = np.size(distance_km)
+        results = np.full( (energy_dim, distance_dim, self.num_neutrinos), np.NaN )
+
+        # Loop over energy
+        for i_E in range(energy_dim) :
+
+            # Set energy
+            self._oscprob.SetEnergy(energy_GeV[i_E])
+
+            # Loop over distance
+            for i_L in range(distance_dim) :
+
+                # Set distance
+                self._oscprob.SetLength(distance_km[i_L])
+
+                # Loop over flavor
+                for i_f, final_flavor in enumerate(final_flavors) :
+
+
+                    #
+                    # Calc osc probs
+                    #
+
+                    P = self._oscprob.Prob(int(initial_flavor), int(final_flavor))
+
+                    # Set to output array
+                    assert np.isscalar(P)
+                    results[i_E, i_L, i_f] = P
+
+
+        return results
+
+
+
     def _calc_osc_prob_deimos(self,
 
         # Neutrino definition
@@ -2167,9 +2364,7 @@ class OscCalculator(object) :
         # coszen -> L conversion (for atmospheric case)
         if coszen is not None :
             assert distance_km is None
-            production_height_km = DEFAULT_ATMO_PROD_HEIGHT_km #TODO steerable, randomizable
-            detector_depth_km = DEFAULT_ATMO_DETECTOR_DEPTH_km if self.detector_coords is None else self.detector_coords.detector_depth_m*1e-3 # Use detector position, if available    #TODO should we really be defining this as height?
-            distance_km = calc_path_length_from_coszen(cz=coszen, h=production_height_km, d=detector_depth_km)
+            distance_km = self._convert_coszen_to_baseline_km(coszen)
 
         # DensityMatrixOscSolver doesn't like decending distance values in the input arrays,
         # and this is what you get from coszen arrays often
@@ -2279,6 +2474,23 @@ class OscCalculator(object) :
         assert np.all( np.isfinite(final_flux) ), "Found non-finite final flux"
 
         return initial_flux, final_flux
+
+
+    def _convert_coszen_to_baseline_km(self, coszen) :
+        '''
+        Helper function handling the coszen -> baseline conversion for atmospheric neutrinos
+        '''
+
+        # Get atmospheric production height
+        production_height_km = DEFAULT_ATMO_PROD_HEIGHT_km #TODO steerable, randomizable
+
+        # Get detector depth
+        detector_depth_km = DEFAULT_ATMO_DETECTOR_DEPTH_km if self.detector_coords is None else self.detector_coords.detector_depth_m*1e-3 # Use detector position, if available    #TODO should we really be defining this as height?
+
+        # Convert
+        distance_km = calc_path_length_from_coszen(cz=coszen, h=production_height_km, d=detector_depth_km)
+
+        return distance_km
 
 
 

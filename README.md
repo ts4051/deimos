@@ -48,6 +48,7 @@ DEIMOS includes a class `OscCalculator` that connects several oscillation probab
 * `nuSQuIDS` [link](https://github.com/arguelles/nuSQuIDS) - alternative density matrix based oscillation solver
   * Note that a [fork/branch](https://github.com/ts4051/nuSQuIDS/tree/bsm) of nuSQuIDS with comparable model implementations to DEIMOS is available.
 * `Prob3` [link](https://github.com/rogerwendell/Prob3plusplusS) - alternative oscillation solver - **coming soon...**
+* `OscProb` [link](https://github.com/joaoabcoelho/OscProb) - alternative oscillation solver - **coming soon...**
 * `MCEq` [link](https://github.com/mceq-project/MCEq) - atmopsheric neutrino flux calculator
 
 DEIMOS will activate support for these features (at run-time) if they are available (e.g. if it find it can import the packages). Therefore, to use these features within DEIMOS, simpy install these packages as per the instructions provided by the package developers, making sure to add them to your python environment.

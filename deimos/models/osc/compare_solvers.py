@@ -11,7 +11,7 @@ from deimos.utils.constants import *
 
 
 
-def compare_osc_solvers(solver_defs) :
+def compare_osc_solvers(solver_defs, matter="vacuum") :
 
     #TODO matter, atmospheric, nubar...
 
@@ -63,7 +63,7 @@ def compare_osc_solvers(solver_defs) :
         )
 
         # Use vacuum
-        calculator.set_matter("vacuum")
+        calculator.set_matter(matter)
 
 
 
@@ -193,6 +193,10 @@ if __name__ == "__main__" :
     # Compare different oscillations codes
     #
 
+    # Some basic settings
+    matter = "vacuum" # vacuum earth_crust   #TODO option to take natural matter for each case
+
+    # Steer the solvers
     solver_defs = collections.OrderedDict()
 
     solver_defs["deimos"] = {
@@ -201,19 +205,28 @@ if __name__ == "__main__" :
         "linestyle" : "-",
     }
 
-    solver_defs["nusquids"] = {
-        "solver" : "nusquids",
-        "color" : "red",
-        "linestyle" : "--",
-    }
+    if NUSQUIDS_AVAIL :
+        solver_defs["nusquids"] = {
+            "solver" : "nusquids",
+            "color" : "red",
+            "linestyle" : "--",
+        }
 
-    # solver_defs["prob3"] = {
-    #     "solver" : "prob3",
-    #     "color" : "seagreen",
-    #     "linestyle" : ":",
-    # }
+    if PROB3_AVAIL :
+        solver_defs["prob3"] = {
+            "solver" : "prob3",
+            "color" : "seagreen",
+            "linestyle" : "-.",
+        }
 
-    compare_osc_solvers(solver_defs)
+    if OSCPROB_AVAIL :
+        solver_defs["oscprob"] = {
+            "solver" : "oscprob",
+            "color" : "magenta",
+            "linestyle" : ":",
+        }
+
+    compare_osc_solvers(solver_defs, matter=matter)
 
 
     #
