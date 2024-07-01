@@ -1,5 +1,6 @@
 '''
-Script for producing 1D plots of sidereal time dependence of parameters in the SME model in RA/Dec coordinates
+Script for producing 1D plots of sidereal time dependence of parameters in the SME model in RA/Dec coordinates,
+for the case of atmospheric neutrinos
 
 Edited by Johann Ioannou-Nikolaides based on a script by Simon Hilding-Nørkjær
 '''
@@ -9,40 +10,67 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 from deimos.wrapper.osc_calculator import OscCalculator
 from deimos.utils.oscillations import calc_path_length_from_coszen
+from deimos.models.liv.sme import get_sme_state_matrix
 
 def main():
+
+    #
+    # Steering
+    #
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-s", "--solver", type=str, required=False, default="deimos", help="Solver name")
+    parser.add_argument("-n", "--num-points", type=int, required=False, default=250, help="Num scan point")
+    args = parser.parse_args()
+
+    #
     # Define basic system parameters
-    detector = "arca"     # "arca" or "icecube"
-    initial_flavor = 1    # numu 
-    nubar = False         # neutrino or antineutrino
-    E_GeV = np.array([1000., 20000.]) # Energy range in GeV
-    E_node = 0              # Energy node to plot
-    solver = "nusquids"     # "nusquids" or "deimos"
+    #
+    initial_flavor, final_flavor, nubar = 1, 1, False    # numu survival
+    E_GeV = 1e3
 
     #
     # Set SME parameters
     #
-    # Define SME parameters
-    sme_basis = "mass" # "mass" or "flavor"
-    flavor_structure = np.array([0.0, 0.0, 1.0]) # diagonal elements of the SME matrix
-    a_eV_direction_structure = np.array([0.0, 0.0, 1.0, 0.0]) # t, x, y, z
-    c_direction_structure = np.array([[0.0, 1.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]]) # 2D structure 
-    a_magnitude_eV = 5e-14
-    c_magnitude = 0
-    a_eV = np.array([a_magnitude_eV * n * np.diag(flavor_structure) for n in a_eV_direction_structure])
-    for n in c_direction_structure:
-        ct = np.array([c_magnitude * m * np.diag(flavor_structure) for m in n]).reshape(4, 4, 3, 3)
 
+    # Choose basis SME operators are defined in
+    sme_basis = "mass" # "mass" or "flavor"
+
+    # Define a operator
+    a_magnitude_eV = 5e-14
+    a_y_eV = get_sme_state_matrix(p33=a_magnitude_eV) # Choosing 33 element as only non-zero element in germs of flavor, and +y direction 
+
+    # Define c operator
+    c_magnitude = 0
+    c_ty = get_sme_state_matrix(p33=c_magnitude) # Choosing 33 element as only non-zero element in germs of flavor, and ty tensor component 
+
+    # Group as an arg
+    sme_params = { "basis":sme_basis, "a_y_eV":a_y_eV, "c_ty":c_ty}
+
+    # Labels for label
+    a_label = r"$a^y_{33}$ = %0.3g eV" % a_magnitude_eV
+    c_label = r"$c^{yt}_{33}$ = %0.3g" % c_magnitude
+
+
+    #
     # Create oscillation calculators
-    kw = {"energy_nodes_GeV": E_GeV, "nusquids_variant": "sme"} if solver == "nusquids" else {}
-    calculatorIC = OscCalculator(tool=solver, atmospheric=True, **kw)
-    calculatorARCA = OscCalculator(tool=solver, atmospheric=True, **kw)
+    #
+
+    kw = {"energy_nodes_GeV": E_GeV, "nusquids_variant": "sme"} if args.solver == "nusquids" else {}
+    calculatorIC = OscCalculator(solver=args.solver, atmospheric=True, **kw)
+    calculatorARCA = OscCalculator(solver=args.solver, atmospheric=True, **kw)
 
     # Set detector and matter type
-    calculatorIC.set_matter("vacuum") # "vacuum" or "earth"
+    matter = "vacuum" # vacuum or earth
+    calculatorIC.set_matter(matter)
     calculatorIC.set_detector("icecube")
-    calculatorARCA.set_matter("vacuum")
+    calculatorARCA.set_matter(matter)
     calculatorARCA.set_detector("arca")
+
+
+    #
+    # Plot time-dependence
+    #
 
     # Define time array
     hour_array = np.arange(1, 25, 2)
@@ -50,40 +78,27 @@ def main():
     time_array = np.array(time_array)
 
     # Define coordinates
-    ra_deg = 90
-    dec_deg = np.linspace(-90, 90, num=100)
-    ra_rad = np.deg2rad(ra_deg)
+    dec_deg = np.linspace(-90, 90, num=args.num_points)
+    ra_deg = np.full(dec_deg.size, 90)
     dec_rad = np.deg2rad(dec_deg)
+    ra_rad = np.deg2rad(ra_deg)
     
-    ### END OF SETUP ###
+    # Calc osc probs vs time, dec, etc
+    calc_kw = {
+        "initial_flavor": initial_flavor,
+        "nubar": nubar,
+        "energy_GeV": E_GeV,
+        "ra_rad": ra_rad,
+        "dec_rad": dec_rad,
+        "time": time_array,
+        "sme_params" : sme_params,
+    }
+    P_ARCA, cosz_ARCA, _ = calculatorARCA.calc_osc_prob_sme_directional_atmospheric(**calc_kw)
+    P_IC, cosz_IC, _ = calculatorIC.calc_osc_prob_sme_directional_atmospheric(**calc_kw)
 
-    # Initialize arrays for storing results
-    cosz_IC = np.zeros(len(dec_deg))
-    P_IC = np.zeros((3, len(dec_deg)))
-    cosz_ARCA = np.zeros((len(dec_deg), len(time_array)))
-    P_ARCA = np.zeros((3, len(dec_deg), len(time_array)))
-
-    # Loop over declinations and time to calculate oscillation probabilities
-    for dec_index, dec in enumerate(dec_deg):
-        calc_kw = {
-            "initial_flavor": initial_flavor,
-            "nubar": nubar,
-            "energy_GeV": E_GeV,
-            "ra_rad": ra_rad,
-            "dec_rad": dec_rad[dec_index],
-        }
-
-        for time_index, time in enumerate(time_array):
-            print(f"Progress: {dec_index}/{len(dec_deg)} {time_index}/{len(time_array)}", end="\r")
-            P_ARCA_value, coszen_ARCA_value, _ = calculatorARCA.calc_osc_prob_sme(
-                basis=sme_basis, a_eV=a_eV, c=ct, time=time, **calc_kw)
-            cosz_ARCA[dec_index, time_index] = coszen_ARCA_value
-            P_ARCA[:, dec_index, time_index] = P_ARCA_value[E_node, :]
-
-        P_IC_value, coszen_IC_value, _ = calculatorIC.calc_osc_prob_sme(
-            basis=sme_basis, a_eV=a_eV, c=ct, time=time_array[0], **calc_kw)
-        cosz_IC[dec_index] = coszen_IC_value
-        P_IC[:, dec_index] = P_IC_value[E_node, :]
+    # Choose final flavor
+    P_ARCA = P_ARCA[...,final_flavor]
+    P_IC = P_IC[...,final_flavor]
 
     # Convert cosz to baseline
     baseline_ARCA = calc_path_length_from_coszen(cosz_ARCA)
@@ -95,19 +110,21 @@ def main():
 
     fig, ax = plt.subplots(3, 1, figsize=(6, 14))
 
+    # For ARCA, plot one "something vs declination" curve per hour
     for time_index, time in enumerate(time_array):
-        if time_index + 1 == len(time_array): break
-        ax[0].plot(dec_deg, cosz_ARCA[:, time_index + 1], color=colors[time_index])
-        ax[1].plot(dec_deg, baseline_ARCA[:, time_index + 1], color=colors[time_index])
-        ax[2].plot(dec_deg, P_ARCA[1, :, time_index + 1], color=colors[time_index])
+        label = "ARCA" if time_index == int(time_array.size/2) else None
+        ax[0].plot(dec_deg, cosz_ARCA[:, time_index], color=colors[time_index], label=label)
+        ax[1].plot(dec_deg, baseline_ARCA[:, time_index], color=colors[time_index], label=label)
+        ax[2].plot(dec_deg, P_ARCA[:, time_index], color=colors[time_index], label=label)
 
-    ax[0].plot(dec_deg, cosz_ARCA[:, 0], label="ARCA", color=colors[5])
-    ax[1].plot(dec_deg, baseline_ARCA[:, 0], label="ARCA", color=colors[5])
-    ax[2].plot(dec_deg, P_ARCA[1, :, 0], label="ARCA", color=colors[5])
-
-    ax[0].plot(dec_deg, cosz_IC, "--k", lw=2, label="IC")
-    ax[1].plot(dec_deg, baseline_IC, "--k", lw=2, label="IC")
-    ax[2].plot(dec_deg, P_IC[1, :], "--k", lw=2, label="IC")
+    # For IceCube there is no time-dependence since it sits on the Earth's rotation axis, so only one curve required
+    # First verify there is no time dependence, then plot the single curve...
+    for time_index in range(1, len(time_array)):
+        assert np.all( cosz_IC[:, time_index] - cosz_IC[:, 0] < 1e-3 ) # Adding some numerical tolerance since not exactly on rotation axis
+        assert np.all( P_IC[:, time_index] - P_IC[:, 0] < 1e-3 )
+    ax[0].plot(dec_deg, cosz_IC[:,0], "--k", lw=2, label="IceCube")
+    ax[1].plot(dec_deg, baseline_IC[:,0], "--k", lw=2, label="IceCube")
+    ax[2].plot(dec_deg, P_IC[:,0], "--k", lw=2, label="IceCube")
 
     # Customize plots
     ax[2].set(ylim=(-0.05, 1.05))
@@ -129,7 +146,7 @@ def main():
         cb.set_ticks(np.arange(0, 25, 4))
         cb.set_ticklabels(np.arange(0, 25, 4))
 
-    fig.suptitle(f"a = {a_magnitude_eV} eV, E = {E_GeV[E_node]} GeV, Vacuum", fontsize=16)
+    fig.suptitle(fr"SME: {a_label}, {c_label} // E = {E_GeV} GeV // Matter: {matter.title()}", fontsize=16)
 
     # Save the figure
     plt.savefig(__file__.replace(".py", ".pdf"), bbox_inches='tight')

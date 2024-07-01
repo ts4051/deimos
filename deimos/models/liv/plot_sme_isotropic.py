@@ -8,6 +8,7 @@ import sys, os, collections
 
 from deimos.wrapper.osc_calculator import *
 from deimos.utils.plotting import *
+from deimos.models.liv.sme import get_sme_state_matrix
 
 
 
@@ -47,6 +48,8 @@ if __name__ == "__main__" :
     if args.solver == "nusquids" :
         kw["energy_nodes_GeV"] = E_GeV
         kw["nusquids_variant"] = "sme"
+    elif args.solver == "oscprob" :
+        kw["oscprob_variant"] = "liv"
 
     # Create calculator
     calculator = OscCalculator(
@@ -63,13 +66,21 @@ if __name__ == "__main__" :
     # Define physics cases
     #
 
-    sme_basis = "mass"
 
-    null_operator = np.zeros((calculator.num_neutrinos, calculator.num_neutrinos))
+    # CHoose basis
+    sme_basis = "flavor"
 
+    # Choose which flavor/state element to make non-zero
+    # Can be multiple, but here only doing one for a simple example
+    state_indices = (2,3)
+    state_indices_label = "%i%i"%state_indices if (sme_basis == "mass") else "%s%s" % tuple([ calculator.get_flavor_tex(i-1) for i in state_indices ])
+
+    # Define some operators to test
     cases = collections.OrderedDict()
-    cases[r"$a^{(3)}$ [eV]"] = ( np.diag([0., 0., 1e-14]), null_operator) # (a, c) 
-    cases[r"$c^{(4)}$"] = (null_operator, np.diag([0., 0., 1e-26]) )
+    a_mag_eV = 1e-14
+    c_mag = 1e-26
+    cases[r"$a^t_{%s}$ = %0.3g eV"%(state_indices_label, a_mag_eV)] = ( get_sme_state_matrix(**{"p%i%i"%state_indices:a_mag_eV}), None ) # Non-zero a
+    cases[r"$c^{tt}_{%s}$ = %0.3g"%(state_indices_label, c_mag)] = ( None, get_sme_state_matrix(**{"p%i%i"%state_indices:c_mag}) ) # Non-zero c
 
 
     #
@@ -92,7 +103,7 @@ if __name__ == "__main__" :
         fig, ax, _, = calculator.plot_osc_prob_vs_energy(initial_flavor=initial_flavor, energy_GeV=E_GeV, distance_km=EARTH_DIAMETER_km, xscale="log", color="black", label="Standard osc", title=r"coszen = %0.3g"%coszen)
 
         # Calc osc probs and plot, with SME
-        calculator.set_sme_isotropic(basis="mass", a_eV=a_eV, c=c)
+        calculator.set_sme_isotropic(basis=sme_basis, a_eV=a_eV, c=c)
         calculator.plot_osc_prob_vs_energy(initial_flavor=initial_flavor, energy_GeV=E_GeV, distance_km=EARTH_DIAMETER_km, xscale="log", color="orange", label=r"SME : %s"%(case_label), linestyle="--", fig=fig, ax=ax)
 
 

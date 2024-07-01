@@ -1750,13 +1750,12 @@ class OscCalculator(object) :
             for time in time_values :
 
 
-
                 #
                 # Calc osc probs
                 #
 
                 # Get local direction coords
-                coszen, altitude, azimuth = self.detector_coords.get_coszen_altitude_and_azimuth(ra_deg=np.rad2deg(ra_rad), dec_deg=np.rad2deg(dec_rad), time=time)
+                coszen, altitude, azimuth = self.detector_coords.get_coszen_altitude_and_azimuth(ra_rad=ra_rad, dec_rad=dec_rad, time=time)
 
                 # Standard osc prob calc, so this particular direction/time
                 _osc_probs = self.calc_osc_prob(
@@ -1790,7 +1789,7 @@ class OscCalculator(object) :
         #
         # Done
         #
-
+        
         # Array-ify
         osc_probs = np.array(osc_probs)
         coszen_values = np.array(coszen_values)
