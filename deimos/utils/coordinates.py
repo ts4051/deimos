@@ -183,7 +183,7 @@ class DetectorCoords(object):
         '''
         Calculate the path length (baseline) in [km] for an atmospheric neutrino from a given coszen, for this detector depth
         '''
-        detector_depth_km = self.detector_depth_m.value * 1e3 #TODO use proper unit handling methods
+        detector_depth_km = self.detector_depth_m.value * 1e-3 #TODO use proper unit handling methods
         L_km = calc_path_length_from_coszen(cz=coszen, h=production_height_km, d=detector_depth_km)
         return L_km
 

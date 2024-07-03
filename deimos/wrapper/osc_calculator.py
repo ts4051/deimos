@@ -1290,10 +1290,11 @@ class OscCalculator(object) :
             a_nsq = np.zeros( (4, self.num_neutrinos, self.num_neutrinos) )
             np.copyto(src=a_t_eV, dst=a_nsq[0,...])
             np.copyto(src=a_x_eV, dst=a_nsq[1,...])
-            np.copyto(src=a_z_eV, dst=a_nsq[2,...])
+            np.copyto(src=a_y_eV, dst=a_nsq[2,...])
             np.copyto(src=a_z_eV, dst=a_nsq[3,...])
 
             c_nsq = np.zeros( (4, 4, self.num_neutrinos, self.num_neutrinos) )
+            # TODO Check whether values are stored on the correct side of the diagonal
             np.copyto(src=c_tt, dst=c_nsq[0,0,...])
             np.copyto(src=c_tx, dst=c_nsq[0,1,...])
             np.copyto(src=c_ty, dst=c_nsq[0,2,...])
@@ -1310,7 +1311,7 @@ class OscCalculator(object) :
             # nuSQuIDS currently doesn't handle imaginary SME operators
             assert np.all( a_nsq.imag == 0. ), "Cannot handle imaginary SME a matrix values in nuSQuIDS currently"
             assert np.all( c_nsq.imag == 0. ), "Cannot handle imaginary SME a matrix values in nuSQuIDS currently"
-
+            
             # Pass to nuSQuIDS
             self.nusquids.Set_LIVCoefficient(
                 a_nsq, 
