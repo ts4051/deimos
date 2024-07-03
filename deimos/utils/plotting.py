@@ -11,7 +11,7 @@ import matplotlib.backends.backend_pdf
 
 import numpy as np
 
-import os
+import os, numbers
 
 def dump_figures_to_pdf(file_path, figures=None):
     '''
@@ -139,4 +139,25 @@ def adjust_lightness(color, amount=0.5):
         c = color
     c = colorsys.rgb_to_hls(*mc.to_rgb(c))
     return colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
+
+
+def get_number_tex(number) :
+    '''
+    Get a tex representation of a number, handling exponent
+    '''
+
+    assert isinstance(number, numbers.Number)
+
+    number_str = "%0.3g" % number 
+
+    # Handle a x 10^b
+    if "e" in number_str :
+        a, b = number_str.split("e")
+        a = float(a)
+        b = int(b)
+        number_tex = r"$%0.3g \times 10^{%i}$" % (a, b)
+    else :
+        number_tex = r"$%s$" % number_str
+
+    return number_tex
 

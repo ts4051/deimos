@@ -11,9 +11,10 @@ import numpy as np
 import time as time_module
 from deimos.wrapper.osc_calculator import OscCalculator
 from deimos.utils.oscillations import get_coszen_from_path_length
-from deimos.utils.plotting import plt, dump_figures_to_pdf, plot_colormap
+from deimos.utils.plotting import plt, dump_figures_to_pdf, plot_colormap, get_number_tex
 from deimos.utils.constants import *
 from deimos.models.liv.sme import get_sme_state_matrix
+from deimos.models.liv.paper_plots.paper_def import *
 
 #
 # Main 
@@ -26,7 +27,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("-s", "--solver", type=str, required=False, default="deimos", help="Solver name")
-    parser.add_argument("-n", "--num-points", type=int, required=False, default=100, help="Num scan point")
+    parser.add_argument("-n", "--num-points", type=int, required=False, default=100, help="Num scan points")
     args = parser.parse_args()
 
 
@@ -35,7 +36,7 @@ if __name__ == "__main__":
     #
     initial_flavor = 1  # 1 corresponds to numu
     nubar = False  # False for neutrino, True for antineutrino
-    E_GeV = 10e3
+    E_GeV = REF_E_GeV
 
     #
     # Solver settings
@@ -61,22 +62,21 @@ if __name__ == "__main__":
     #
 
     # Choose basis SME operators are defined in
-    sme_basis = "mass" # "mass" or "flavor"
+    sme_basis = REF_SME_BASIS
 
-    # Define a operator
-    a_magnitude_eV = 2e-13
-    a_y_eV = get_sme_state_matrix(p33=a_magnitude_eV) # Choosing 33 element as only non-zero element in germs of flavor, and +y direction 
+    # Define "a" operator (magnitude and state texture)
+    a_magnitude_eV = REF_SME_a_MAGNITUDE_eV
+    a_mu_eV = get_sme_state_matrix(p33=a_magnitude_eV) # Choosing 33 element as only non-zero element in germs of flavor
 
-    # Define c operator
+    # Define "c" operator (magnitude and state texture)
     c_magnitude = 0
-    c_ty = get_sme_state_matrix(p33=c_magnitude) # Choosing 33 element as only non-zero element in germs of flavor, and ty tensor component 
+    c_t_nu = get_sme_state_matrix(p33=c_magnitude) # Choosing 33 element as only non-zero element in germs of flavor
 
-    # Group as an arg
-    sme_params = { "basis":sme_basis, "a_y_eV":a_y_eV, "c_ty":c_ty}
-
-    # Labels for label
-    a_label = r"$a^y_{33}$ = %0.3g eV" % a_magnitude_eV
-    c_label = r"$c^{yt}_{33}$ = %0.3g" % c_magnitude
+    # Choose direction (sticking to axis directions for simplicity here)
+    direction = "y" #  x y z
+    sme_params = { "basis":sme_basis, ("a_%s_eV"%direction):a_mu_eV, ("c_t%s"%direction):c_t_nu}
+    a_label = r"$a^{%s}_{33}$ = %s eV" % (direction, get_number_tex(a_magnitude_eV))
+    c_label = r"$c^{t%s}_{33}$ = %s" % (direction, get_number_tex(c_magnitude))
 
 
     #
@@ -90,7 +90,7 @@ if __name__ == "__main__":
     ra_grid_rad, dec_grid_rad = np.meshgrid(ra_values_rad, dec_values_rad, indexing="ij")
     grid_shape = ra_grid_rad.shape
     ra_grid_flat_rad, dec_grid_flat_rad = ra_grid_rad.flatten(), dec_grid_rad.flatten()
-    time = "July 16, 1999, 10:00"
+    time = REF_TIME
 
 
     #
@@ -125,6 +125,7 @@ if __name__ == "__main__":
     ARCA_indices = np.argsort(ARCA_RA_mantle)
     ARCA_RA_mantle = ARCA_RA_mantle[ARCA_indices]
     ARCA_DEC_mantle = ARCA_DEC_mantle[ARCA_indices]
+
 
     #
     # Calculate oscillation probabilities
@@ -161,7 +162,7 @@ if __name__ == "__main__":
     ax = ax.flatten()
 
     # Title for the Plots
-    fig.suptitle(fr"$E$ = {E_GeV:.3g} GeV // Time: {time} // SME: {a_label},  {c_label} // Matter: {matter.title()}", fontsize=12)
+    fig.suptitle(fr"$E$ = {E_GeV*1e-3:.3g} TeV // Time: {time} // SME: {a_label},  {c_label} // Matter: {matter.title()}", fontsize=12)
 
     # Plot probability matrices for IceCube and Off-axis detectors
     probabilities = [P_IC, P_ARCA]
@@ -174,16 +175,20 @@ if __name__ == "__main__":
             plot_colormap(ax=ax[idx], x=ra_values_deg, y=dec_values_deg, z=probabilities[j][...,i].reshape(grid_shape), zlabel=zlabel, cmap="RdPu", vmin=0., vmax=1.)
 
     # Plot overlays for horizon and core boundaries
-    horizons_RA = [IC_RA_horizon, ARCA_RA_horizon, IC_RA_core, ARCA_RA_core, IC_RA_outer_core, ARCA_RA_outer_core, IC_RA_mantle, ARCA_RA_mantle]
-    horizons_DEC = [IC_DEC_horizon, ARCA_DEC_horizon, IC_DEC_core, ARCA_DEC_core, IC_DEC_outer_core, ARCA_DEC_outer_core, IC_DEC_mantle, ARCA_DEC_mantle]
-    for i in range(ARCA_calculator.num_neutrinos):
-        for j in range(len(detectors)):
-            idx = 2 * i + j
-            ax[idx].plot(np.rad2deg(horizons_RA)[j], np.rad2deg(horizons_DEC)[j], color="lime", alpha=alpha, lw=linewidth)
-            ax[idx].plot(np.rad2deg(horizons_RA)[j + 2], np.rad2deg(horizons_DEC)[j + 2], color="red", alpha=alpha, lw=linewidth)
-            ax[idx].plot(np.rad2deg(horizons_RA)[j + 4], np.rad2deg(horizons_DEC)[j + 4], color="orange", alpha=alpha, lw=linewidth)
-            ax[idx].plot(np.rad2deg(horizons_RA)[j + 6], np.rad2deg(horizons_DEC)[j + 6], color="yellow", alpha=alpha, lw=linewidth)
-            ax[idx].plot(90, 0, markerfacecolor="gold", markeredgecolor="black", marker="D", markersize=7, linestyle="None")
+    # Only if matter included, otherwise not relevent
+    if matter == "earth" :
+        horizons_RA = [IC_RA_horizon, ARCA_RA_horizon, IC_RA_core, ARCA_RA_core, IC_RA_outer_core, ARCA_RA_outer_core, IC_RA_mantle, ARCA_RA_mantle]
+        horizons_DEC = [IC_DEC_horizon, ARCA_DEC_horizon, IC_DEC_core, ARCA_DEC_core, IC_DEC_outer_core, ARCA_DEC_outer_core, IC_DEC_mantle, ARCA_DEC_mantle]
+        for i in range(ARCA_calculator.num_neutrinos):
+            for j in range(len(detectors)):
+                idx = 2 * i + j
+                ax[idx].plot(np.rad2deg(horizons_RA)[j], np.rad2deg(horizons_DEC)[j], color="lime", alpha=alpha, lw=linewidth)
+                ax[idx].plot(np.rad2deg(horizons_RA)[j + 2], np.rad2deg(horizons_DEC)[j + 2], color="red", alpha=alpha, lw=linewidth)
+                ax[idx].plot(np.rad2deg(horizons_RA)[j + 4], np.rad2deg(horizons_DEC)[j + 4], color="orange", alpha=alpha, lw=linewidth)
+                ax[idx].plot(np.rad2deg(horizons_RA)[j + 6], np.rad2deg(horizons_DEC)[j + 6], color="yellow", alpha=alpha, lw=linewidth)
+
+    # Mark LIV field direction   #TODO dynamic
+    # ax[idx].plot(90, 0, markerfacecolor="gold", markeredgecolor="black", marker="D", markersize=7, linestyle="None")
 
     # Axis labels and ticks
     ra_ticks = [0, 90, 180, 270, 360]
@@ -208,12 +213,13 @@ if __name__ == "__main__":
     ax[5].set_xticklabels([ "%i"%t for t in ra_ticks ])
 
     # Legend
-    ax[0].plot([], [], color="lime", alpha=alpha, lw=linewidth, label="Horizon")
-    ax[0].plot([], [], color="yellow", alpha=alpha, lw=linewidth, label="Mantle")
-    ax[0].plot([], [], color="orange", alpha=alpha, lw=linewidth, linestyle=None, label="Outer core")
-    ax[0].plot([], [], color="red", alpha=alpha, lw=linewidth, linestyle=None, label="Inner core")
-    fig.legend(loc="upper center", fontsize=12, ncol=5, bbox_to_anchor=(0.5, 0.93))
-
+    if matter == "earth" :
+        ax[0].plot([], [], color="lime", alpha=alpha, lw=linewidth, label="Horizon")
+        ax[0].plot([], [], color="yellow", alpha=alpha, lw=linewidth, label="Mantle")
+        ax[0].plot([], [], color="orange", alpha=alpha, lw=linewidth, linestyle=None, label="Outer core")
+        ax[0].plot([], [], color="red", alpha=alpha, lw=linewidth, linestyle=None, label="Inner core")
+        fig.legend(loc="upper center", fontsize=12, ncol=5, bbox_to_anchor=(0.5, 0.93))
+ 
     # Save the figure
     print("")
     dump_figures_to_pdf( __file__.replace(".py",".pdf") )
