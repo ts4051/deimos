@@ -26,7 +26,7 @@ if __name__ == "__main__" :
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("-s", "--solver", type=str, required=False, default="deimos", help="Solver name")
-    parser.add_argument("-n", "--num-points", type=int, required=False, default=1000, help="Num scan point")
+    parser.add_argument("-n", "--num-points", type=int, required=False, default=100, help="Num scan point")
     args = parser.parse_args()
 
 
@@ -58,7 +58,7 @@ if __name__ == "__main__" :
         **kw
     )
 
-    # Use vacuum
+    # Use vacuum (earth is only for atmospheric neutrinos)
     calculator.set_matter("vacuum")
 
 
@@ -68,7 +68,7 @@ if __name__ == "__main__" :
 
 
     # CHoose basis
-    sme_basis = "flavor"
+    sme_basis = "mass"    # "mass" or "flavor" (nuSQuIDS only supports mass basis)
 
     # Choose which flavor/state element to make non-zero
     # Can be multiple, but here only doing one for a simple example

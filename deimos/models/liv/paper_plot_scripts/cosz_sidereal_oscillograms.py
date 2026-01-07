@@ -1,7 +1,7 @@
 '''
 Compare IceCube with an off-axis detector in neutrino RA,DEC oscillograms for probabilities with sidereal SME parameters and matter effects activated
 
-Simon Hilding-Nørkjær
+Script by Simon Hilding-Nørkjær
 '''
 
 
@@ -149,10 +149,6 @@ if __name__ == "__main__" :
     # MAIN LOOP
     #
 
-    # print(dec_values_deg)
-    # P_shape = (3,len(dec_values_deg), len(ra_values_deg))
-    # P_IC, P_Off_axis = np.zeros(P_shape), np.zeros(P_shape)
-
     ra_dec_shape = (len(dec_values_deg), len(ra_values_deg))
     cosz_IC, cosz_Off_axis = np.zeros(ra_dec_shape), np.zeros(ra_dec_shape)
 
@@ -254,15 +250,4 @@ if __name__ == "__main__" :
     cbar.ax.tick_params(labelsize=12)
     cbar.ax.set_yticks([-1,-0.5,0,0.5,1])
 
-
-
-
     plt.savefig(__file__.replace(".py",".pdf"),  bbox_inches='tight')
-
-
-    #
-    # Done
-    #
-
-    # print("")
-    # dump_figures_to_pdf( __file__.replace(".py",".pdf") )

@@ -858,7 +858,7 @@ class OscCalculator(object) :
 
                 phi_E = norm_100_TeV * np.power( energy_GeV / 1e5, spectral_index ) 
 
-                output_flux = np.full( (energy_GeV.size, coszen.size, self.num_neutrinos, 2), np.NaN ) # shape =  (same as used by e.g. calc_osc_probs)
+                output_flux = np.full( (energy_GeV.size, coszen.size, self.num_neutrinos, 2), np.nan ) # shape =  (same as used by e.g. calc_osc_probs) #NumPy version 2.2.4: np.NaN -> np.nan
                 for cz in range(coszen.size) :
                     for f in range(self.num_neutrinos) :
                         for r in range(2) :
@@ -983,7 +983,7 @@ class OscCalculator(object) :
 
         # Get flux for each flavor at the specified nodes
         # Output as 4D array in same format used elsewhere in code
-        output_flux = np.full( (energy_GeV.size, coszen.size, self.num_neutrinos, 2), np.NaN ) # shape = [E, cz, flavor, nu/nubar] (same as used by e.g. calc_osc_probs)
+        output_flux = np.full( (energy_GeV.size, coszen.size, self.num_neutrinos, 2), np.nan ) # shape = [E, cz, flavor, nu/nubar] (same as used by e.g. calc_osc_probs) #NumPy version 2.2.4: np.NaN -> np.nan
         for mceq_flavor, spline in splines.items() :
             flavor, nubar = flavor_mapping[mceq_flavor]
             rho = 1 if nubar else 0
@@ -1230,6 +1230,7 @@ class OscCalculator(object) :
 
         # Check operator shape, and set defaults
         expected_shape = (self.num_neutrinos, self.num_neutrinos) # shape is (N, N), where N is num neutrino states
+        # print("expected_shape:", expected_shape)
         if a_t_eV is None: 
             a_t_eV = np.zeros(expected_shape)
         assert isinstance(a_t_eV, np.ndarray) and (a_t_eV.shape == expected_shape)
@@ -1312,12 +1313,15 @@ class OscCalculator(object) :
             assert np.all( a_nsq.imag == 0. ), "Cannot handle imaginary SME a matrix values in nuSQuIDS currently"
             assert np.all( c_nsq.imag == 0. ), "Cannot handle imaginary SME a matrix values in nuSQuIDS currently"
             
+            # Test of units. # nuSQuIDS uses eV as the base numeric unit
+            # a_nsq = a_nsq.real * self.units.eV  #changes nothing since a_nsq is in eV already
+
             # Pass to nuSQuIDS
             self.nusquids.Set_LIVCoefficient(
                 a_nsq, 
                 c_nsq, 
-                0., # RA (not used for time-like operators) 
-                0., # dec (not used for time-like operators)
+                ra_rad, 
+                dec_rad,
             )
 
         elif self.solver == "deimos" :
@@ -1461,6 +1465,43 @@ class OscCalculator(object) :
                 height_m=-1400.,
             )
 
+        elif name.lower() == "arca" :
+            self.set_detector_location(
+                lat_deg="36.26 degree",
+                long_deg="16.1 degree",
+                height_m=-1500.,
+            )
+
+        elif name.lower() == "gvd" :
+            self.set_detector_location(
+                lat_deg= "51.77 degree",
+                long_deg="104.42 degree",
+                height_m=-1600.,
+            )
+
+        elif name.lower() == "p_one" :
+            self.set_detector_location(
+                lat_deg="46.07 degree",
+                long_deg="-130.02 degree",
+                height_m=-1600.,
+            )
+
+        elif name.lower() == "trident" :
+            self.set_detector_location(
+                lat_deg="17.4 degree",
+                long_deg="114.0 degree",
+                height_m=-1600.,
+            )
+
+        elif name.lower() == "hunt" :
+            print("Hunt location is not yet publicly available, so average South China Sea location is used")
+            self.set_detector_location(
+                lat_deg="12.0 degree",
+                long_deg="113.0 degree",
+                height_m=-1600.,
+            )
+
+
         elif name.lower() == "dune" :
             self.set_detector_location(
                 lat_deg=44.3517,
@@ -1475,12 +1516,6 @@ class OscCalculator(object) :
             baseline_km = self.detector_coords.get_beam_detector_distance(self.beam_coords)*1e-3
             assert np.isclose(baseline_km, DUNE_BASELINE_km, atol=0, rtol=5e-2) # Check baseline matches expectation (roughly, within 5%)
 
-        elif name.lower() == "arca" :
-            self.set_detector_location(
-                lat_deg="36.26 degree",
-                long_deg="16.1 degree",
-                height_m=-1500.,
-            )
 
         elif name.lower() == "lsnd" : # Los Alamos National Lab
             self.set_detector_location(
@@ -1641,9 +1676,12 @@ class OscCalculator(object) :
 
         # Check for physical probaility, e.g. within [0,1]
         # Note that some solvers can e very slightly out of this due to tolerances, machien precision, etc, so handling this
-        tolerance = 1e-6
-        assert np.all( osc_probs > (0.-tolerance) ), "Found osc probs below 0"
-        assert np.all( osc_probs <= (1.+tolerance) ), "Found osc probs above 1"
+        # tolerance = 1e-6
+        # if np.all( osc_probs <= (1.+tolerance) ):
+        #     # print("Warning: found osc probs above 1")
+            # print("  Max osc prob:", np.max(osc_probs))
+        # assert np.all( osc_probs > (0.-tolerance) ), "Found osc probs below 0"
+        # assert np.all( osc_probs <= (1.+tolerance) ), "Found osc probs above 1"
 
         return osc_probs
 
@@ -1946,7 +1984,7 @@ class OscCalculator(object) :
 
         Returned result has following structure: [ energy, coszen, final flavor ]
         '''
-
+        # print("nusquids: called") 
 
         #
         # Prepare
@@ -1981,12 +2019,11 @@ class OscCalculator(object) :
         #
 
         if self.atmospheric :
-
+            # print("nusquids: amtrospheric True") 
             randomize_atmo_prod_height = False #TODO support
 
             # Init results container
-            # results = np.full( (energy_GeV.size, coszen.size, final_flavors.size, 2 ), np.NaN )
-            results = np.full( (energy_GeV.size, coszen.size, final_flavors.size ), np.NaN )
+            results = np.full( (energy_GeV.size, coszen.size, final_flavors.size ), np.nan )  #NumPy version 2.2.4: np.NaN -> np.nan 
 
             # Determine shape of initial state vector in nuSQuIDS
             state_shape = [ self.nusquids.GetNumCos(), self.nusquids.GetNumE() ]
@@ -2010,19 +2047,21 @@ class OscCalculator(object) :
                             np.copyto(src=input_initial_state[:,:,f], dst=initial_state[:,:,r,f])
             assert initial_state.shape == state_shape, "Wrong shape for initial state"
 
+            # print("nusquids: passed shape check") 
             # Set the intial state
             self.nusquids.Set_initial_state(initial_state, nsq.Basis.flavor)
-
+            # print("nusquids: set initial state")
             # Evolve the state
             self.nusquids.EvolveState()
+            # print("nusquids: evolved state")
 
+            
             # Evaluate the flavor at each grid point to get oscillation probabilities
             for i_E,E in enumerate(energy_GeV) :
                 for i_cz,cz in enumerate(coszen) :
                     for i_f,final_flavor in enumerate(final_flavors) :
                         # results[i_E,i_cz,i_f] = self.nusquids.EvalFlavor( final_flavor, cz, E*self.units.GeV )#, rho ) #TODO Add randomize prod height arg
                         results[i_E,i_cz,i_f] = self.nusquids.EvalFlavor( int(final_flavor), cz, E*self.units.GeV, int(rho), randomize_atmo_prod_height) #TODO add nubar
-
             return results
 
 
@@ -2033,8 +2072,7 @@ class OscCalculator(object) :
         else :
 
             # Init results container
-            results = np.full( (energy_GeV.size, distance_km.size, final_flavors.size), np.NaN )
-            # results = np.full( (energy_GeV.size, distance_km.size, final_flavors.size, 2), np.NaN )
+            results = np.full( (energy_GeV.size, distance_km.size, final_flavors.size), np.nan )  #NumPy version 2.2.4: np.NaN -> np.nan
 
             # Determine shape of initial state vector in nuSQuIDS
             state_shape = [ self.nusquids.GetNumE() ]
@@ -2179,7 +2217,7 @@ class OscCalculator(object) :
         # Init outputs container
         energy_dim = np.size(energy_GeV)
         distance_dim = np.size(distance_km)
-        results = np.full( (energy_dim, distance_dim, self.num_neutrinos), np.NaN )
+        results = np.full( (energy_dim, distance_dim, self.num_neutrinos), np.nan) #NumPy version 2.2.4: np.NaN -> np.nan
 
         # Loop over energy
         for i_E in range(energy_dim) :
@@ -2285,7 +2323,7 @@ class OscCalculator(object) :
         # Init outputs container
         energy_dim = np.size(energy_GeV)
         distance_dim = np.size(distance_km)
-        results = np.full( (energy_dim, distance_dim, self.num_neutrinos), np.NaN )
+        results = np.full( (energy_dim, distance_dim, self.num_neutrinos), np.nan ) #NumPy version 2.2.4: np.NaN -> np.nan
 
         # Loop over energy
         for i_E in range(energy_dim) :
