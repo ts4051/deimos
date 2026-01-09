@@ -859,7 +859,7 @@ class OscCalculator(object) :
                 spectral_index = -2.87
                 phi_E = norm_100_TeV * np.power( energy_GeV / 1e5, spectral_index ) 
 
-                output_flux = np.full( (energy_GeV.size, coszen.size, self.num_neutrinos, 2), np.NaN ) # shape =  (same as used by e.g. calc_osc_probs)
+                output_flux = np.full( (energy_GeV.size, coszen.size, self.num_neutrinos, 2), np.nan ) # shape =  (same as used by e.g. calc_osc_probs)
                 for cz in range(coszen.size) :
                     for f in range(self.num_neutrinos) :
                         for r in range(2) :
@@ -984,7 +984,7 @@ class OscCalculator(object) :
 
         # Get flux for each flavor at the specified nodes
         # Output as 4D array in same format used elsewhere in code
-        output_flux = np.full( (energy_GeV.size, coszen.size, self.num_neutrinos, 2), np.NaN ) # shape = [E, cz, flavor, nu/nubar] (same as used by e.g. calc_osc_probs)
+        output_flux = np.full( (energy_GeV.size, coszen.size, self.num_neutrinos, 2), np.nan ) # shape = [E, cz, flavor, nu/nubar] (same as used by e.g. calc_osc_probs)
         for mceq_flavor, spline in splines.items() :
             flavor, nubar = flavor_mapping[mceq_flavor]
             rho = 1 if nubar else 0
@@ -1315,8 +1315,8 @@ class OscCalculator(object) :
             self.nusquids.Set_LIVCoefficient(
                 a_nsq, 
                 c_nsq, 
-                0., # RA (not used for time-like operators) 
-                0., # dec (not used for time-like operators)
+                rad_rad,
+                dec_rad,
             )
 
         elif self.solver == "deimos" :
@@ -1460,6 +1460,42 @@ class OscCalculator(object) :
                 height_m=-1400.,
             )
 
+        elif name.lower() == "arca" :
+            self.set_detector_location(
+                lat_deg="36.26 degree",
+                long_deg="16.1 degree",
+                height_m=-1500.,
+            )
+
+        elif name.lower() == "gvd" :
+            self.set_detector_location(
+                lat_deg= "51.77 degree",
+                long_deg="104.42 degree",
+                height_m=-1600.,
+            )
+
+        elif name.lower() == "p_one" :
+            self.set_detector_location(
+                lat_deg="46.07 degree",
+                long_deg="-130.02 degree",
+                height_m=-1600.,
+            )
+
+        elif name.lower() == "trident" :
+            self.set_detector_location(
+                lat_deg="17.4 degree",
+                long_deg="114.0 degree",
+                height_m=-1600.,
+            )
+
+        elif name.lower() == "hunt" :
+            print("Hunt location is not yet publicly available, so average South China Sea location is used")
+            self.set_detector_location(
+                lat_deg="12.0 degree",
+                long_deg="113.0 degree",
+                height_m=-1600.,
+            )
+
         elif name.lower() == "dune" :
             self.set_detector_location(
                 lat_deg=44.3517,
@@ -1473,13 +1509,6 @@ class OscCalculator(object) :
             )
             baseline_km = self.detector_coords.get_beam_detector_distance(self.beam_coords)*1e-3
             assert np.isclose(baseline_km, DUNE_BASELINE_km, atol=0, rtol=5e-2) # Check baseline matches expectation (roughly, within 5%)
-
-        elif name.lower() == "arca" :
-            self.set_detector_location(
-                lat_deg="36.26 degree",
-                long_deg="16.1 degree",
-                height_m=-1500.,
-            )
 
         elif name.lower() == "lsnd" : # Los Alamos National Lab
             self.set_detector_location(
@@ -2298,7 +2327,7 @@ class OscCalculator(object) :
         # Init outputs container
         energy_dim = np.size(energy_GeV)
         distance_dim = np.size(distance_km)
-        results = np.full( (energy_dim, distance_dim, self.num_neutrinos), np.NaN )
+        results = np.full( (energy_dim, distance_dim, self.num_neutrinos), np.nan )
 
         # Loop over energy
         for i_E in range(energy_dim) :
@@ -2404,7 +2433,7 @@ class OscCalculator(object) :
         # Init outputs container
         energy_dim = np.size(energy_GeV)
         distance_dim = np.size(distance_km)
-        results = np.full( (energy_dim, distance_dim, self.num_neutrinos), np.NaN )
+        results = np.full( (energy_dim, distance_dim, self.num_neutrinos), np.nan )
 
         # Loop over energy
         for i_E in range(energy_dim) :
