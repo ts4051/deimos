@@ -87,6 +87,11 @@ def plot_matter_effects_2flav(solver) :
     fig, ax = None, None
     for i_case, (case_label, case_kw) in enumerate(cases.items()) :
 
+
+        #
+        # Calc/plot matter effects using a matter potential
+        #
+
         # Set matter
         calculator.set_matter(**case_kw)
 
@@ -103,6 +108,10 @@ def plot_matter_effects_2flav(solver) :
             color=adjust_lightness(COLORS[i_case], 0.8),
             lw=4,
         )
+
+        #
+        # Calc/plot matter effects using the effective oscillation parameter treatment
+        #
 
         # Next stuff is matter-specific
         if case_kw["matter"] != "vacuum" :
@@ -140,112 +149,6 @@ def plot_matter_effects_2flav(solver) :
             calculator.set_mass_splittings(mass_splitting_eV2)
 
 
-def plot_high_energy_earth_interaction_effects(solver) :
-    '''
-    Plotting Earth interaction effects, e.g. absorption and tau/NC regeneration
-
-    Doing this by propagating a flux (regeneration effects are flux-dependent, since neutrino energy changes)
-    '''
-
-    if solver == "deimos" :
-        print("Earth interactions not implemented in DEIMOS, skipping...")
-        return
-
-
-    #
-    # Define parameter space
-    #
-
-    num_scan_points = 25
-    E_values_GeV = np.geomspace(100., 1e5, num=num_scan_points) # Staying above the standard oscillations for simplicity here
-    coszen_values = np.array([-1.,]) # Just testing up-going currently
-
-    nubar = False
-
-
-    #
-    # Define cases
-    #
-
-    cases = collections.OrderedDict()
-    cases["No interactions"] = {"interactions":False}
-    cases["Include interactions/regeneration"] = {"interactions":True}
-
- 
-    # 
-    # Plot
-    #
-
-    # Loop over cases
-    for i_case, (case_label, case_kw) in enumerate(cases.items()) :
-
-
-        #
-        # Create model
-        #
-
-        calc_kw = {}
-        if solver == "nusquids" :
-            calc_kw["energy_nodes_GeV"] = E_values_GeV
-
-        # Create calculator
-        calculator = OscCalculator(
-            solver=solver,
-            atmospheric=True,
-            **calc_kw,
-            **case_kw # This passes the interaction information to the model
-        )
-
-        # Enable Earth matter
-        calculator.set_matter("earth")
-
-
-        #
-        # Propagate an astrophysical flux
-        #
-
-        # Note that the flux has an impact of tau/NC regeneration, since there are HE->LE transitions and so the relative rates of HE to LE neutrinos matters
-
-        # Propagate the atro flux
-        initial_flux, final_flux = calculator.calc_final_flux(
-            source="astro",
-            energy_GeV=E_values_GeV,
-            coszen=coszen_values,
-            nubar=nubar,
-        )
-
-        # Make figure
-        fig, ax = plt.subplots( figsize=(6,4) )
-        fig.suptitle(case_label)
-
-        # Plot steering
-        linestyles = ["-","--", ":"]
-
-        # Loop over flavors
-        for i_f in range(calculator.num_neutrinos) :
-
-            # Get the flux for this flavor. Only a single coszen value.
-            assert coszen_values.size == 1
-            flavor_initial_flux = initial_flux[:,0,i_f]
-            flavor_final_flux = final_flux[:,0,i_f]
-            ratio = flavor_final_flux / flavor_initial_flux
-            assert ratio.ndim == 1
-
-            # Plot ratio vs energy
-            ax.plot(E_values_GeV, ratio, color=NU_COLORS[i_f], linestyle=linestyles[i_f], lw=4, label=r"$%s$"%calculator.get_nu_flavor_tex(i_f, nubar=nubar))
-                       
-        # Format
-        ax.set_xscale("log")
-        ax.set_xlabel(r"$E$ [GeV]")
-        ax.set_ylabel(r"$\phi_f / \phi_i$")
-        ax.set_xlim(E_values_GeV[0], E_values_GeV[-1])
-        ax.set_ylim(0., 1.1)
-        ax.grid(True)
-        ax.legend(fontsize=12)
-        fig.tight_layout()
-
-
-
 #
 # Main
 #
@@ -267,8 +170,6 @@ if __name__ == "__main__" :
     #
 
     plot_matter_effects_2flav(solver=args.solver)
-
-    plot_high_energy_earth_interaction_effects(solver=args.solver)
 
     #TODO plot resonance condition
     #TODO 3 flavor nu and nubar matter plots

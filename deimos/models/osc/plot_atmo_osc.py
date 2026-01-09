@@ -64,7 +64,14 @@ if __name__ == "__main__" :
     #
 
     # Calc osc probs and plot
-    calculator.plot_oscillogram(initial_flavor=initial_flavor, final_flavor=final_flavor, nubar=nubar, energy_GeV=E_GeV, coszen=coszen)
+    calculator.plot_oscillogram(
+        initial_flavor=initial_flavor, 
+        final_flavor=final_flavor, 
+        nubar=nubar, 
+        energy_GeV=E_GeV, 
+        coszen=coszen, 
+        vmin=0.,
+    )
 
 
     #

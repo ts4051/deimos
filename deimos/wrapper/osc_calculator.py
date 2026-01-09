@@ -83,6 +83,7 @@ class OscCalculator(object) :
         mixing_angles_rad=None,
         mass_splittings_eV2=None,
         deltacp_rad=None,
+        matter=None,
         cache_dir=None,
         **kw
     ) :
@@ -147,6 +148,7 @@ class OscCalculator(object) :
         self.set_mixing_angles(*mixing_angles_rad, deltacp=deltacp_rad)
         self.set_mass_splittings(*mass_splittings_eV2)
         self.set_calc_basis(DEFAULT_CALC_BASIS)
+        self.set_matter(matter)
         # self.set_decoherence_D_matrix_basis(DEFAULT_DECOHERENCE_GAMMA_BASIS)
 
         # Caching
@@ -236,7 +238,7 @@ class OscCalculator(object) :
         self.units = nsq.Const()
 
         # Get neutrino type
-        # Always do both, not the most efficient but simplifies things
+        # Always do both, not necessarily the most efficient but simplifies things
         nu_type = nsq.NeutrinoType.both 
 
         # Toggle between atmo. vs regular modes
@@ -788,7 +790,7 @@ class OscCalculator(object) :
     # Neutrino flux functions
     #
 
-    def get_neutrino_flux(self, energy_GeV, coszen, source, model=None, grid=False, overwrite_cache=False) :
+    def get_neutrino_flux(self, energy_GeV, coszen, source, model=None, **kw) :
         '''
         Function to return the atmospheric neutrino flux, for a given model or calculation method
 
@@ -825,7 +827,7 @@ class OscCalculator(object) :
                 raise NotImplementedError("TODO: Daemon flux")
 
             elif model.lower() == "mceq" :
-                return self._get_atmo_neutrino_flux_mceq(energy_GeV=energy_GeV, coszen=coszen, grid=grid, overwrite_cache=overwrite_cache)
+                return self._get_atmo_neutrino_flux_mceq(energy_GeV=energy_GeV, coszen=coszen, **kw)
 
             else :
                 raise NotImplementedError("Unknown model for atmospheric flux")
@@ -853,9 +855,8 @@ class OscCalculator(object) :
                 # Assumes 1:1:1 flavor, and 1:1 nu:nubar, isotropic (which means uniform in coszen)
 
                 # Using flux from IceCube HESE 2020 (arXiv:2011.03545)
-                norm_100_TeV = 6.5e-18 / 6. # GeV^{-1} sr^{-1} s^{-1} cm^{-2}. Dividing by 6 since this is the total flux for all flavors and nu/nubar       #TODO get more precise value
+                norm_100_TeV = 6.5e-18 / 6. # GeV^{-1} sr^{-1} s^{-1} cm^{-2}. Dividing by 6 since this is the total flux for all flavors and nu/nubar
                 spectral_index = -2.87
-
                 phi_E = norm_100_TeV * np.power( energy_GeV / 1e5, spectral_index ) 
 
                 output_flux = np.full( (energy_GeV.size, coszen.size, self.num_neutrinos, 2), np.NaN ) # shape =  (same as used by e.g. calc_osc_probs)
@@ -993,8 +994,6 @@ class OscCalculator(object) :
         assert np.all( np.isfinite(output_flux) )
 
         return output_flux
-
-
 
 
     #
@@ -1541,21 +1540,42 @@ class OscCalculator(object) :
     # Oscillation calculation functions
     #
 
-    def calc_osc_prob(self,
+    def state_shape(self, energy, distance, include_nubar=True) :
+        '''
+        State array used by this class is of shape: [E, distance/coszen, flavor, nu/nubar]
+        '''
+
+        assert energy.ndim == 1
+        assert distance.ndim == 1
+
+        shape = [
+            energy.size,
+            distance.size,
+            self.num_neutrinos,
+        ]
+
+        if include_nubar :
+            shape.append(2)
+
+        return tuple(shape)
+
+
+    def calc_osc_prob(
+        self,
+        initial_flavor,
         energy_GeV,
-        initial_flavor=None,
-        initial_state=None,
         distance_km=None,
         coszen=None,
         nubar=False,
         **kw
     ) :
         '''
-        For the given model state, calcukate oscillation probabilities for neutrinos as specified in the inputs
+        For the given initial flavor state, calculate oscillation probabilities for neutrinos as specified in the inputs.
         '''
 
-        #TODO caching
         #TODO Option for different final rho to allow nu->nubar transitions
+
+
 
         #
         # Check inputs
@@ -1565,14 +1585,32 @@ class OscCalculator(object) :
         if initial_flavor is not None :
             initial_flavor = self._get_flavor_index(initial_flavor)
 
-        # Must specify coszen or distance
-        found_L, found_cz = (distance_km is not None), (coszen is not None)
-        assert not (found_L and found_cz), "Must specify distance_km or coszen"
-        assert not ( (not found_L) and (not found_cz) ), "Must specify distance_km or coszen"
+        # Handle coszen vs distance
+        drop_dist_dim = False
+        if distance_km is not None :
+            # User providing distance
+            if isinstance(distance_km, numbers.Number) :
+                drop_dist_dim = True
+                distance_km = np.array([distance_km])   
+            assert isinstance(distance_km, np.ndarray)
+            assert coszen is None, "Must specify distance_km or coszen (but not both)"
+            _dist_var = distance_km
+        else :
+            # User providing coszen
+            if isinstance(coszen, numbers.Number) :
+                drop_dist_dim = True
+                coszen = np.array([coszen])   
+            assert isinstance(coszen, np.ndarray)
+            assert distance_km is None, "Must specify distance_km or coszen (but not both)"
+            assert self.atmospheric, "Must provide `distance_km` (and not `coszen`) in non-atmospheric mode"
+            _dist_var = coszen
 
-        # Coszen not valid unless in atmospheric mode
-        if not self.atmospheric :
-            assert coszen is None, "Must provide `distance_km` (and not `coszen`) in non-atmospheric mode" 
+        # Check energy
+        drop_energy_dim = False
+        if isinstance(energy_GeV, numbers.Number) :
+            drop_energy_dim = True
+            energy_GeV = np.array([energy_GeV])   
+        assert isinstance(energy_GeV, np.ndarray)
 
 
         #
@@ -1581,16 +1619,32 @@ class OscCalculator(object) :
 
         # Call sub-function for relevent solver
         if self.solver == "nusquids" :
-            osc_probs = self._calc_osc_prob_nusquids( initial_flavor=initial_flavor, initial_state=initial_state, energy_GeV=energy_GeV, distance_km=distance_km, coszen=coszen, nubar=nubar, **kw ) #TODO use single E value for single E mode
+
+            # Create initial state from initial flavor (in the node dimensions)
+            state_shape = self.state_shape(energy=self.energy_nodes_GeV, distance=(self.coszen_nodes if self.atmospheric else _dist_var), include_nubar=True)
+            rho = 1 if nubar else 0
+            initial_state = np.zeros(state_shape)
+            initial_state[:, :, initial_flavor, rho] = 1.
+
+            # Propagate the state
+            final_state = self._propagate_nusquids( initial_state=initial_state, energy_GeV=energy_GeV, distance_km=distance_km, coszen=coszen, **kw )
+
+            # Extract osc probs
+            osc_probs = final_state[:, :, :, rho]
 
         elif self.solver == "deimos" :
-            assert initial_flavor is not None, "must provide `initial_flavor` (`initial_state` not currently supported for %s" % self.solver
+
+            # Call DEIMOS calculator
             osc_probs = self._calc_osc_prob_deimos( initial_flavor=initial_flavor, nubar=nubar, energy_GeV=energy_GeV, distance_km=distance_km, coszen=coszen, **kw )
        
         elif self.solver == "prob3" :
+
+            # Call Prob3 calculator
             osc_probs = self._calc_osc_prob_prob3( initial_flavor=initial_flavor, energy_GeV=energy_GeV, distance_km=distance_km, coszen=coszen, nubar=nubar, **kw )
 
         elif self.solver == "oscprob" :
+
+            # Call OscProb calculator
             osc_probs = self._calc_osc_prob_oscprob( initial_flavor=initial_flavor, energy_GeV=energy_GeV, distance_km=distance_km, coszen=coszen, nubar=nubar, **kw )
 
 
@@ -1598,55 +1652,121 @@ class OscCalculator(object) :
         # Done
         #
 
-        # Handle arrays vs single values for energy
-        if isinstance(energy_GeV, (list, np.ndarray)) :
-            single_energy, energy_size = False, len(energy_GeV)
-        else :
-            assert isinstance(energy_GeV, numbers.Number)
-            single_energy, energy_size = True, 1
-
-
-        # Handle single vs array of distances
-        x = distance_km if found_L else coszen
-        if isinstance(x, (list, np.ndarray)) :
-            single_dist, dist_size = False, len(x)
-        else :
-            assert isinstance(x, numbers.Number)
-            single_dist, dist_size = True, 1
-
-
         # Check shape of output array
-        expected_shape = ( energy_size, dist_size, self.num_neutrinos )
-        assert osc_probs.shape == expected_shape
-
-        # Remove single-valued dimensions, and check shape again
-        # osc_probs = np.squeeze(osc_probs)
-        # expected_shape = []
-        # if not single_energy :
-        #     expected_shape.append(energy_size)
-        # if not single_dist :
-        #     expected_shape.append(dist_size)
-        # expected_shape.append(self.num_neutrinos)
-        # expected_shape = tuple(expected_shape)
-        # assert osc_probs.shape = expected_shape
-        if single_energy and single_dist :
-            osc_probs = osc_probs[0,0,:]
-        elif single_energy :
-            osc_probs = osc_probs[0,:,:]
-        elif single_dist :
-            osc_probs = osc_probs[:,0,:]
+        expected_shape = self.state_shape(energy=energy_GeV, distance=_dist_var, include_nubar=False)
+        assert osc_probs.shape == expected_shape, "Osc probs shape is %s, but expected %s" % (osc_probs.shape, expected_shape)
 
         # Checks for non-finite values
         assert np.all( np.isfinite(osc_probs) ), "Found non-finite osc probs"
 
-        # Check for physical probaility, e.g. within [0,1]
-        # Note that some solvers can e very slightly out of this due to tolerances, machien precision, etc, so handling this
+        # Check for physical values, modulo some tolerance
         tolerance = 1e-6
         assert np.all( osc_probs > (0.-tolerance) ), "Found osc probs below 0"
-        assert np.all( osc_probs <= (1.+tolerance) ), "Found osc probs above 1"
+        # NOT checking for osc probs > 1, since this can happen when non-coherent processes like tau or NC regeneration are involved
+
+        # Drop unused dimensions
+        if drop_energy_dim and drop_dist_dim :
+            osc_probs = osc_probs[0, 0, :]
+        elif drop_energy_dim :
+            osc_probs = osc_probs[0, :, :]
+        elif drop_dist_dim :
+            osc_probs = osc_probs[:, 0, :]
 
         return osc_probs
 
+
+    def propagate_flux(
+        self,
+        initial_flux,
+        energy_GeV,
+        distance_km=None,
+        coszen=None,
+        **kw
+    ) :
+        '''
+        Propagate an initial flux to get the resulting final flux
+        '''
+
+        #
+        # Check inputs
+        # 
+
+        # Handle coszen vs distance
+        drop_dist_dim = False
+        if distance_km is not None :
+            # User providing distance
+            if isinstance(distance_km, numbers.Number) :
+                drop_dist_dim = True
+                distance_km = np.array([distance_km])   
+            assert isinstance(distance_km, np.ndarray)
+            assert coszen is None, "Must specify distance_km or coszen (but not both)"
+            _dist_var = distance_km
+        else :
+            # User providing coszen
+            if isinstance(coszen, numbers.Number) :
+                drop_dist_dim = True
+                coszen = np.array([coszen])   
+            assert isinstance(coszen, np.ndarray)
+            assert distance_km is None, "Must specify distance_km or coszen (but not both)"
+            assert self.atmospheric, "Must provide `distance_km` (and not `coszen`) in non-atmospheric mode"
+            _dist_var = coszen
+
+        # Check energy
+        drop_energy_dim = False
+        if isinstance(energy_GeV, numbers.Number) :
+            drop_energy_dim = True
+            energy_GeV = np.array([energy_GeV])   
+        assert isinstance(energy_GeV, np.ndarray)
+
+        # Check initial flux
+        state_shape = self.state_shape(energy=energy_GeV, distance=_dist_var, include_nubar=True)
+        assert initial_flux.shape == state_shape, "User provided an incompatible shape for initial flux, expected %s but found %s" % (state_shape, initial_flux.shape)
+
+
+        #
+        # Calculate
+        #
+
+        # Call sub-function for relevent solver
+        if self.solver == "nusquids" :
+
+            # Energy and coszen must match nuSQuIDs nodes
+            assert energy_GeV.size == self.energy_nodes_GeV.size, "Energy must match nuSQuIDS nodes"
+            if self.atmospheric :
+                assert coszen.size == self.coszen_nodes.size, "coszen must match nuSQuIDS nodes"
+
+            # Propagate the state
+            final_flux = self._propagate_nusquids( initial_state=initial_flux, energy_GeV=energy_GeV, distance_km=distance_km, coszen=coszen, **kw )
+
+        else :
+            raise Exception("propagate_flux not yet implemented for solver %s" % self.solver)
+            #TODO call call calc_osc_prob for each flavor and nu/nubar  and build output flux
+
+
+        #
+        # Done
+        #
+
+        # Check shape of output array
+        assert final_flux.shape == initial_flux.shape
+
+        # Checks for non-finite values
+        assert np.all( np.isfinite(final_flux) ), "Found non-finite osc probs"
+
+        # Check for physical values, e.g. >0
+        # Note that some solvers can e very slightly out of this due to tolerances, machine precision, etc, so handling this
+        tolerance = 1e-6
+        assert np.all( final_flux > (0.-tolerance) ), "Found flux below 0"
+
+        # Drop unused dimensions
+        if drop_energy_dim and drop_dist_dim :
+            osc_probs = osc_probs[0, 0, :, :]
+        elif drop_energy_dim :
+            osc_probs = osc_probs[0, :, :, :]
+        elif drop_dist_dim :
+            osc_probs = osc_probs[:, 0, :, :]
+
+        return final_flux
 
 
     def calc_osc_prob_sme_directional_atmospheric(self,
@@ -1932,48 +2052,27 @@ class OscCalculator(object) :
         return osc_probs, ra_values_rad, dec_value_rad
 
 
-
-    def _calc_osc_prob_nusquids(self,
+    def _propagate_nusquids(self,
         energy_GeV,
-        initial_flavor=None,
-        initial_state=None,
-        nubar=False,
+        initial_state, # [ energy nodes, distance/coszen nodes, final flavor, nu/nubar ]   (must match energy/coszen grid)
         distance_km=None,
         coszen=None,
     ) :
         '''
-        Calculate oscillation probability for the model
-
-        Returned result has following structure: [ energy, coszen, final flavor ]
+        Propagate an initial state vector (flux) to give a final state (flux), using nuSQuIDS
         '''
-
 
         #
         # Prepare
         #
 
-        assert not ( (initial_flavor is None) and (initial_state is None) ), "Must provide `initial_flavor` or `initial_state`"
-        assert not ( (initial_flavor is not None) and (initial_state is not None) ), "Must provide `initial_flavor` or `initial_state`, not both"
-
-        # Calculate all final state flavors
-        final_flavors = self.states
-
-        # Handle scalars vs arrays
-        energy_GeV = np.asarray( [energy_GeV] if np.isscalar(energy_GeV) else energy_GeV )
-        if distance_km is not None :
-            distance_km = np.asarray( [distance_km] if np.isscalar(distance_km) else distance_km )
-        if coszen is not None :
-            coszen = np.asarray( [coszen] if np.isscalar(coszen) else coszen )
-
-        # Arrays must be 1D
+        assert isinstance(energy_GeV, np.ndarray)
         assert energy_GeV.ndim == 1
-        if distance_km is not None :
-            assert distance_km.ndim == 1
-        if coszen is not None :
-            assert coszen.ndim == 1
 
-        # Handle nubar
-        rho = 1 if nubar else 0
+        assert isinstance(initial_state, np.ndarray)
+
+        rho_values = [0, 1] # nu, nubar
+        final_flavors = self.states
 
 
         #
@@ -1984,46 +2083,51 @@ class OscCalculator(object) :
 
             randomize_atmo_prod_height = False #TODO support
 
-            # Init results container
-            # results = np.full( (energy_GeV.size, coszen.size, final_flavors.size, 2 ), np.NaN )
-            results = np.full( (energy_GeV.size, coszen.size, final_flavors.size ), np.NaN )
+            # Check coszen input
+            assert coszen is not None
+            assert distance_km is None
+            assert isinstance(coszen, np.ndarray)
+            assert coszen.ndim == 1
 
-            # Determine shape of initial state vector in nuSQuIDS
-            state_shape = [ self.nusquids.GetNumCos(), self.nusquids.GetNumE() ]
-            state_shape.append( 2 ) # nu/nubar
-            state_shape.append( final_flavors.size )
-            state_shape = tuple(state_shape)
+            # Check state input
+            initial_state_shape = self.state_shape(energy=self.energy_nodes_GeV, distance=self.coszen_nodes)
+            assert initial_state.shape == initial_state_shape, "Wrong shape for initial state : Found %s, expected %s (energy/coszen dimensions must match nuSQuIDS nodes)" % (initial_state.shape, deimos_state_shape)
 
-            # Define initial state if not provided, otherwise verify the one provided and re-order to match DEIMOS format
-            if initial_state is None :
-                initial_state = np.full( state_shape, 0. )
-                initial_state[ :, :, rho, initial_flavor ] = 1. # dims = [ cz node, E node, nu(bar), flavor ]
-            else :
-                # DEIMOS expects [E, cz, flavor] shape (for either nu or nubar), but nuSQuIDS expects [cz, E, nu/nubar, flavor]. Reformat...
-                input_initial_state = initial_state
-                assert input_initial_state.shape == (state_shape[1], state_shape[0], state_shape[3]), "User provided an incompatible shape for initial state"
-                input_initial_state = np.swapaxes(initial_state, 1, 0) # swap E and cz dimensions
-                initial_state = np.full( state_shape, 0. )
-                for f in range(final_flavors.size) :
-                    for r in range(2) : 
-                        if r == rho :
-                            np.copyto(src=input_initial_state[:,:,f], dst=initial_state[:,:,r,f])
-            assert initial_state.shape == state_shape, "Wrong shape for initial state"
+            # Init output container (DEIMOS format)
+            final_state_shape = self.state_shape(energy=energy_GeV, distance=coszen)
+            final_state = np.full(final_state_shape, np.nan)
+
+            # Determine shape of initial state vector in nuSQuIDS format
+            nusquids_state_shape = tuple([ 
+                self.nusquids.GetNumCos(), 
+                self.nusquids.GetNumE(),
+                len(rho_values), # nu/nubar
+                len(final_flavors),
+            ])
+
+            # Convert initial state to the nuSQuIDS format
+            nusquids_initial_state = np.full(nusquids_state_shape, np.nan)
+            for i_E, E in enumerate(self.energy_nodes_GeV) :
+                for i_cz, cz in enumerate(self.coszen_nodes) :
+                    for i_f, final_flavor in enumerate(final_flavors) :
+                        for i_rho, rho in enumerate(rho_values) :
+                            nusquids_initial_state[i_cz, i_E, i_rho, i_f] = initial_state[i_E, i_cz, i_f, i_rho]
 
             # Set the intial state
-            self.nusquids.Set_initial_state(initial_state, nsq.Basis.flavor)
+            self.nusquids.Set_initial_state(nusquids_initial_state, nsq.Basis.flavor)
 
             # Evolve the state
             self.nusquids.EvolveState()
 
-            # Evaluate the flavor at each grid point to get oscillation probabilities
-            for i_E,E in enumerate(energy_GeV) :
-                for i_cz,cz in enumerate(coszen) :
-                    for i_f,final_flavor in enumerate(final_flavors) :
-                        # results[i_E,i_cz,i_f] = self.nusquids.EvalFlavor( final_flavor, cz, E*self.units.GeV )#, rho ) #TODO Add randomize prod height arg
-                        results[i_E,i_cz,i_f] = self.nusquids.EvalFlavor( int(final_flavor), cz, E*self.units.GeV, int(rho), randomize_atmo_prod_height) #TODO add nubar
+            # Evaluate the flavor at each energy/coszen point to get final state (in DEIMOS formt)
+            # Note that these energy/coszen values do NOT need to match the initial_state grid
+            for i_E, E in enumerate(energy_GeV) :
+                for i_cz, cz in enumerate(coszen) :
+                    for i_f, final_flavor in enumerate(final_flavors) :
+                        for i_rho, rho in enumerate(rho_values) :
+                            final_state[i_E, i_cz, i_f, i_rho] = self.nusquids.EvalFlavor( int(final_flavor), cz, E*self.units.GeV, int(rho), randomize_atmo_prod_height)
 
-            return results
+            return final_state
 
 
         #
@@ -2032,25 +2136,43 @@ class OscCalculator(object) :
 
         else :
 
-            # Init results container
-            results = np.full( (energy_GeV.size, distance_km.size, final_flavors.size), np.NaN )
-            # results = np.full( (energy_GeV.size, distance_km.size, final_flavors.size, 2), np.NaN )
+            # Check distance input
+            assert distance_km is not None
+            assert coszen is None
+            assert isinstance(distance_km, np.ndarray)
+            assert distance_km.ndim == 1
+
+            # Check state input
+            initial_state_shape = self.state_shape(energy=self.energy_nodes_GeV, distance=distance_km)
+            assert initial_state.shape == initial_state_shape, "Wrong shape for initial state : Found %s, expected %s  (energy dimensions must match nuSQuIDS nodes)" % (initial_state.shape, deimos_state_shape)
+
+            # Init results container (DEIMOS format)
+            final_state_shape = self.state_shape(energy=energy_GeV, distance=distance_km)
+            final_state = np.full(final_state_shape, np.nan)
 
             # Determine shape of initial state vector in nuSQuIDS
-            state_shape = [ self.nusquids.GetNumE() ]
-            state_shape.append(2) # nu/nubar
-            state_shape.append( final_flavors.size )
-            state_shape = tuple(state_shape)
-
-            # Define initial state if not provided, otherwise verify the one provided
-            if initial_state is None :
-                initial_state = np.full( state_shape, 0. )
-                initial_state[ :, rho, initial_flavor ] = 1. # dims = [ E node, nu(bar), flavor ]
-            else :
-                assert initial_state.shape == state_shape, "Incompatible shape for initial state : Expected %s, found %s" % (state_shape, initial_state.shape)
+            nusquids_state_shape = tuple([ 
+                self.nusquids.GetNumE(),
+                len(rho_values), # nu/nubar
+                len(final_flavors),
+            ])
 
             # Loop over distance nodes
             for i_L, L in enumerate(distance_km) :
+
+
+                #
+                # Convert initial state to the nuSQuIDS format (at this distance node)
+                #
+
+                nusquids_initial_state = np.full(nusquids_state_shape, np.nan)
+
+                for i_E, E in enumerate(self.energy_nodes_GeV) :
+                    for i_f, final_flavor in enumerate(final_flavors) :
+                        for i_rho, rho in enumerate(rho_values) :
+                            nusquids_initial_state[i_E, i_rho, i_f] = initial_state[i_E, i_L, i_f, i_rho]
+
+                assert np.all(np.isfinite(nusquids_initial_state))
 
 
                 #
@@ -2064,14 +2186,14 @@ class OscCalculator(object) :
 
                     # Vacuum is easy: Just propagate in vacuum
                     self.nusquids.Set_Track(nsq.Vacuum.Track(L*self.units.km))
-                    self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )
+                    self.nusquids.Set_initial_state( nusquids_initial_state, nsq.Basis.flavor )
                     self.nusquids.EvolveState()
 
                 elif self._matter_settings["matter"] == "constant" :
 
                     # Constant density is easy: Just propagate in constant density medium
                     self.nusquids.Set_Track(nsq.ConstantDensity.Track(L*self.units.km))
-                    self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor )
+                    self.nusquids.Set_initial_state( nusquids_initial_state, nsq.Basis.flavor )
                     self.nusquids.EvolveState()
 
                 elif self._matter_settings["matter"] == "layers" :
@@ -2099,7 +2221,7 @@ class OscCalculator(object) :
                         self.nusquids.Set_Body(nsq.ConstantDensity(density, efrac))
                         self.nusquids.Set_Track(nsq.ConstantDensity.Track(L_layer*self.units.km))
                         if L_so_far == 0 :
-                            self.nusquids.Set_initial_state( initial_state, nsq.Basis.flavor ) # Only first step
+                            self.nusquids.Set_initial_state( nusquids_initial_state, nsq.Basis.flavor ) # Only first step
                         self.nusquids.EvolveState()
 
                         # Update distance counter
@@ -2110,19 +2232,16 @@ class OscCalculator(object) :
 
 
                 #
-                # Evaluate final state
+                # Evaluate final state (at this distance node)
                 #
 
-                # Loop over energies
-                for i_e, E in enumerate(energy_GeV) :
-
-                    # Evaluate final state flavor composition
+                for i_E, E in enumerate(energy_GeV) :
                     for i_f, final_flavor in enumerate(final_flavors) :
-                        # for rho in [0, 1] :
-                        #     results[i_e,i_L,i_f,rho] = self.nusquids.EvalFlavor( int(final_flavor), float(E*self.units.GeV), int(rho) )
-                        results[i_e,i_L,i_f] = self.nusquids.EvalFlavor( int(final_flavor), float(E*self.units.GeV), int(rho) )
+                        for i_rho, rho in enumerate(rho_values) :
+                            final_state[i_E, i_L, i_f, i_rho] = self.nusquids.EvalFlavor( int(final_flavor), float(E*self.units.GeV), int(rho) )
 
-            return results
+
+            return final_state
 
 
     def _calc_osc_prob_prob3(self,
@@ -2317,7 +2436,6 @@ class OscCalculator(object) :
         return results
 
 
-
     def _calc_osc_prob_deimos(self,
 
         # Neutrino definition
@@ -2395,85 +2513,6 @@ class OscCalculator(object) :
             results = np.flip(results, axis=1)
 
         return results
-
-
-    def calc_final_flux(self,
-        source,
-        energy_GeV,
-        coszen,
-        nubar=False,
-        model=None,
-    ) :
-        '''
-        Propagate an initial flux to a final flux, accounting for oscillations, matter, etc
-
-        This largely re-uses calc_osc_probs() but with a different format for the initial state
-        '''
-
-        #
-        # Check inputs
-        # 
-
-        # Some limitations of current implementation
-        assert self.atmospheric, "Currently only supporting flux propagation in atmospheric mode"
-
-
-        #
-        # Get initial flux
-        #
-
-        # Get the initital flux before any propagation  #TODO ideally let user provide any flux of their choosing, but run into issues with nusquids since it needs the flux values at its nodes
-        get_neutrino_flux_kw = dict(grid=True, source=source, model=model, overwrite_cache=False)
-        initial_flux = self.get_neutrino_flux(energy_GeV=energy_GeV, coszen=coszen, **get_neutrino_flux_kw)
-
-        # Remove nubar dim
-        rho = 1 if nubar else 0
-        initial_flux = initial_flux[:, :, :, rho]
-
-
-        #
-        # Handle differently for different solvers
-        #
-
-        # Check solver
-        if self.solver == "nusquids" :
-
-
-            #
-            # nuSQuIDS
-            #
-
-            # For nuSQuIDS, must define the initital state vector as the flux at the E and coszen nodes of the nuSQuIDSAtm instance
-            initial_state = self.get_neutrino_flux(energy_GeV=self.energy_nodes_GeV, coszen=self.coszen_nodes, **get_neutrino_flux_kw)
-            initial_state = initial_state[:, :, :, rho]
-
-            # Propagate, (ab)using the calc_osc_prob function
-            final_flux = self.calc_osc_prob(
-                energy_GeV=energy_GeV,
-                initial_state=initial_state,
-                coszen=coszen,
-                nubar=nubar,
-            )
-
-            #TODO potential issues due to differing nodes for the generation of the initial and final state here (MCEq interpolation and nuSQuIDS interpolation). Make it safer though by setting the plotting grid as the nuSQuIDS nodes...
-
-        else :
-
-            raise NotImplementedError("TODO: calc_final_flux not implemented for %s" % self.solver)
-
-
-        #
-        # Done
-        #
-
-        # Check shapes match
-        assert initial_flux.shape == final_flux.shape
-
-        # Checks
-        assert np.all( np.isfinite(initial_flux) ), "Found non-finite initial flux"
-        assert np.all( np.isfinite(final_flux) ), "Found non-finite final flux"
-
-        return initial_flux, final_flux
 
 
     def _convert_coszen_to_baseline_km(self, coszen) :
@@ -2751,16 +2790,14 @@ class OscCalculator(object) :
         nubar=False,
         title=None,
         ax=None,
-        vmin=0.,
-        vmax=1.,
+        vmin=None,
+        vmax=None,
         cmap="jet",
     ) :
         '''
         Helper function for plotting an atmospheric neutrino oscillogram (e.g. 2D plot of P vs [E, coszen])
         '''
         from deimos.utils.plotting import plot_colormap, value_spacing_is_linear
-
-        # assert self.atmospheric, "`plot_oscillogram` can only be called in atmospheric mode"
 
 
         #
