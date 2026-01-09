@@ -1,5 +1,7 @@
 '''
 Plot sideral SME energy-dependence
+
+Script by Simon Hilding-Nørkjær
 '''
 
 
@@ -15,6 +17,7 @@ import collections
 #
 # Main 
 #
+
 if __name__ == "__main__":
 
     #
@@ -22,8 +25,8 @@ if __name__ == "__main__":
     #
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("-s", "--solver", type=str, required=False, default="deimos", help="Solver name")
-    parser.add_argument("-n", "--num-points", type=int, required=False, default=1000, help="Num scan points")
+    parser.add_argument("-s", "--solver", type=str, required=False, default="nusquids", help="Solver name")
+    parser.add_argument("-n", "--num-points", type=int, required=False, default=100, help="Num scan points")
     args = parser.parse_args()
 
 
@@ -35,7 +38,7 @@ if __name__ == "__main__":
     final_flavor = 1
     nubar = False  # False for neutrino, True for antineutrino
 
-    E_values_GeV = np.geomspace(1., 1e5, num=args.num_points)
+    E_values_GeV = np.geomspace(1., 1e6, num=args.num_points)
 
     detector = "IceCube"
     ra_deg = 30.
@@ -54,7 +57,7 @@ if __name__ == "__main__":
     sme_basis = REF_SME_BASIS
 
     # Define "a" operator (magnitude and state texture)
-    a_magnitude_eV = REF_SME_a_MAGNITUDE_eV
+    a_magnitude_eV = REF_SME_a_MAGNITUDE_eV/2
     a_mu_eV = get_sme_state_matrix(p33=a_magnitude_eV) # Choosing 33 element as only non-zero element in germs of flavor
 
     # Define "c" operator (magnitude and state texture)
@@ -88,9 +91,9 @@ if __name__ == "__main__":
 
     # Define cases
     cases = collections.OrderedDict()
-    cases["No SME"] = { "sme_params":None, "color":"black" }
-    cases[r"$a^{%s}_{33}$ = %s eV" % (liv_direction, get_number_tex(a_magnitude_eV))] = { "sme_params":{ "basis":sme_basis, ("a_%s_eV"%liv_direction):a_mu_eV}, "color":"orange" }
-    cases[r"$c^{%s}_{33}$ = %s" % (liv_direction, get_number_tex(c_magnitude))] = { "sme_params":{ "basis":sme_basis, ("c_t%s"%liv_direction):c_t_nu}, "color":"dodgerblue" }
+    cases[r"$a^{%s}_{33}$ = %s eV" % (liv_direction, get_number_tex(a_magnitude_eV))] = { "sme_params":{ "basis":sme_basis, ("a_%s_eV"%liv_direction):a_mu_eV}, "color":"orange" , 'ls':"-", 'lw':2}
+    cases[r"$c^{%s}_{33}$ = %s" % (liv_direction, get_number_tex(c_magnitude))] = { "sme_params":{ "basis":sme_basis, ("c_t%s"%liv_direction):c_t_nu}, "color":"dodgerblue", 'ls':"-", 'lw':2}
+    cases["No SME"] = { "sme_params":None, "color":"black" , 'ls':"--", 'lw':1}
 
     # Create the figure and axis objects
     fig, ax = plt.subplots(figsize=(6, 4))
@@ -112,7 +115,7 @@ if __name__ == "__main__":
         )
 
         # Plot osc probs
-        ax.plot(E_values_GeV, osc_probs[:,final_flavor], color=case["color"], label=case_label, lw=3)
+        ax.plot(E_values_GeV, osc_probs[:,final_flavor], color=case["color"], label=case_label, lw=case['lw'], ls=case['ls'])
 
     # Format plot
     ax.set_xlabel(ENERGY_LABEL, fontsize=14)
@@ -127,6 +130,6 @@ if __name__ == "__main__":
 
     # Save the figure
     print("")
-    dump_figures_to_pdf( __file__.replace(".py",".pdf") )
+    dump_figures_to_pdf( __file__.replace(".py","_" + args.solver + "a1c1.pdf") )
 
     # Done
