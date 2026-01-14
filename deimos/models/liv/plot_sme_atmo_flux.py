@@ -5,14 +5,11 @@ both pre- and post-propagation through the Earth.
 Tom Stuttard
 '''
 
-import sys, os, collections
-
 from deimos.wrapper.osc_calculator import *
 from deimos.utils.plotting import *
 from deimos.utils.constants import *
 
-import matplotlib
-from matplotlib import cm
+from deimos.models.liv.sme import get_sme_state_matrix
 
 
 #
@@ -26,12 +23,17 @@ if __name__ == "__main__" :
     # Steering
     #
 
-    E_values_GeV = np.geomspace(1., 1e6, num=1000)
+    E_values_GeV = np.geomspace(1e1, 1e6, num=1000)
     coszen_values = np.array([-1., 0., +1.]) # upgoing, horizon, downgoing
 
-    matter = "earth"
+    matter = "earth" # earth vacuum
 
     solver = "nusquids"
+
+    # Configure SME
+    sme_basis = "mass"
+    a_mag_eV = 1e-14
+    a_eV = get_sme_state_matrix(p23=a_mag_eV)
 
 
     #
@@ -44,16 +46,15 @@ if __name__ == "__main__" :
         kw["energy_nodes_GeV"] = E_values_GeV
         kw["coszen_nodes"] = coszen_values
         kw["interactions"] = True
+        kw["nusquids_variant"] = "sme"
 
     # Create calculator
     calculator = OscCalculator(
         solver=solver,
         atmospheric=True,
+        matter=matter,
         **kw
     )
-
-    # Set matter
-    calculator.set_matter(matter)
 
 
     #
@@ -69,7 +70,15 @@ if __name__ == "__main__" :
         coszen=coszen_values,
     )
 
-    final_flux = calculator.propagate_flux(
+    calculator.set_std_osc()
+    final_flux_std = calculator.propagate_flux(
+        initial_flux=initial_flux,
+        energy_GeV=E_values_GeV,
+        coszen=coszen_values,
+    )
+
+    calculator.set_sme_isotropic(basis=sme_basis, a_eV=a_eV)
+    final_flux_sme = calculator.propagate_flux(
         initial_flux=initial_flux,
         energy_GeV=E_values_GeV,
         coszen=coszen_values,
@@ -99,18 +108,22 @@ if __name__ == "__main__" :
 
                 # Extract flux for this flavor
                 flavor_initial_flux = initial_flux[:, i_cz, i_f, i_nubar]
-                flavor_final_flux = final_flux[:, i_cz, i_f, i_nubar]
+                flavor_final_flux_std = final_flux_std[:, i_cz, i_f, i_nubar]
+                flavor_final_flux_sme = final_flux_sme[:, i_cz, i_f, i_nubar]
 
                 # Ratios
-                ratio = flavor_final_flux / flavor_initial_flux
+                ratio_std = flavor_final_flux_std / flavor_initial_flux
+                ratio_sme = flavor_final_flux_sme / flavor_initial_flux
 
                 # Plot flux vs energy
                 ax[0, i_cz].plot( E_values_GeV, np.power(E_values_GeV, energy_power)*flavor_initial_flux, color="black", linestyle="-", lw=3, label="Initial flux" )
-                ax[0, i_cz].plot( E_values_GeV, np.power(E_values_GeV, energy_power)*flavor_final_flux, color="orange", linestyle="--", lw=3, label="Final flux" )
+                ax[0, i_cz].plot( E_values_GeV, np.power(E_values_GeV, energy_power)*flavor_final_flux_std, color="orange", linestyle="--", lw=3, label="Final flux (std osc)" )
+                ax[0, i_cz].plot( E_values_GeV, np.power(E_values_GeV, energy_power)*flavor_final_flux_sme, color="dodgerblue", linestyle=":", lw=3, label="Final flux (SME)" )
 
                 # Plot ratios
                 ax[1, i_cz].axhline( 1., color="grey", linestyle="-", lw=3)
-                ax[1, i_cz].plot( E_values_GeV, ratio, color="orange", linestyle="--", lw=3)
+                ax[1, i_cz].plot( E_values_GeV, ratio_std, color="orange", linestyle="--", lw=3)
+                ax[1, i_cz].plot( E_values_GeV, ratio_sme, color="dodgerblue", linestyle=":", lw=3)
 
                 # Format
                 for row in range(2) :
@@ -124,11 +137,10 @@ if __name__ == "__main__" :
                 ax[0, i_cz].set_ylabel(  r"$" + (r"" if energy_power == 0. else r"E^{%0.3g}"%energy_power) + r"\phi" + r"$" )
                 ax[1, i_cz].set_ylabel( "Final/initial flux" )
 
-
             # Format
             fig.tight_layout()
 
 
     # Save
     print("")
-    dump_figures_to_pdf( __file__.replace(".py",".pdf") )
+    dump_figures_to_pdf( __file__.replace(".py", "_"+matter+".pdf") )

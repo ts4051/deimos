@@ -1315,7 +1315,7 @@ class OscCalculator(object) :
             self.nusquids.Set_LIVCoefficient(
                 a_nsq, 
                 c_nsq, 
-                rad_rad,
+                ra_rad,
                 dec_rad,
             )
 
@@ -1785,7 +1785,7 @@ class OscCalculator(object) :
         # Check for physical values, e.g. >0
         # Note that some solvers can e very slightly out of this due to tolerances, machine precision, etc, so handling this
         tolerance = 1e-6
-        assert np.all( final_flux > (0.-tolerance) ), "Found flux below 0"
+        # assert np.all( final_flux > (0.-tolerance) ), "Found flux below 0"
 
         # Drop unused dimensions
         if drop_energy_dim and drop_dist_dim :

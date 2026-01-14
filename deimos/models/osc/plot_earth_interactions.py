@@ -4,14 +4,9 @@ Plot impact of Earth interactions (absorption, NC regeneration, tau regeneration
 Tom Stuttard
 '''
 
-import sys, os, collections
-
 from deimos.wrapper.osc_calculator import *
 from deimos.utils.plotting import *
 from deimos.utils.constants import *
-
-import matplotlib
-from matplotlib import cm
 
 
 #
